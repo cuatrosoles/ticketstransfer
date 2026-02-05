@@ -1,0 +1,31 @@
+{
+  "name": "tickets-transfer-v2",
+  "private": true,
+  "description": "Plataforma de intercambio y reventa segura de entradas digitales - Tickets Transfer (TT)",
+  "version": "2.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm run --parallel dev",
+    "dev:api": "pnpm --filter api dev",
+    "dev:api:run": "cd apps/api && npx tsx watch src/index.ts",
+    "dev:web": "pnpm --filter web dev",
+    "dev:web:run": "cd apps/web && npx vite",
+    "dev:admin": "pnpm --filter admin dev",
+    "dev:admin:run": "cd apps/admin && npx vite",
+    "build": "pnpm run -r build",
+    "build:api": "pnpm --filter api build",
+    "build:web": "pnpm --filter web build",
+    "build:admin": "pnpm --filter admin build",
+    "db:generate": "pnpm --filter api run db:generate",
+    "db:migrate": "pnpm --filter api run db:migrate",
+    "db:studio": "pnpm --filter api run db:studio",
+    "db:push": "pnpm --filter api run db:push"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

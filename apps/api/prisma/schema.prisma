@@ -1,0 +1,232 @@
+// Tickets Transfer v2 – Schema de base de datos
+// Ubicación: apps/api/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Sexo {
+  MASC
+  FEM
+  X
+}
+
+enum KycStatus {
+  PENDIENTE
+  EN_REVISION
+  APROBADO
+  RECHAZADO
+}
+
+enum Ticketera {
+  TICKETEK
+  ALLACCESS
+  TICKETERA
+  TICKET_PLUS
+  OTRA
+}
+
+enum AppBoletos {
+  QUENTRO
+  ENIGMA
+  TICKET360
+  TICKETMAKER
+  OTRA
+}
+
+enum AccionFlujo {
+  VENTA
+  INTERCAMBIO
+}
+
+enum CategoriaEvento {
+  MUSICA
+  DEPORTES
+  TEATRO
+  FESTIVALES
+  OTRO
+}
+
+enum TipoEntrada {
+  GENERAL
+  CAMPO
+  PLATEA
+  VIP
+  OTRO
+}
+
+enum TicketListingStatus {
+  BORRADOR
+  PENDIENTE_VERIFICACION
+  APROBADO
+  RECHAZADO
+  DISPONIBLE
+  PAUSADO
+  VENDIDO
+  ELIMINADO
+}
+
+enum OrderStatus {
+  PENDIENTE_PAGO
+  PAGADO
+  ESPERANDO_TRANSFERENCIA
+  TRANSFERIDO_VENDEDOR
+  ESPERANDO_CONFIRMACION_COMPRADOR
+  EVIDENCIA_SUBIDA
+  VERIFICANDO
+  COMPLETADA
+  CANCELADA
+  EN_DISPUTA
+  DISPUTA_RESUELTA_COMPRADOR
+  DISPUTA_RESUELTA_VENDEDOR
+}
+
+enum DisputeStatus {
+  ABIERTA
+  EN_REVISION
+  ESPERANDO_INFO
+  RESUELTA_FAVOR_COMPRADOR
+  RESUELTA_FAVOR_VENDEDOR
+}
+
+model User {
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  passwordHash       String    @map("password_hash")
+  firstName          String?   @map("first_name")
+  lastName           String?   @map("last_name")
+  country            String?
+  tipoDocumento      String?   @map("tipo_documento")
+  documentNumber     String?   @map("document_number")
+  sexo               Sexo?
+  phone              String?
+  dateOfBirth        DateTime? @map("date_of_birth")
+  city               String?
+  province           String?
+  postalCode         String?   @map("postal_code")
+  role               String    @default("user")
+  emailVerified      Boolean   @default(false) @map("email_verified")
+  verificationToken  String?   @map("verification_token")
+  resetPasswordToken String?   @map("reset_password_token")
+  resetPasswordExpires DateTime? @map("reset_password_expires")
+  reputationScore    Float?    @default(0) @map("reputation_score")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  kyc            KycVerification?
+  onboarding     UserOnboarding?
+  ticketListings TicketListing[]  @relation("Seller")
+  ordersAsBuyer  Order[]          @relation("Buyer")
+  ordersAsSeller Order[]          @relation("Seller")
+  disputeMessages DisputeMessage[]
+}
+
+model UserOnboarding {
+  id          String   @id @default(uuid())
+  userId      String   @unique @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accion      String[]
+  ticketeras  String[]
+  appsBoletos String[] @map("apps_boletos")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+}
+
+model KycVerification {
+  id             String     @id @default(uuid())
+  userId         String     @unique @map("user_id")
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status         KycStatus  @default(PENDIENTE)
+  dniFrontUrl    String?    @map("dni_front_url")
+  dniBackUrl     String?    @map("dni_back_url")
+  selfieUrl      String?    @map("selfie_url")
+  rejectionReason String?   @map("rejection_reason")
+  reviewedAt     DateTime?  @map("reviewed_at")
+  reviewedBy     String?    @map("reviewed_by")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+}
+
+model TicketListing {
+  id                 String             @id @default(uuid())
+  sellerId           String             @map("seller_id")
+  seller             User               @relation("Seller", fields: [sellerId], references: [id], onDelete: Cascade)
+  eventName          String             @map("event_name")
+  eventDate          DateTime           @map("event_date")
+  eventPlace         String?            @map("event_place")
+  sector             String?
+  row                String?
+  seat               String?
+  tipoEntrada        TipoEntrada        @map("tipo_entrada")
+  price              Float
+  currency           String             @default("ARS")
+  ticketera          Ticketera
+  appBoletos         AppBoletos         @map("app_boletos")
+  orderRef           String?            @map("order_ref")
+  category           CategoriaEvento?   @default(OTRO)
+  status             TicketListingStatus @default(BORRADOR)
+  captureTicketUrl   String?            @map("capture_ticket_url")
+  captureOwnershipUrl String?           @map("capture_ownership_url")
+  verificationResult Json?              @map("verification_result")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  orders Order[]
+}
+
+model Order {
+  id                String      @id @default(uuid())
+  ticketListingId   String      @map("ticket_listing_id")
+  ticketListing     TicketListing @relation(fields: [ticketListingId], references: [id])
+  buyerId           String      @map("buyer_id")
+  buyer             User        @relation("Buyer", fields: [buyerId], references: [id])
+  sellerId          String      @map("seller_id")
+  seller            User        @relation("Seller", fields: [sellerId], references: [id])
+  status            OrderStatus @default(PENDIENTE_PAGO)
+  totalAmount       Float       @map("total_amount")
+  currency          String      @default("ARS")
+  commissionAmount  Float?      @map("commission_amount")
+  paymentIntentId   String?     @map("payment_intent_id")
+  paymentMethod     String?     @map("payment_method")
+  transferDeadline  DateTime?   @map("transfer_deadline")
+  buyerConfirmedAt  DateTime?   @map("buyer_confirmed_at")
+  evidenceUrl      String?     @map("evidence_url")
+  verificationResult Json?     @map("verification_result")
+  completedAt      DateTime?   @map("completed_at")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  dispute Dispute?
+}
+
+model Dispute {
+  id         String        @id @default(uuid())
+  orderId    String        @unique @map("order_id")
+  order      Order         @relation(fields: [orderId], references: [id])
+  status     DisputeStatus @default(ABIERTA)
+  reason     String?
+  resolution String?
+  resolvedAt DateTime?     @map("resolved_at")
+  resolvedBy String?       @map("resolved_by")
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+
+  messages DisputeMessage[]
+}
+
+model DisputeMessage {
+  id           String   @id @default(uuid())
+  disputeId    String   @map("dispute_id")
+  dispute      Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  userId       String   @map("user_id")
+  user         User     @relation(fields: [userId], references: [id])
+  content      String
+  isModerator  Boolean  @default(false) @map("is_moderator")
+  attachmentUrl String? @map("attachment_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+}

@@ -1,0 +1,361 @@
+Prompt 02 (04/02/2026)
+
+Quiero que actúes como un experto desarrollador de plataformas webs y aplicaciones móviles usando tecnología híbrida, y me generes toda la estructura con el stack tecnológico más adecuado para la idea y descripción del proyecto que voy a presentarte a continuación.
+Mi idea o proyecto es una app en donde se puedan hacer intercambio-reventa de entradas (tickets), ya que las entradas se han hecho digitales hoy en dia con el avance de la tecnología en apps donde ofrecen un código QR temporal.
+Por ejemplo: una app a la cual ambas personas, el comprador y el vendedor, puedan acceder de forma segura y como mediador sería la app, donde el comprador pueda depositar su dinero y que la app lo tenga y de aviso al vendedor que el dinero está depositado y es seguro para la transferencia de las entradas, ambas partes cargar sus datos para mayor seguridad, y poder asi concretar una venta-intercambio exitoso, por el caso que sea a través de la app Quentro, y ser de 1 sola transferencia la entrada, primero deberá depositarse el dinero del comprador el cual quedará retenido por la app. En caso de no transferirse las entradas el dinero se le reintegrará al comprador. En caso de ser una plataforma de entradas digitales con más de 1 sola transferencia, al comprador igual se le podrá dar la seguridad de que las entradas están transferidas a nuestra plataforma, única con cuenta en cada app de entradas digitales, lista para su transferencia una vez realizado el pago en transferencia bancaria, en caso de no acreditarse el pago, se le reintegran las entradas a la app de entradas digitales del vendedor, asi y mas seria una idea básica y resumida del proyecto, por el momento con uso únicamente en Argentina, donde 2 personas puedan mediar a través de esta app y les de confort y seguridad al momento de realizar este tipo de reventa-intercambio, ya que se sufren muchos tipos de fraudes y estafas en la actualidad.
+
+EJEMPLO
+Pantalla de Inicio
+
+¡Bienvenido a TicketsTransfer (TT)!
+Tu forma segura de revender-intercambiar
+Tus entradas digitales a eventos en argentina
+
+Por favor indícanos tus datos para iniciar
+Recuerda que tus datos están seguros con nosotros
+Nadie podrá verlos antes de realiza una venta o intercambio
+
+A continuación indicamos que acción quieres realizar:
+VENTA □ INTERCAMBIO□
+
+Indicanos en que ticketera realizaste la compra de la entrada:
+
+TICKETECK □ ALLACCES□ TICKETERA□ TICKET PLUS□ Etc...
+
+A continuación indícanos en que app de boletos digitales se acreditaron tus entradas:
+
+QUENTRO□ ENIGMA□ TICKET360□ TICKETMAKER□ Etc…
+
+FIN EJEMPLO
+
+
+Tambien ajusta tu implementación a estos lineamientos y observaciones: 
+
+🎨 PANTALLAS NECESARIAS - FLUJO COMPLETO
+🟦 A - AUTENTICACIÓN Y PERFIL
+1. Pantalla de bienvenida
+Logo “Tickets Transfer - TT”
+Botones: “Registrarme”, “Iniciar sesión”
+2. Registro
+Campos:
+Email
+Contraseña
+Confirmar contraseña
+País (vacío)
+Tipo de documento (vacío)
+Sexo (Masculino / Femenino / X)
+Teléfono (con el +549 preagregado en campo NRO DE TELÉFONO)
+Fecha de nacimiento
+Botón: “Crear cuenta”
+3. Login
+Email
+Contraseña
+Recuperar contraseña
+4. Verificación de identidad (KYC)
+Subir foto DNI (frente y dorso)
+Selfie de verificación
+Estado: “Pendiente / Aprobado / Rechazado”
+🟦 B - HOME + NAVEGACIÓN PRINCIPAL
+5. Home / Dashboard
+Buscador de eventos
+Categorías: Música / Deportes / Teatro / Festivales
+“Publicar ticket”
+“Mis compras”
+“Mis ventas”
+6. Detalle de evento
+Nombre
+Fecha
+Lugar
+Entradas disponibles
+Filtros: sector, precio, tipo
+7. Detalle de ticket listado
+Sector / fila / asiento
+Precio
+Información del vendedor
+Botón: “Comprar de forma segura”
+🟦 C - PUBLICACIÓN DE TICKET (Vendedor)
+8. Pantalla “Publicar ticket”
+Seleccionar evento
+Seleccionar tipo de ticket (general, platea, VIP, etc.)
+Subir captura de ticket (QR pixelado obligatorio o autocensurado)
+Ingresar ID de orden o referencia de ticketería
+Subir captura de titularidad del ticket (screenshot de la cuenta oficial)
+Precio del ticket
+Botón: “Publicar”
+9. Revisión antifraude inicial
+Estado: “Verificando autenticidad…”
+Indicador de progreso (OCR, coincidencias, etc.)
+Resultado: “Tu ticket fue aprobado / rechazado”.
+🟦 D - PROCESO DE COMPRA (Comprador)
+10. Pantalla de compra
+Detalle del ticket
+Precio
+Comisión
+Total
+Medio de pago
+Botón: “Pagar y continuar”
+11. Pantalla de pago (escrow)
+Ingreso de tarjeta / Mercado Pago / Stripe
+Explicación del sistema:
+“Tu pago será retenido hasta que el vendedor transfiera las entradas.”
+Botón: “Confirmar pago”
+12. Confirmación de pago
+Estado del pago: “Pago recibido. Esperando la transferencia del vendedor.”
+🟦 E - TRANSFERENCIA DE TICKETS (Vendedor)
+13. Instrucciones para transferir ticket
+Paso a paso según ticketería:
+Ticketek: “Ir a Mis Entradas > Transferir > Ingresar email del comprador”
+Ticketmaster: “Transfer to…”
+Email del comprador visible
+Temporizador: vendedor tiene X horas para transferir
+Botón: “Ya lo transferí”
+14. Subida de comprobante (opcional)
+Subir capture de pantalla donde muestre “Transferencia realizada”
+(La app igual espera confirmación del comprador o validación OCR)
+🟦 F - CONFIRMACIÓN DE RECEPCIÓN (Comprador)
+15. Pantalla: “¿Recibiste tu ticket?”
+No depende del comprador para liberar el pago, pero sí para acelerar el proceso.
+Botones:
+“Sí, ya lo tengo”
+“Todavía no llegó”
+16. Subida de evidencia
+Subir captura desde la app oficial (Ticketek/Ticketmaster)
+Muestra ticket ya en su cuenta
+Muestra nombre del comprador
+OCR analiza el documento
+Botón: “Enviar verificación”
+🟦 G - VALIDACIÓN AUTOMÁTICA
+17. Estado de verificación
+Estados posibles:
+“Verificando autenticidad…”
+“Ticket válido: coincide con el publicado”
+“Ticket transferido con éxito”
+“Inconsistencias detectadas” (abre disputa automáticamente)
+🟦 H - LIBERACIÓN DEL PAGO
+18. Pantalla final según resultado
+✔ Si todo está OK:
+“¡Ticket verificado! La transferencia fue exitosa.”
+“Estamos liberando el pago al vendedor.”
+❌ Si hubo un problema:
+“Detectamos inconsistencias. Iniciaremos una revisión manual.”
+Botón: “Ver disputa”
+🟦 I - SISTEMA DE DISPUTAS
+19. Pantalla de disputa
+Motivo de disputa
+Evidencia de ambas partes
+Chat interno con moderación
+Estado: “En revisión / Resuelta / Fallo a favor del comprador / a favor del vendedor”
+🟦 J - PERFIL Y AJUSTES
+20. Perfil
+Datos personales
+Verificación KYC
+Métodos de pago
+Historial de compras y ventas
+Reputación (puntos, estrellas)
+21. Notificaciones
+Transferencia iniciada
+Transferencia confirmada
+Pago liberado
+Disputa abierta/cerrada
+🟦 K - HISTORIAL
+22. Mis compras
+Lista con:
+Ticket
+Estado
+Fecha
+Detalle
+23. Mis ventas
+Igual que compras pero para ventas.
+🟦 RESUMEN GENERAL (en orden de uso)
+Bienvenida → Registro → KYC
+Home
+Publicación de ticket
+Verificación interna
+Compra → pago retenido
+Vendedor transfiere via ticketería
+Comprador sube evidencia
+App valida automáticamente
+Pago liberado
+Disputas (si corresponde)
+
+
+🚀 FLUJO DE LA APP - PANTALLAS EN FORMATO PASO A PASO
+🟦 1. Bienvenida
+Pantalla:
+Logo TT (Tickets Transfer)
+Botones: Iniciar sesión / Registrarme
+Objetivo: entrada a la app.
+🟦 2. Registro
+Campos:
+Email
+Contraseña
+País (VACÍO, desplegable sin default)
+Tipo de documento (VACÍO)
+Sexo (MASC / FEM / X) como campo aparte
+Teléfono → campo “Nro de teléfono” con:
+Prefijo fijo: +549⬇️ (dropdown)
+Fecha de nacimiento
+Botón: Crear cuenta
+Validaciones: email válido, contraseña fuerte.
+🟦 3. Verificación de identidad (KYC)
+Pantalla 3A – Subir DNI
+Frente del documento
+Dorso del documento
+Selfie
+Pantalla 3B – Estado
+“Pendiente / Verificando / Aprobado”
+Objetivo: evitar cuentas falsas y gente que revenda robado.
+🟦 4. Home / Dashboard
+Elementos:
+Buscador de eventos
+Eventos destacados
+Botones grandes:
+Publicar ticket
+Mis Compras
+Mis Ventas
+Objetivo: navegación general.
+🟦 5. Selección de evento
+Al querer vender:
+Listado de eventos por fecha
+O buscador
+Botón: Seleccionar
+🟦 6. Publicar ticket - Datos
+Campos:
+Tipo de entrada: general, campo, platea, VIP
+Sector, fila, asiento (si aplica)
+Precio a pedir
+Subir captura del ticket (con QR pixelado)
+Subir captura de titularidad (screenshot de la cuenta de Ticketek/Ticketmaster mostrando que el ticket es del vendedor)
+Código de orden o referencia (si existe)
+Botón: Continuar
+🟦 7. Revisión antifraude inicial
+Texto:
+“Estamos verificando la autenticidad del ticket…”
+Indicadores:
+OCR de datos
+Coincidencia con captura original
+Validación de patrones típicos de entradas reales
+Resultado:
+✔ Aprobado → va a la publicación
+❌ Rechazado → botón “Corregir y reintentar”
+🟦 8. Listado del ticket ya publicado
+Vista pública
+Ver precio
+Estado: Disponible
+Botones:
+Compartir
+Editar precio
+Pausar / eliminar
+🟦 9. El comprador ve un ticket
+Pantalla de ficha del ticket:
+Evento
+Fecha
+Sector
+Precio
+Información del vendedor (solo reputación, NO datos personales)
+Botón: Comprar de forma segura
+🟦 10. Pantalla de pago
+Resumen:
+Precio del ticket
+Comisión (si se cobra)
+Total
+Métodos habilitados:
+Tarjeta
+Mercado Pago
+Stripe
+Aviso claro:
+“Tu dinero será retenido hasta que el vendedor transfiera el ticket a tu cuenta oficial.”
+Botón: Pagar ahora
+🟦 11. Pago exitoso
+Pantalla:
+“Pago recibido. Ahora estamos esperando que el vendedor te envíe el ticket en la plataforma oficial.”
+Indicador:
+Reloj con cuenta regresiva (ej: vendedor tiene 3 horas)
+🟦 12. Al vendedor le aparece: “Transferí tu ticket”
+Pantalla de instrucciones detallada según la ticketería seleccionada:
+Por ejemplo Ticketek:
+Abrí la app de Ticketek
+Ir a “Mis Entradas”
+Elegí el ticket
+Presioná “Transferir”
+Ingresá este email → email del comprador (se autocompleta)
+Botón: Ya lo transferí
+🟦 13. Vendedor sube comprobante
+(Opcional pero recomendado)
+Subí screenshot donde se vea:
+Que la entrada fue transferida
+Destinatario (email)
+Fecha y hora
+Botón: Enviar
+🟦 14. Comprador recibe notificación
+Pantalla:
+“¿Recibiste el ticket en tu app oficial?”
+Botones:
+Sí, ya lo tengo
+Aún no llegó
+NOTA:
+Esto NO libera el pago, solo acelera la verificación.
+🟦 15. Subir prueba de recepción
+El comprador debe subir captura desde Ticketek/Ticketmaster donde se vea:
+Su nombre
+El ticket ahora en su cuenta
+El QR (pixelado automáticamente para seguridad)
+ID del ticket
+Botón: Enviar verificación
+🟦 16. Validación automática
+Pantalla:
+“Iniciando verificación…”
+La app analiza:
+OCR de datos
+Coincidencia exacta con los datos del ticket publicado
+Que pertenece al comprador
+Que no está usado/cancelado (si hay API u OCR lo detecta)
+Estados posibles:
+Verificado
+En disputa (algo no coincide)
+🟦 17. Resultado final
+✔ Caso OK
+Pantalla:
+“¡Ticket verificado correctamente!”
+“Estamos liberando el pago al vendedor.”
+Botón: Ir al Home
+❌ Caso con problema
+Pantalla:
+“Detectamos inconsistencias en el ticket o la transferencia.”
+“Se abrirá una disputa.”
+Botón: Ver disputa
+🟦 18. Disputas
+Pantalla de disputa:
+Chat interno vendedor ↔️ moderador ↔️ comprador
+Subida de evidencia
+Barra de estado:
+Revisando
+Esperando información
+Resuelto
+Resolución:
+Dinero vuelve al comprador
+Dinero liberado al vendedor
+🟦 19. Historial de compras y ventas
+Dos pantallas:
+Mis compras → detalles, estados, evidencia subida
+Mis ventas → movimientos, montos, estados
+🟦 20. Perfil
+Datos personales
+Teléfono
+País
+Documento
+Verificación KYC
+Métodos de cobro
+Reputación (puntos, estrellas, operaciones completadas)
+
+Realiza las siguientes acciones:
+1 - Lleva a cabo la realización de la plataforma TicketsTransfers en forma completa, funcional, moderna y optimizada, teniendo en cuenta que será un aplicativo web con panel administrativo y una app para dispositivos móviles Android e iOS. Utiliza, salvo tu mejor criterio, como stack tecnologico, frontend (Web Publica y Panel Admin): React, backend API: Node con Express, Versiones Moviles (Android e iOS): React Native, con completa integracion con la base de datos.
+2 - Implementa todas y cada una de las tareas de implementacion: creación de directorios y carpetas, bases de datos, archivos con su correspondiente codigo, funciones, imágenes, scripts, etc.
+3 - Dame las indicaciones exactas, actualizadas y adecuadas, para el caso de acciones que deban ser ineludiblemente realizadas por mi parte.
+4 - En todos los casos de código generado, completo o parcial, indica su ubicación dentro de la estructura del proyecto.
+5 - Ajusta la generación e implementación, en el aspecto estructural visual, UX e UI, estilos y diseño, a las imágenes que te adjunto a continuación.
+6 - Una vez tenga todo implementado y funcional, indicame lo necesario para generar una version web tanto de la parte publica como administrativa, y una version movil (un archivo .apk instalable en dispositivos Android).
+
+
+
+
