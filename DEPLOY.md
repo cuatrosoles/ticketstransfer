@@ -48,10 +48,11 @@ Si todavía no tenés el proyecto en GitHub:
 
    - **Root Directory:** si el repo es solo la carpeta `v2` (con `apps/` y `packages/` adentro), dejá vacío o `.`. Si el repo tiene `v2` dentro, poné `v2`.
 
-   - **Build Command** (en Settings → Build). Para este monorepo (pnpm) desde la raíz del repo:
+   - **Build Command** (en Settings → Build). Desde la raíz del repo (o desde la carpeta `v2` si configuraste Root Directory = v2):
      ```bash
      pnpm install && pnpm --filter api run db:generate && pnpm --filter api build
      ```
+     (La API se construye con esbuild y ya incluye el paquete `shared` en el bundle, así que no hace falta compilar `shared` por separado.)
 
    - **Start Command:**
      ```bash

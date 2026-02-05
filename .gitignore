@@ -1,1 +1,7 @@
 node_modules
+
+# Build outputs (no subir a Git)
+*.apk
+*.aab
+apps/mobile/android/app/build/
+apps/mobile/ios/build/
