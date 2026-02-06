@@ -14,7 +14,7 @@ const API_TIMEOUT_MS = 15000;
  * URL de la API en producción. Cuando subas la API a un hosting (Railway, Hostinger, etc.),
  * poné acá esa URL (con https) y generá el APK. Null = desarrollo (emulador/simulador).
  */
-const API_BASE_OVERRIDE: string | null = null;
+const API_BASE_OVERRIDE: string | null = 'https://ticketstransfer-production.up.railway.app';
 
 const API_BASE =
   API_BASE_OVERRIDE ??
