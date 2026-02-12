@@ -7,6 +7,7 @@
 
 const DIDIT_BASE = 'https://verification.didit.me';
 const DIDIT_API_KEY = process.env.DIDIT_API_KEY;
+const DIDIT_WORKFLOW_ID = process.env.DIDIT_WORKFLOW_ID;
 
 export type DiditSessionResponse = {
   session_id: string;
@@ -29,8 +30,14 @@ export async function createDiditSession(params: DiditCreateSessionParams): Prom
   if (!DIDIT_API_KEY) {
     throw new Error('DIDIT_API_KEY no configurado. Configurá en business.didit.me y en .env');
   }
+  if (!DIDIT_WORKFLOW_ID) {
+    throw new Error(
+      'DIDIT_WORKFLOW_ID no configurado. Creá un workflow en business.didit.me → Verifications → Workflows y copiá el ID.'
+    );
+  }
 
   const body = {
+    workflow_id: DIDIT_WORKFLOW_ID,
     callback: params.callback,
     vendor_data: params.vendor_data,
     ...(params.features && { features: params.features }),

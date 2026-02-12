@@ -44,8 +44,11 @@ En `apps/api/.env`:
 ```env
 DIDIT_API_KEY="tu-api-key"
 DIDIT_WEBHOOK_SECRET_KEY="tu-webhook-secret"
+DIDIT_WORKFLOW_ID="tu-workflow-id"   # Crear en Verifications → Workflows → copiar el ID
 WEB_URL="https://tu-dominio-web.com"   # Para callback web
 ```
+
+**Workflow ID**: Creá un workflow KYC en la consola de Didit (Verifications → Workflows). El workflow define los pasos de verificación (documento, selfie, liveness). Copiá el ID del workflow (formato UUID) y configuralo en `DIDIT_WORKFLOW_ID`.
 
 ### 3. Webhook en Didit
 
