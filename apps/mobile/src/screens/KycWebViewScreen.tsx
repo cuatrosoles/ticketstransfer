@@ -4,7 +4,15 @@
  */
 
 import * as React from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import { useEffect } from 'react';
+import {
+  View,
+  StyleSheet,
+  ActivityIndicator,
+  Text,
+  TouchableOpacity,
+  Linking,
+} from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
@@ -22,6 +30,19 @@ export function KycWebViewScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<KycWebViewRoute>();
   const { sessionUrl } = route.params;
+
+  useEffect(() => {
+    const handler = (event: { url: string }) => {
+      if (
+        event.url.startsWith('ticketTransfer://') ||
+        event.url.includes('/kyc/callback')
+      ) {
+        navigation.goBack();
+      }
+    };
+    const sub = Linking.addEventListener('url', handler);
+    return () => sub.remove();
+  }, [navigation]);
 
   const handleShouldStartLoad = (request: { url: string }) => {
     const url = request.url || '';
@@ -47,7 +68,9 @@ export function KycWebViewScreen() {
           androidLayerType="hardware"
           onNavigationStateChange={(nav) => {
             const u = nav.url || '';
-            if (u.startsWith('ticketTransfer://') || u.includes('/kyc/callback')) navigation.goBack();
+            if (u.startsWith('ticketTransfer://') || u.includes('/kyc/callback')) {
+              navigation.goBack();
+            }
           }}
           startInLoadingState={true}
           renderLoading={() => (

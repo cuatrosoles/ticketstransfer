@@ -130,6 +130,7 @@ router.post('/kyc/session', async (req: AuthRequest, res) => {
   const webUrl = process.env.WEB_URL || process.env.APP_URL || 'http://localhost:5173';
   const platform = (req.body?.platform as string) || 'web';
 
+  // Callback: web = URL absoluta; móvil = deep link ticketTransfer://
   const callback =
     platform === 'mobile'
       ? 'ticketTransfer://kyc/callback'

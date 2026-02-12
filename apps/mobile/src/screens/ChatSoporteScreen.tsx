@@ -1,6 +1,6 @@
 /**
- * Chat Soporte – Atención al cliente en tiempo real.
- * Contenido dummy. Enlazado desde menú usuario.
+ * Chat Soporte – Contenido dummy.
+ * Ubicación: apps/mobile/src/screens/ChatSoporteScreen.tsx
  */
 
 import * as React from 'react';
@@ -15,10 +15,10 @@ export function ChatSoporteScreen() {
         <View style={[styles.card, glassCard]}>
           <Text style={styles.cardTitle}></Text>
           <Text style={styles.cardText}>
-            Escribinos por acá si tenés dudas sobre una compra, una venta o el funcionamiento de la app. Nuestro equipo te responde en horario comercial.
+            Conectate con nuestro equipo de soporte para resolver dudas, reportar problemas o solicitar ayuda con tus operaciones.
           </Text>
-          <Text style={[styles.cardText, styles.muted]}>
-            El chat estará disponible próximamente. Mientras tanto, podés contactarnos por email a soporte@ticketstransfer.com o por nuestras redes sociales.
+          <Text style={styles.dummy}>
+            El chat de soporte estará disponible próximamente. Mientras tanto, podés contactarnos por los canales indicados en Acerca de.
           </Text>
         </View>
       </ScrollView>
@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingTop: 160, paddingHorizontal: spacing.lg, paddingBottom: 48 },
   card: { padding: spacing.lg },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
-  cardText: { fontSize: 14, color: colors.textMuted, lineHeight: 22, marginTop: spacing.sm },
-  muted: { marginTop: spacing.md, fontSize: 13 },
+  cardTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
+  cardText: { fontSize: 14, color: colors.textMuted, lineHeight: 22 },
+  dummy: { fontSize: 13, color: colors.textMuted, marginTop: spacing.md, fontStyle: 'italic' },
 });

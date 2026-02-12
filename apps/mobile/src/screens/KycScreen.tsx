@@ -1,6 +1,9 @@
 /**
- * Verificación de identidad (KYC) – Didit SDK via WebView
- * Estado y botón para iniciar flujo con captura de documento + liveness check.
+ * Verificación KYC – Didit (WebView). Estado y botón para iniciar flujo con documento + liveness.
+ * Ubicación: apps/mobile/src/screens/KycScreen.tsx
+ *
+ * Flujo: createKycSession → abre KycWebView con URL Didit → liveness + documento en WebView.
+ * Al terminar Didit redirige a ticketTransfer://kyc/callback y el WebView cierra.
  */
 
 import * as React from 'react';
@@ -14,11 +17,12 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { getKyc, createKycSession } from '../lib/api';
-import { colors, spacing, radius } from '../theme';
+import { AuthBackground } from '../components/AuthBackground';
+import { colors, spacing, radius, glassCard } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Kyc'>;
 
@@ -40,9 +44,11 @@ export function KycScreen() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      load();
+    }, [])
+  );
 
   const handleStartVerification = async () => {
     setStarting(true);
@@ -58,9 +64,11 @@ export function KycScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
+      <AuthBackground>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </AuthBackground>
     );
   }
 
@@ -72,80 +80,81 @@ export function KycScreen() {
         : status === 'EN_REVISION'
           ? 'En revisión'
           : 'Pendiente';
-  const canStart = status === 'PENDIENTE' || status === 'RECHAZADO';
-
+  const canStart = (status === 'PENDIENTE' || status === 'RECHAZADO') && !starting;
   const statusDotColor =
     status === 'APROBADO' ? '#22c55e' : status === 'RECHAZADO' ? '#ef4444' : '#eab308';
 
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Estado de tu verificación</Text>
-        <View style={styles.statusRow}>
-          <View style={[styles.statusDot, { backgroundColor: statusDotColor }]} />
-          <Text
-            style={[
-              styles.status,
-              status === 'APROBADO' && styles.statusOk,
-              status === 'RECHAZADO' && styles.statusError,
-            ]}
-          >
-            {statusLabel}
-          </Text>
+    <AuthBackground>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <View style={[styles.card, glassCard]}>
+          <Text style={styles.cardTitle}>Estado de tu verificación</Text>
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, { backgroundColor: statusDotColor }]} />
+            <Text
+              style={[
+                styles.status,
+                status === 'APROBADO' && styles.statusOk,
+                status === 'RECHAZADO' && styles.statusError,
+              ]}
+            >
+              {statusLabel}
+            </Text>
+          </View>
+          <View style={styles.legend}>
+            <View style={styles.legendRow}>
+              <View style={[styles.statusDot, styles.dotYellow]} />
+              <Text style={styles.legendText}>Pendiente</Text>
+            </View>
+            <View style={styles.legendRow}>
+              <View style={[styles.statusDot, styles.dotGreen]} />
+              <Text style={styles.legendText}>Aprobado</Text>
+            </View>
+            <View style={styles.legendRow}>
+              <View style={[styles.statusDot, styles.dotRed]} />
+              <Text style={styles.legendText}>Rechazado</Text>
+            </View>
+          </View>
+          {rejectionReason ? <Text style={styles.reason}>{rejectionReason}</Text> : null}
         </View>
-        <View style={styles.legend}>
-          <View style={styles.legendRow}>
-            <View style={[styles.statusDot, styles.dotYellow]} />
-            <Text style={styles.legendText}>Pendiente</Text>
-          </View>
-          <View style={styles.legendRow}>
-            <View style={[styles.statusDot, styles.dotGreen]} />
-            <Text style={styles.legendText}>Aprobado</Text>
-          </View>
-          <View style={styles.legendRow}>
-            <View style={[styles.statusDot, styles.dotRed]} />
-            <Text style={styles.legendText}>Rechazado</Text>
-          </View>
-        </View>
-        {rejectionReason ? <Text style={styles.reason}>{rejectionReason}</Text> : null}
-      </View>
 
-      {canStart && (
-        <>
-          <Text style={styles.infoText}>
-            Verificá tu identidad con fotos de tu documento y selfie. Usaremos la cámara para una
-            prueba de vida (liveness).
-          </Text>
-          <TouchableOpacity
-            style={[styles.primaryButton, starting && styles.disabled]}
-            onPress={handleStartVerification}
-            disabled={starting}
-          >
-            {starting ? (
-              <ActivityIndicator color={colors.white} />
-            ) : (
-              <Text style={styles.primaryButtonText}>Iniciar verificación</Text>
-            )}
-          </TouchableOpacity>
-        </>
-      )}
+        {canStart && (
+          <>
+            <Text style={styles.helpText}>
+              Verificá tu identidad con fotos de tu documento y selfie. Usaremos la cámara para una
+              prueba de vida (liveness).
+            </Text>
+            <TouchableOpacity
+              style={[styles.primaryButton, starting && styles.disabled]}
+              onPress={handleStartVerification}
+              disabled={starting}
+            >
+              {starting ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={styles.primaryButtonText}>Iniciar verificación</Text>
+              )}
+            </TouchableOpacity>
+          </>
+        )}
 
-      <Text style={styles.helpText}>
-        Podés usar la app mientras verificamos. No podrás publicar ni comprar tickets hasta que el
-        estado sea Aprobado.
-      </Text>
-      <TouchableOpacity style={styles.backLink} onPress={() => navigation.navigate('Main')}>
-        <Text style={styles.backLinkText}>Ir al inicio</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <Text style={styles.helpText}>
+          Podés usar la app mientras verificamos. No podrás publicar ni comprar tickets hasta que el
+          estado sea Aprobado.
+        </Text>
+        <TouchableOpacity style={styles.backLink} onPress={() => navigation.navigate('Main', {})}>
+          <Text style={styles.backLinkText}>Ir al inicio</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </AuthBackground>
   );
 }
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { padding: spacing.lg, paddingBottom: 48 },
+  content: { paddingTop: 260, paddingHorizontal: spacing.lg, paddingBottom: 48 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  card: { padding: spacing.lg, marginBottom: spacing.lg, backgroundColor: 'rgba(30, 58, 138, 0.3)', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.3)' },
+  card: { padding: spacing.lg, marginBottom: spacing.lg },
   cardTitle: { fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: spacing.sm },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   statusDot: { width: 14, height: 14, borderRadius: 7 },
@@ -159,17 +168,16 @@ const styles = StyleSheet.create({
   statusOk: { color: '#22c55e' },
   statusError: { color: '#ef4444' },
   reason: { marginTop: spacing.sm, fontSize: 14, color: colors.textMuted },
-  infoText: { fontSize: 14, color: colors.textMuted, marginBottom: spacing.lg, lineHeight: 20 },
+  helpText: { fontSize: 13, color: colors.textMuted, marginTop: spacing.lg, lineHeight: 20 },
   primaryButton: {
     backgroundColor: colors.primary,
     paddingVertical: 14,
     borderRadius: radius,
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginTop: spacing.sm,
   },
   primaryButtonText: { color: colors.white, fontWeight: '600', fontSize: 16 },
   disabled: { opacity: 0.7 },
-  helpText: { fontSize: 13, color: colors.textMuted, marginTop: spacing.lg, lineHeight: 20 },
   backLink: { marginTop: spacing.lg, alignSelf: 'center' },
   backLinkText: { color: colors.primaryLight, fontWeight: '600', fontSize: 15 },
 });

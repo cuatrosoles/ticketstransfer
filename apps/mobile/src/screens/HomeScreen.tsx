@@ -1,60 +1,131 @@
 /**
- * Home – Publicar ticket, KYC, Mis compras, Mis ventas
+ * Home – INICIO (centrado, letra grande), icono usuario → menú; tarjetas KYC, Publicar, Comprar Ticket, Mis compras/ventas; redes; Cerrar Sesion.
  * Ubicación: apps/mobile/src/screens/HomeScreen.tsx
  */
 
 import * as React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Linking,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { useAuth } from '../context/AuthContext';
-import { colors, spacing, radius } from '../theme';
+import { getBiometricsEnabled } from '../lib/secureStorage';
+import { BiometricActivationModal } from '../components/BiometricActivationModal';
+import { AuthBackground } from '../components/AuthBackground';
+import { colors, spacing, radius, glassCard } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
 export function HomeScreen() {
-  const { user, logout } = useAuth();
+  const [showBiometricModal, setShowBiometricModal] = useState(false);
+  const {
+    logout,
+    getPostRegisterRedirectToKyc,
+    clearPostRegisterRedirectToKyc,
+    getPendingBiometricPrompt,
+    clearPendingBiometricPrompt,
+    enableBiometrics,
+    biometricAvailability,
+  } = useAuth();
   const navigation = useNavigation<Nav>();
 
+  useEffect(() => {
+    if (getPostRegisterRedirectToKyc()) {
+      clearPostRegisterRedirectToKyc();
+      navigation.navigate('Kyc');
+    }
+  }, [getPostRegisterRedirectToKyc, clearPostRegisterRedirectToKyc, navigation]);
+
+  useEffect(() => {
+    if (!getPendingBiometricPrompt() || !biometricAvailability) return;
+    clearPendingBiometricPrompt();
+    getBiometricsEnabled().then((enabled) => {
+      if (biometricAvailability.available && !enabled) {
+        setShowBiometricModal(true);
+      }
+    });
+  }, [biometricAvailability, getPendingBiometricPrompt, clearPendingBiometricPrompt]);
+
+  const handleLogout = () => logout();
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Image source={require('../assets/images/LogoTT-v01.png')} style={styles.logoImage} resizeMode="contain" />
-        <Text style={styles.subtitle}>{user?.email}</Text>
-        <TouchableOpacity onPress={logout} style={styles.logout}>
-          <Text style={styles.logoutText}>Cerrar sesión</Text>
+    <AuthBackground>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+
+        <TouchableOpacity style={[styles.card, glassCard]} onPress={() => navigation.navigate('Kyc')}>
+          <Text style={styles.cardTitle}>Verificación KYC</Text>
+          <Text style={styles.cardSubtitle}>Verificar identidad con DNI y selfie</Text>
         </TouchableOpacity>
-      </View>
-      <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('Kyc')}>
-        <Text style={styles.cardTitle}>Verificación KYC</Text>
-        <Text style={styles.cardSubtitle}>Verificar identidad con DNI y selfie</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('Publish')}>
-        <Text style={styles.cardTitle}>Publicar ticket</Text>
-        <Text style={styles.cardSubtitle}>Vender o intercambiar tu entrada</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('MyPurchases')}>
-        <Text style={styles.cardTitle}>Mis compras</Text>
-        <Text style={styles.cardSubtitle}>Órdenes como comprador</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('MySales')}>
-        <Text style={styles.cardTitle}>Mis ventas</Text>
-        <Text style={styles.cardSubtitle}>Órdenes como vendedor</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <TouchableOpacity style={[styles.card, glassCard]} onPress={() => navigation.navigate('Publish')}>
+          <Text style={styles.cardTitle}>Publicar ticket</Text>
+          <Text style={styles.cardSubtitle}>Vender o intercambiar tu entrada</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.card, glassCard]} onPress={() => navigation.navigate('ComprarTicket')}>
+          <Text style={styles.cardTitle}>Comprar Ticket</Text>
+          <Text style={styles.cardSubtitle}>Buscar por ID y comprar de forma segura</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.card, glassCard]} onPress={() => navigation.navigate('MyPurchases')}>
+          <Text style={styles.cardTitle}>Mis compras</Text>
+          <Text style={styles.cardSubtitle}>Órdenes como comprador</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.card, glassCard]} onPress={() => navigation.navigate('MySales')}>
+          <Text style={styles.cardTitle}>Mis ventas</Text>
+          <Text style={styles.cardSubtitle}>Órdenes como vendedor</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.socialTitle}>Seguinos en nuestras redes</Text>
+        <View style={styles.socialRow}>
+          <TouchableOpacity style={[styles.socialIcon, { backgroundColor: '#1877f2' }]} onPress={() => Linking.openURL('https://facebook.com')} />
+          <TouchableOpacity style={[styles.socialIcon, { backgroundColor: '#e1306c' }]} onPress={() => Linking.openURL('https://instagram.com')} />
+          <TouchableOpacity style={[styles.socialIcon, { backgroundColor: '#25d366' }]} onPress={() => Linking.openURL('https://wa.me')} />
+        </View>
+
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+          <Text style={styles.logoutText}>Cerrar Sesion</Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+      <BiometricActivationModal
+        visible={showBiometricModal}
+        biometricType={biometricAvailability?.type ?? null}
+        onActivate={enableBiometrics}
+        onSkip={() => setShowBiometricModal(false)}
+        onSuccess={() => setShowBiometricModal(false)}
+      />
+    </AuthBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.lg, paddingBottom: 48 },
-  header: { marginBottom: spacing.lg },
-  logoImage: { width: 400, height: 120 },
-  subtitle: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
-  logout: { marginTop: 8 },
-  logoutText: { color: colors.primaryLight },
-  card: { backgroundColor: colors.card, borderRadius: radius, padding: spacing.lg, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border },
+  scroll: { flex: 1 },
+  content: { paddingTop: 260, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  banner: { marginBottom: spacing.lg, alignItems: 'center' },
+  bannerLogo: { width: 200, height: 56 },
+  card: {
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+  },
   cardTitle: { color: colors.text, fontWeight: '600', fontSize: 16 },
   cardSubtitle: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
+  socialTitle: { fontWeight: '700', color: colors.text, marginTop: spacing.lg, marginBottom: spacing.sm, textAlign: 'center' },
+  socialRow: { flexDirection: 'row', justifyContent: 'center', gap: spacing.lg, marginBottom: spacing.lg },
+  socialIcon: { width: 48, height: 48, borderRadius: 24 },
+  logoutBtn: {
+    marginTop: spacing.lg,
+    paddingVertical: 14,
+    borderRadius: radius,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.white,
+  },
+  logoutText: { color: colors.white, fontWeight: '600', fontSize: 16 },
 });

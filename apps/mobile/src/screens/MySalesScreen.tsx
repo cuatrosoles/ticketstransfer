@@ -3,11 +3,13 @@
  * Ubicación: apps/mobile/src/screens/MySalesScreen.tsx
  */
 
-import React, { useState, useCallback } from 'react';
+import * as React from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getMySales, type OrderItem } from '../lib/api';
-import { colors, spacing, radius } from '../theme';
+import { AuthBackground } from '../components/AuthBackground';
+import { colors, spacing, radius, glassCard } from '../theme';
 
 export function MySalesScreen() {
   const [orders, setOrders] = useState<OrderItem[]>([]);
@@ -46,7 +48,7 @@ export function MySalesScreen() {
   };
 
   const renderItem = ({ item }: { item: OrderItem }) => (
-    <View style={styles.card}>
+    <View style={[styles.card, glassCard]}>
       <Text style={styles.eventName}>{item.ticketListing.eventName}</Text>
       <Text style={styles.meta}>
         {item.totalAmount} {item.currency} · {statusLabel(item.status)}
@@ -58,13 +60,16 @@ export function MySalesScreen() {
 
   if (loading && orders.length === 0) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.emptyText}>Cargando…</Text>
-      </View>
+      <AuthBackground>
+        <View style={styles.centered}>
+          <Text style={styles.emptyText}>Cargando…</Text>
+        </View>
+      </AuthBackground>
     );
   }
 
   return (
+    <AuthBackground>
     <FlatList
       data={orders}
       keyExtractor={(item) => item.id}
@@ -73,13 +78,14 @@ export function MySalesScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
       ListEmptyComponent={<Text style={styles.emptyText}>No tenés ventas.</Text>}
     />
+    </AuthBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  list: { padding: spacing.lg, paddingBottom: 48 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg },
-  card: { backgroundColor: colors.card, borderRadius: radius, padding: spacing.lg, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border },
+  list: { paddingTop: 160, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  card: { padding: spacing.lg, marginBottom: spacing.md },
   eventName: { fontSize: 16, fontWeight: '600', color: colors.text },
   meta: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
   buyer: { fontSize: 13, color: colors.textMuted, marginTop: 4 },

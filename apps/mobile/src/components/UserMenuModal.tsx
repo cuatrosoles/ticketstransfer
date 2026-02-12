@@ -30,6 +30,7 @@ export function UserMenuModal() {
 
   const handleItemPress = (route: keyof RootStackParamList) => {
     closeMenu();
+    if (route === 'OrderPago') return;
     navigation.navigate(route as never, {} as never);
   };
 

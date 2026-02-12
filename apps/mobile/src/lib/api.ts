@@ -20,6 +20,13 @@ const API_BASE =
   API_BASE_OVERRIDE ??
   (Platform.OS === 'android' ? 'http://10.0.2.2:3001' : 'http://localhost:3001');
 
+/*
+const API_BASE =
+  API_BASE_OVERRIDE ??
+  (Platform.OS === 'android' ? 'http://10.0.2.2:3001' : 'http://localhost:3001');
+*/
+
+
 let getToken: () => string | null = () => null;
 
 export function setTokenGetter(fn: () => string | null) {
@@ -126,7 +133,7 @@ export async function updateProfile(data: ProfileUpdate): Promise<Profile> {
   return api<Profile>('/api/users/profile', { method: 'PATCH', body: JSON.stringify(data) });
 }
 
-/** KYC */
+/** KYC – Didit */
 export async function getKyc() {
   return api<{ status: string; rejectionReason?: string | null }>('/api/users/kyc');
 }

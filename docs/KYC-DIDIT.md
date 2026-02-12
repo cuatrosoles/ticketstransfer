@@ -4,9 +4,29 @@
 
 El proyecto integra **Didit** (didit.me) para verificación de identidad KYC en **Mobile** (Android/iOS) y **Web**, usando:
 
-- **Mobile**: WebView con sesión Didit (documento + liveness check)
+- **Mobile**: WebView con sesión Didit (documento + liveness check). Didit no ofrece SDK nativo para React Native; su enfoque recomendado es WebView, que permite acceso completo a la cámara para captura de documentos y prueba de vida (liveness).
 - **Web**: Redirect a Didit, callback a `/kyc/callback`
 - **Backend**: API para crear sesiones y webhook para recibir estados
+
+## Implementación técnica
+
+### Mobile (React Native)
+
+1. **KycScreen**: Muestra estado y botón "Iniciar verificación"
+2. **createKycSession('mobile')**: Llama a la API para crear sesión Didit
+3. **KycWebViewScreen**: Abre la URL de Didit en WebView con:
+   - `userAgent` móvil
+   - `mediaPlaybackRequiresUserAction={false}` y `allowsInlineMediaPlayback={true}` para liveness
+   - `originWhitelist` que incluye `ticketTransfer://*` para el callback
+4. Al completar, Didit redirige a `ticketTransfer://kyc/callback` → la app detecta y cierra el WebView
+
+### Web
+
+1. **Kyc**: Muestra estado y botón "Iniciar verificación"
+2. **createKycSession('web')**: Llama a la API
+3. Redirect a la URL de Didit
+4. Al completar, Didit redirige a `/kyc/callback`
+5. **KycCallback**: Muestra mensaje y enlace a `/kyc`
 
 ## Configuración
 
@@ -61,10 +81,14 @@ cd apps/api && pnpm db:push
 
 ## Permisos móvil
 
-- **Android**: `CAMERA` en AndroidManifest.xml
-- **iOS**: `NSCameraUsageDescription` en Info.plist
+- **Android**: `CAMERA` en AndroidManifest.xml (ya configurado)
+- **iOS**: `NSCameraUsageDescription` en Info.plist (ya configurado)
 
 ## Deep link (mobile)
 
-- **Android**: `intent-filter` con scheme `ticketTransfer`, host `kyc`, path `/callback`
-- **iOS**: `CFBundleURLTypes` con scheme `ticketTransfer`
+- **Android**: `intent-filter` con scheme `ticketTransfer`, host `kyc`, path `/callback` (ya configurado)
+- **iOS**: `CFBundleURLTypes` con scheme `ticketTransfer` (ya configurado)
+
+## Dependencias
+
+- **Mobile**: `react-native-webview` para el flujo Didit en WebView

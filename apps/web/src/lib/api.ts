@@ -47,8 +47,52 @@ export async function register(body: Record<string, unknown>) {
   return data;
 }
 
+/** Subida de archivos (FormData). */
+export async function apiUpload<T = unknown>(path: string, formData: FormData, method = 'POST'): Promise<T> {
+  const token = getToken();
+  const headers: HeadersInit = {};
+  if (token) (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}${path}`, { method, headers, body: formData });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Error en la solicitud');
+  return data as T;
+}
+
 export async function getMe() {
   return api<Record<string, unknown>>('/api/auth/me');
+}
+
+export type Profile = {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  country: string | null;
+  tipoDocumento: string | null;
+  phone: string | null;
+  dateOfBirth: string | null;
+  city: string | null;
+  province: string | null;
+  postalCode: string | null;
+  reputationScore: number | null;
+  kyc: { status: string; rejectionReason: string | null } | null;
+};
+
+export async function getProfile(): Promise<Profile> {
+  return api<Profile>('/api/users/profile');
+}
+
+export type ProfileUpdate = {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
+};
+
+export async function updateProfile(data: ProfileUpdate): Promise<Profile> {
+  return api<Profile>('/api/users/profile', { method: 'PATCH', body: JSON.stringify(data) });
 }
 
 /** Crear sesión Didit para KYC (platform: 'web' | 'mobile') */

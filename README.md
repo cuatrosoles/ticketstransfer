@@ -83,6 +83,10 @@ La app en `apps/mobile` usa React Native CLI (sin Expo). Incluye Welcome, Login,
 | Rutas admin API | `apps/api/src/routes/admin.ts` |
 | App móvil (Welcome, Login, Register, Home) | `apps/mobile/src/` |
 
+## Verificación KYC (Didit)
+
+El proyecto incluye verificación de identidad con Didit en mobile y web. Ver `docs/KYC-DIDIT.md` para configuración.
+
 ## Más detalles
 
 Ver `docs/PASOS-MANUALES.md` para tareas manuales (env, BD, integración de pagos, deploy) y generación de versiones web y APK.

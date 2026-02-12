@@ -17,10 +17,10 @@ export const colors = {
 export const spacing = { xs: 4, sm: 8, md: 16, lg: 24 };
 export const radius = 12;
 
-/** Estilo tipo glass para cards (fondo semi-transparente, borde sutil) */
+/** Estilo glass unificado (igual que auth) para cards en toda la app */
 export const glassCard = {
-  backgroundColor: 'rgba(30, 58, 138, 0.4)',
-  borderRadius: 20,
-  borderWidth: 1,
-  borderColor: 'rgba(96, 165, 250, 0.3)',
+  backgroundColor: 'rgba(30, 58, 138, 0.4)' as const,
+  borderRadius: 20 as const,
+  borderWidth: 1 as const,
+  borderColor: 'rgba(96, 165, 250, 0.3)' as const,
 };

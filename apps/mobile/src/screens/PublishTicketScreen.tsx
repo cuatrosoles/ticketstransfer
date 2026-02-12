@@ -4,8 +4,7 @@
  */
 
 import * as React from 'react';
-
-const { useState } = React;
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -20,7 +19,8 @@ import {
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { createTicketListing } from '../lib/api';
-import { colors, spacing, radius } from '../theme';
+import { AuthBackground } from '../components/AuthBackground';
+import { colors, spacing, radius, glassCard } from '../theme';
 
 const TIPOS_ENTRADA = ['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO'];
 const TICKETERAS = ['TICKETEK', 'ALLACCESS', 'TICKETERA', 'TICKET_PLUS', 'OTRA'];
@@ -123,7 +123,8 @@ export function PublishTicketScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <AuthBackground>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
       <Text style={styles.label}>Nombre del evento *</Text>
       <TextInput style={styles.input} placeholder="Ej. Recital X" placeholderTextColor={colors.textMuted} value={eventName} onChangeText={setEventName} />
 
@@ -191,19 +192,20 @@ export function PublishTicketScreen() {
         {submitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryButtonText}>Publicar</Text>}
       </TouchableOpacity>
     </ScrollView>
+    </AuthBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.lg, paddingBottom: 48 },
+  scroll: { flex: 1 },
+  content: { paddingTop: 160, paddingHorizontal: spacing.lg, paddingBottom: 48 },
   label: { fontSize: 14, fontWeight: '600', color: colors.textMuted, marginBottom: spacing.sm },
-  input: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius, padding: 14, color: colors.text, marginBottom: spacing.md },
+  input: { backgroundColor: 'rgba(30, 58, 138, 0.4)', borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.3)', borderRadius: 20, padding: 14, color: colors.text, marginBottom: spacing.md },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
-  chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: colors.border },
+  chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.3)' },
   chipActive: { borderColor: colors.primary, backgroundColor: 'rgba(59,130,246,0.2)' },
   chipText: { color: colors.text, fontSize: 13 },
-  imageButton: { height: 100, backgroundColor: colors.card, borderRadius: radius, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
+  imageButton: { height: 100, backgroundColor: 'rgba(30, 58, 138, 0.4)', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.3)', marginBottom: spacing.md, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
   imageButtonText: { color: colors.primaryLight },
   thumb: { width: '100%', height: '100%' },
   primaryButton: { backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radius, alignItems: 'center', marginTop: spacing.sm },

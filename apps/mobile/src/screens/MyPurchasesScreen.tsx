@@ -1,6 +1,9 @@
 /**
  * Mis compras – Lista de órdenes como comprador
  * Ubicación: apps/mobile/src/screens/MyPurchasesScreen.tsx
+/**
+ * Mis compras – Lista de órdenes como comprador
+ * Ubicación: apps/mobile/src/screens/MyPurchasesScreen.tsx
  */
 
 import * as React from 'react';
@@ -8,7 +11,8 @@ import { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getMyPurchases, type OrderItem } from '../lib/api';
-import { colors, spacing, radius } from '../theme';
+import { AuthBackground } from '../components/AuthBackground';
+import { colors, spacing, radius, glassCard } from '../theme';
 
 export function MyPurchasesScreen() {
   const [orders, setOrders] = useState<OrderItem[]>([]);
@@ -49,7 +53,7 @@ export function MyPurchasesScreen() {
   };
 
   const renderItem = ({ item }: { item: OrderItem }) => (
-    <View style={styles.card}>
+    <View style={[styles.card, glassCard]}>
       <Text style={styles.eventName}>{item.ticketListing.eventName}</Text>
       <Text style={styles.meta}>
         {item.totalAmount} {item.currency} · {statusLabel(item.status)}
@@ -60,13 +64,16 @@ export function MyPurchasesScreen() {
 
   if (loading && orders.length === 0) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.emptyText}>Cargando…</Text>
-      </View>
+      <AuthBackground>
+        <View style={styles.centered}>
+          <Text style={styles.emptyText}>Cargando…</Text>
+        </View>
+      </AuthBackground>
     );
   }
 
   return (
+    <AuthBackground>
     <FlatList
       data={orders}
       keyExtractor={(item) => item.id}
@@ -75,13 +82,14 @@ export function MyPurchasesScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
       ListEmptyComponent={<Text style={styles.emptyText}>No tenés compras.</Text>}
     />
+    </AuthBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  list: { padding: spacing.lg, paddingBottom: 48 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg },
-  card: { backgroundColor: colors.card, borderRadius: radius, padding: spacing.lg, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border },
+  list: { paddingTop: 160, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  card: { padding: spacing.lg, marginBottom: spacing.md },
   eventName: { fontSize: 16, fontWeight: '600', color: colors.text },
   meta: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
   date: { fontSize: 12, color: colors.textMuted, marginTop: 4 },

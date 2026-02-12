@@ -144,13 +144,13 @@ model KycVerification {
   status          KycStatus  @default(PENDIENTE)
   diditSessionId  String?    @map("didit_session_id")
   dniFrontUrl     String?    @map("dni_front_url")
-  dniBackUrl     String?    @map("dni_back_url")
-  selfieUrl      String?    @map("selfie_url")
-  rejectionReason String?   @map("rejection_reason")
-  reviewedAt     DateTime?  @map("reviewed_at")
-  reviewedBy     String?    @map("reviewed_by")
-  createdAt      DateTime   @default(now()) @map("created_at")
-  updatedAt      DateTime   @updatedAt @map("updated_at")
+  dniBackUrl      String?    @map("dni_back_url")
+  selfieUrl       String?    @map("selfie_url")
+  rejectionReason String?    @map("rejection_reason")
+  reviewedAt      DateTime?  @map("reviewed_at")
+  reviewedBy      String?    @map("reviewed_by")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
 }
 
 model TicketListing {

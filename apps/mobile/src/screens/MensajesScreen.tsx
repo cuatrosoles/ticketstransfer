@@ -1,6 +1,6 @@
 /**
- * Mensajes – Conversaciones con vendedores o compradores.
- * Contenido dummy. Enlazado desde menú usuario.
+ * Mensajes – Contenido dummy.
+ * Ubicación: apps/mobile/src/screens/MensajesScreen.tsx
  */
 
 import * as React from 'react';
@@ -15,10 +15,10 @@ export function MensajesScreen() {
         <View style={[styles.card, glassCard]}>
           <Text style={styles.cardTitle}></Text>
           <Text style={styles.cardText}>
-            Acá vas a ver las conversaciones con otros usuarios de la plataforma: vendedores cuando comprás, o compradores cuando vendés. Podés coordinar la entrega del ticket y resolver dudas.
+            Aquí podrás ver los mensajes intercambiados con vendedores y compradores durante tus operaciones de compra o venta de tickets.
           </Text>
-          <Text style={[styles.cardText, styles.muted]}>
-            La bandeja de mensajes estará disponible próximamente. Por ahora, podés usar el chat que aparece al momento de comprar un ticket para contactar al vendedor.
+          <Text style={styles.dummy}>
+            La bandeja de mensajes estará disponible pronto. Te permitirá comunicarte de forma segura con los demás usuarios.
           </Text>
         </View>
       </ScrollView>
@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingTop: 160, paddingHorizontal: spacing.lg, paddingBottom: 48 },
   card: { padding: spacing.lg },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
-  cardText: { fontSize: 14, color: colors.textMuted, lineHeight: 22, marginTop: spacing.sm },
-  muted: { marginTop: spacing.md, fontSize: 13 },
+  cardTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
+  cardText: { fontSize: 14, color: colors.textMuted, lineHeight: 22 },
+  dummy: { fontSize: 13, color: colors.textMuted, marginTop: spacing.md, fontStyle: 'italic' },
 });
