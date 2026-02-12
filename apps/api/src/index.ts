@@ -4,7 +4,7 @@
  */
 
 import 'dotenv/config';
-import express from 'express';
+import express, { type Request } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
@@ -18,6 +18,7 @@ import { ordersRouter } from './routes/orders.js';
 import { disputesRouter } from './routes/disputes.js';
 import { adminRouter } from './routes/admin.js';
 import { healthRouter } from './routes/health.js';
+import { webhooksRouter } from './routes/webhooks.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -34,7 +35,14 @@ const corsOrigin = isProduction
 
 app.use(helmet());
 app.use(cors({ origin: corsOrigin, credentials: true }));
-app.use(express.json({ limit: '2mb' }));
+app.use(
+  express.json({
+    limit: '2mb',
+    verify: (req, _res, buf) => {
+      (req as Request & { rawBody?: string }).rawBody = buf.toString('utf8');
+    },
+  })
+);
 
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 app.use('/uploads', express.static(uploadsDir));
@@ -49,6 +57,7 @@ app.use(
 
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/webhooks', webhooksRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/tickets', ticketsRouter);
 app.use('/api/orders', ordersRouter);

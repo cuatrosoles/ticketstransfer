@@ -10,6 +10,7 @@ export type RootStackParamList = {
   Main: undefined;
   Home: undefined;
   Kyc: undefined;
+  KycWebView: { sessionUrl: string };
   Publish: undefined;
   MyPurchases: undefined;
   MySales: undefined;

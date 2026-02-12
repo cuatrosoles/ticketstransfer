@@ -138,11 +138,12 @@ model UserOnboarding {
 }
 
 model KycVerification {
-  id             String     @id @default(uuid())
-  userId         String     @unique @map("user_id")
-  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status         KycStatus  @default(PENDIENTE)
-  dniFrontUrl    String?    @map("dni_front_url")
+  id              String     @id @default(uuid())
+  userId          String     @unique @map("user_id")
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status          KycStatus  @default(PENDIENTE)
+  diditSessionId  String?    @map("didit_session_id")
+  dniFrontUrl     String?    @map("dni_front_url")
   dniBackUrl     String?    @map("dni_back_url")
   selfieUrl      String?    @map("selfie_url")
   rejectionReason String?   @map("rejection_reason")

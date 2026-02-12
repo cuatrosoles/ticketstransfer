@@ -13,6 +13,7 @@ import { LoginScreen } from '../screens/LoginScreen';
 import { RegisterScreen } from '../screens/RegisterScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { KycScreen } from '../screens/KycScreen';
+import { KycWebViewScreen } from '../screens/KycWebViewScreen';
 import { PublishTicketScreen } from '../screens/PublishTicketScreen';
 import { MyPurchasesScreen } from '../screens/MyPurchasesScreen';
 import { MySalesScreen } from '../screens/MySalesScreen';
@@ -52,6 +53,7 @@ export function RootNavigator() {
         <>
           <Stack.Screen name="Main" component={HomeScreen} options={{ title: 'Inicio' }} />
           <Stack.Screen name="Kyc" component={KycScreen} options={{ title: 'Verificación KYC' }} />
+          <Stack.Screen name="KycWebView" component={KycWebViewScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Publish" component={PublishTicketScreen} options={{ title: 'Publicar ticket' }} />
           <Stack.Screen name="MyPurchases" component={MyPurchasesScreen} options={{ title: 'Mis compras' }} />
           <Stack.Screen name="MySales" component={MySalesScreen} options={{ title: 'Mis ventas' }} />

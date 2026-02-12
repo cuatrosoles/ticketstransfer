@@ -97,10 +97,11 @@ export async function getKyc() {
   return api<{ status: string; rejectionReason?: string | null }>('/api/users/kyc');
 }
 
-export async function uploadKyc(formData: FormData) {
-  return api<{ ok: boolean; status: string }>('/api/users/kyc/upload', {
+/** Crear sesión Didit para KYC (platform: 'web' | 'mobile') */
+export async function createKycSession(platform: 'web' | 'mobile') {
+  return api<{ url: string; sessionId: string }>('/api/users/kyc/session', {
     method: 'POST',
-    body: formData,
+    body: JSON.stringify({ platform }),
   });
 }
 

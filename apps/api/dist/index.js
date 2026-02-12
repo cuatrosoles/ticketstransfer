@@ -4321,6 +4321,58 @@ import { Router as Router2 } from "express";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
+
+// src/lib/didit.ts
+var DIDIT_BASE = "https://verification.didit.me";
+var DIDIT_API_KEY = process.env.DIDIT_API_KEY;
+async function createDiditSession(params) {
+  if (!DIDIT_API_KEY) {
+    throw new Error("DIDIT_API_KEY no configurado. Configur\xE1 en business.didit.me y en .env");
+  }
+  const body = {
+    callback: params.callback,
+    vendor_data: params.vendor_data,
+    ...params.features && { features: params.features }
+  };
+  const res = await fetch(`${DIDIT_BASE}/v3/session/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Api-Key": DIDIT_API_KEY
+    },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data.message || data?.detail || JSON.stringify(data);
+    throw new Error(`Didit: ${msg}`);
+  }
+  if (!data.url) {
+    const url = data.session_url || (data.session_token ? `https://verify.didit.me/session/${data.session_token}` : null);
+    if (!url) throw new Error("Didit no devolvi\xF3 URL de sesi\xF3n");
+    return { ...data, url };
+  }
+  return data;
+}
+async function verifyDiditWebhookSignature(rawBody, signature, timestamp, secretKey) {
+  if (!signature || !timestamp || !secretKey) return false;
+  const WEBHOOK_MAX_AGE_SEC = 300;
+  const currentTime = Math.floor(Date.now() / 1e3);
+  const incomingTime = parseInt(timestamp, 10);
+  if (Math.abs(currentTime - incomingTime) > WEBHOOK_MAX_AGE_SEC) return false;
+  const crypto = await import("crypto");
+  const hmac = crypto.createHmac("sha256", secretKey);
+  const expectedSignature = hmac.update(rawBody).digest("hex");
+  try {
+    const expectedBuf = Buffer.from(expectedSignature, "utf8");
+    const providedBuf = Buffer.from(signature, "utf8");
+    return expectedBuf.length === providedBuf.length && crypto.timingSafeEqual(expectedBuf, providedBuf);
+  } catch {
+    return false;
+  }
+}
+
+// src/routes/users.ts
 var __dirname = path.dirname(fileURLToPath(import.meta.url));
 var router2 = Router2();
 var upload = multer({
@@ -4422,6 +4474,27 @@ router2.get("/kyc", async (req, res) => {
     select: { status: true, rejectionReason: true }
   });
   res.json(kyc || { status: "PENDIENTE" });
+});
+router2.post("/kyc/session", async (req, res) => {
+  const userId = req.user.id;
+  const webUrl = process.env.WEB_URL || process.env.APP_URL || "http://localhost:5173";
+  const platform = req.body?.platform || "web";
+  const callback = platform === "mobile" ? "ticketTransfer://kyc/callback" : `${webUrl.replace(/\/$/, "")}/kyc/callback`;
+  try {
+    const session = await createDiditSession({
+      callback,
+      vendor_data: userId,
+      features: "OCR + FACE"
+    });
+    await prisma.kycVerification.update({
+      where: { userId },
+      data: { diditSessionId: session.session_id }
+    });
+    res.json({ url: session.url, sessionId: session.session_id });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error al crear sesi\xF3n Didit";
+    res.status(500).json({ error: msg });
+  }
 });
 var usersRouter = router2;
 
@@ -4965,6 +5038,69 @@ healthRouter.get("/", async (_req, res) => {
   }
 });
 
+// src/routes/webhooks.ts
+import { Router as Router8 } from "express";
+var router7 = Router8();
+var WEBHOOK_SECRET = process.env.DIDIT_WEBHOOK_SECRET_KEY;
+function mapDiditStatus(status) {
+  switch (status) {
+    case "Approved":
+      return "APROBADO";
+    case "Declined":
+      return "RECHAZADO";
+    case "In Review":
+    case "Not Started":
+    case "Kyc Expired":
+    case "Abandoned":
+    default:
+      return status === "In Review" ? "EN_REVISION" : "PENDIENTE";
+  }
+}
+router7.post("/didit", async (req, res) => {
+  const rawBody = req.rawBody;
+  if (!rawBody) {
+    return res.status(400).json({ error: "Raw body no disponible" });
+  }
+  const signature = req.get("x-signature") ?? req.get("X-Signature");
+  const timestamp = req.get("x-timestamp") ?? req.get("X-Timestamp");
+  if (!WEBHOOK_SECRET) {
+    console.error("DIDIT_WEBHOOK_SECRET_KEY no configurado");
+    return res.status(500).json({ error: "Webhook no configurado" });
+  }
+  const isValid2 = await verifyDiditWebhookSignature(rawBody, signature, timestamp, WEBHOOK_SECRET);
+  if (!isValid2) {
+    return res.status(401).json({ error: "Firma inv\xE1lida" });
+  }
+  let body;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    return res.status(400).json({ error: "JSON inv\xE1lido" });
+  }
+  const { session_id, status, vendor_data, decision } = body;
+  const userId = vendor_data;
+  if (!userId) {
+    return res.status(400).json({ error: "vendor_data requerido" });
+  }
+  const ourStatus = mapDiditStatus(status || "");
+  const rejectionReason = status === "Declined" && decision?.kyc ? "Verificaci\xF3n rechazada por Didit" : null;
+  try {
+    await prisma.kycVerification.update({
+      where: { userId },
+      data: {
+        status: ourStatus,
+        ...rejectionReason && { rejectionReason },
+        ...ourStatus === "APROBADO" || ourStatus === "RECHAZADO" ? { reviewedAt: /* @__PURE__ */ new Date() } : {}
+      }
+    });
+    return res.json({ message: "Webhook procesado" });
+  } catch (e) {
+    console.error("Error actualizando KYC:", e);
+    return res.status(500).json({ error: "Error interno" });
+  }
+});
+var webhooksRouter = router7;
+
 // src/index.ts
 var __dirname4 = path4.dirname(fileURLToPath4(import.meta.url));
 var app = express();
@@ -4976,7 +5112,14 @@ var corsOrigin = isProduction ? true : [
 ].filter(Boolean);
 app.use(helmet());
 app.use(cors({ origin: corsOrigin, credentials: true }));
-app.use(express.json({ limit: "2mb" }));
+app.use(
+  express.json({
+    limit: "2mb",
+    verify: (req, _res, buf) => {
+      req.rawBody = buf.toString("utf8");
+    }
+  })
+);
 var uploadsDir = path4.join(__dirname4, "..", "uploads");
 app.use("/uploads", express.static(uploadsDir));
 app.use(
@@ -4988,6 +5131,7 @@ app.use(
 );
 app.use("/api/health", healthRouter);
 app.use("/api/auth", authRouter);
+app.use("/api/webhooks", webhooksRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/tickets", ticketsRouter);
 app.use("/api/orders", ordersRouter);

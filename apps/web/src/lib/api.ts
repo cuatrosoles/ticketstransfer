@@ -51,6 +51,18 @@ export async function getMe() {
   return api<Record<string, unknown>>('/api/auth/me');
 }
 
+/** Crear sesión Didit para KYC (platform: 'web' | 'mobile') */
+export async function createKycSession(platform: 'web' | 'mobile') {
+  return api<{ url: string; sessionId: string }>('/api/users/kyc/session', {
+    method: 'POST',
+    body: JSON.stringify({ platform }),
+  });
+}
+
+export async function getKyc() {
+  return api<{ status: string; rejectionReason?: string | null }>('/api/users/kyc');
+}
+
 export async function refreshToken(refreshToken: string) {
   return api<{ accessToken: string; refreshToken: string }>('/api/auth/refresh', {
     method: 'POST',

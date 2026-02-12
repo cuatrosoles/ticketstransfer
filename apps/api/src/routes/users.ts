@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { onboardingSchema } from '@tickets-transfer/shared';
+import { createDiditSession } from '../lib/didit.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -121,6 +122,36 @@ router.get('/kyc', async (req: AuthRequest, res) => {
     select: { status: true, rejectionReason: true },
   });
   res.json(kyc || { status: 'PENDIENTE' });
+});
+
+/** Crear sesión Didit para KYC (WebView móvil o redirect web) */
+router.post('/kyc/session', async (req: AuthRequest, res) => {
+  const userId = req.user!.id;
+  const webUrl = process.env.WEB_URL || process.env.APP_URL || 'http://localhost:5173';
+  const platform = (req.body?.platform as string) || 'web';
+
+  const callback =
+    platform === 'mobile'
+      ? 'ticketTransfer://kyc/callback'
+      : `${webUrl.replace(/\/$/, '')}/kyc/callback`;
+
+  try {
+    const session = await createDiditSession({
+      callback,
+      vendor_data: userId,
+      features: 'OCR + FACE',
+    });
+
+    await prisma.kycVerification.update({
+      where: { userId },
+      data: { diditSessionId: session.session_id },
+    });
+
+    res.json({ url: session.url, sessionId: session.session_id });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Error al crear sesión Didit';
+    res.status(500).json({ error: msg });
+  }
 });
 
 export const usersRouter = router;
