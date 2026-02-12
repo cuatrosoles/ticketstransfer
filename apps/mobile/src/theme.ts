@@ -16,3 +16,11 @@ export const colors = {
 
 export const spacing = { xs: 4, sm: 8, md: 16, lg: 24 };
 export const radius = 12;
+
+/** Estilo tipo glass para cards (fondo semi-transparente, borde sutil) */
+export const glassCard = {
+  backgroundColor: 'rgba(30, 58, 138, 0.4)',
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: 'rgba(96, 165, 250, 0.3)',
+};

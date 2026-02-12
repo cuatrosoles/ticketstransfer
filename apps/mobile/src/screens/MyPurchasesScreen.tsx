@@ -3,7 +3,8 @@
  * Ubicación: apps/mobile/src/screens/MyPurchasesScreen.tsx
  */
 
-import React, { useState, useCallback } from 'react';
+import * as React from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getMyPurchases, type OrderItem } from '../lib/api';

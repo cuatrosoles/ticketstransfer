@@ -3,7 +3,9 @@
  * Ubicación: apps/mobile/src/screens/PublishTicketScreen.tsx
  */
 
-import React, { useState } from 'react';
+import * as React from 'react';
+
+const { useState } = React;
 import {
   View,
   Text,

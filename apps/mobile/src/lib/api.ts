@@ -92,6 +92,40 @@ export async function getMe() {
   return api<Record<string, unknown>>('/api/auth/me');
 }
 
+/** Perfil */
+export type Profile = {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  country: string | null;
+  tipoDocumento: string | null;
+  phone: string | null;
+  dateOfBirth: string | null;
+  city: string | null;
+  province: string | null;
+  postalCode: string | null;
+  reputationScore: number | null;
+  kyc: { status: string; rejectionReason: string | null } | null;
+};
+
+export type ProfileUpdate = {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
+};
+
+export async function getProfile(): Promise<Profile> {
+  return api<Profile>('/api/users/profile');
+}
+
+export async function updateProfile(data: ProfileUpdate): Promise<Profile> {
+  return api<Profile>('/api/users/profile', { method: 'PATCH', body: JSON.stringify(data) });
+}
+
 /** KYC */
 export async function getKyc() {
   return api<{ status: string; rejectionReason?: string | null }>('/api/users/kyc');
