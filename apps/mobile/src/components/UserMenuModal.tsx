@@ -12,8 +12,8 @@ import { useAuth } from '../context/AuthContext';
 import { useUserMenu } from '../context/UserMenuContext';
 
 const MENU_ITEMS = [
+  { id: 'inicio', label: 'Inicio', route: 'Main' as const },
   { id: 'perfil', label: 'Información de tu perfil', route: 'Profile' as const },
-  { id: 'tickets', label: 'Tickets', route: 'Publish' as const },
   { id: 'tarjetas', label: 'Tarjetas adheridas', route: 'TarjetasAdheridas' as const },
   { id: 'soporte', label: 'Chat Soporte', route: 'ChatSoporte' as const },
   { id: 'mensajes', label: 'Mensajes', route: 'Mensajes' as const },

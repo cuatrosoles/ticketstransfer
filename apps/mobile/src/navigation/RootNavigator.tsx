@@ -25,6 +25,7 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { TarjetasAdheridasScreen } from '../screens/TarjetasAdheridasScreen';
 import { ChatSoporteScreen } from '../screens/ChatSoporteScreen';
 import { MensajesScreen } from '../screens/MensajesScreen';
+import { MensajesConversationScreen } from '../screens/MensajesConversationScreen';
 import { OrderPagoScreen } from '../screens/OrderPagoScreen';
 import { AcercaScreen } from '../screens/AcercaScreen';
 import { PoliticaPrivacidadScreen } from '../screens/PoliticaPrivacidadScreen';
@@ -163,19 +164,7 @@ export function RootNavigator() {
           <Stack.Screen
             name="Publish"
             component={PublishTicketScreen}
-            options={({ navigation }) => ({
-              ...HEADER_OPTIONS,
-              headerTitle: () => (
-                <ScreenHeader
-                  title="Publicar ticket"
-                  showBack
-                  onBack={() => navigation.goBack()}
-                  rightSlot={<UserMenuButton />}
-                />
-              ),
-              headerLeft: () => null,
-              headerRight: () => null,
-            })}
+            options={{ ...HEADER_OPTIONS, headerShown: false }}
           />
           <Stack.Screen
             name="ComprarTicket"
@@ -295,6 +284,31 @@ export function RootNavigator() {
               headerLeft: () => null,
               headerRight: () => null,
             })}
+          />
+          <Stack.Screen
+            name="MensajesConversation"
+            component={MensajesConversationScreen}
+            options={({ navigation, route }) => {
+              const params = route.params as RootStackParamList['MensajesConversation'];
+              const title =
+                params.otherUser?.username ||
+                [params.otherUser?.firstName, params.otherUser?.lastName].filter(Boolean).join(' ') ||
+                params.otherUser?.email ||
+                'Conversación';
+              return {
+                ...HEADER_OPTIONS,
+                headerTitle: () => (
+                  <ScreenHeader
+                    title={title}
+                    showBack
+                    onBack={() => navigation.goBack()}
+                    rightSlot={<UserMenuButton />}
+                  />
+                ),
+                headerLeft: () => null,
+                headerRight: () => null,
+              };
+            }}
           />
           <Stack.Screen
             name="OrderPago"

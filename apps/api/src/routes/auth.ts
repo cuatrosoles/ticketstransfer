@@ -41,10 +41,13 @@ router.post('/register', async (req, res) => {
     password,
     firstName,
     lastName,
+    username,
     country,
     tipoDocumento,
+    documentNumber,
     sexo,
     phone,
+    phoneAreaCode,
     phonePrefix,
     dateOfBirth,
     city,
@@ -58,17 +61,33 @@ router.post('/register', async (req, res) => {
     return;
   }
 
+  if (username) {
+    const existingUsername = await prisma.user.findUnique({ where: { username } });
+    if (existingUsername) {
+      res.status(409).json({ error: 'Ya existe un usuario con ese nombre de usuario' });
+      return;
+    }
+  }
+
   const passwordHash = await bcrypt.hash(password, 12);
-  const fullPhone = phone ? [phonePrefix || '+549', phone].filter(Boolean).join(' ').trim() : null;
+  // Formato: Cod Area 011 Num 1234 5678 -> +549 11 1234 5678
+  const fullPhone = phone
+    ? [phonePrefix || '+549', phoneAreaCode || '', phone].filter(Boolean).join(' ').trim()
+    : null;
+
+  const numeroId = `TT${Math.random().toString(36).slice(2, 10).toUpperCase()}${Date.now().toString(36).slice(-4).toUpperCase()}`;
 
   const user = await prisma.user.create({
     data: {
       email,
+      username: username || null,
+      numeroId,
       passwordHash,
       firstName: firstName || null,
       lastName: lastName || null,
       country: country || null,
       tipoDocumento: tipoDocumento || null,
+      documentNumber: documentNumber || null,
       sexo: sexo as 'MASC' | 'FEM' | 'X' | undefined,
       phone: fullPhone || phone || null,
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
@@ -94,12 +113,16 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: 'Email y contraseña requeridos' });
+    res.status(400).json({ error: 'Email/usuario y contraseña requeridos' });
     return;
   }
   const { email, password } = parsed.data;
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [{ email }, { username: email }],
+    },
+  });
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     res.status(401).json({ error: 'Credenciales incorrectas' });
     return;

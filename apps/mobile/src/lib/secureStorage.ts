@@ -86,11 +86,23 @@ export async function setSecureToken(token: string, useBiometric: boolean): Prom
 
 /**
  * Obtiene el token del almacenamiento seguro.
- * Si fue guardado con protección biométrica, el sistema mostrará el prompt automáticamente.
+ * Si biométricos están activados, pasa accessControl y authenticationPrompt para que
+ * el sistema muestre el prompt biométrico al recuperar (requerido en iOS/Android).
  */
 export async function getSecureToken(): Promise<string | null> {
   try {
-    const creds = await Keychain.getGenericPassword({ service: SERVICE_NAME });
+    const biometricsEnabled = await getBiometricsEnabled();
+    const options: Keychain.Options = { service: SERVICE_NAME };
+
+    if (biometricsEnabled) {
+      options.accessControl = Keychain.ACCESS_CONTROL.BIOMETRY_CURRENT_SET;
+      options.authenticationPrompt = {
+        title: 'Autenticarse para continuar',
+        cancel: 'Cancelar',
+      };
+    }
+
+    const creds = await Keychain.getGenericPassword(options);
     return creds ? creds.password : null;
   } catch {
     return null;

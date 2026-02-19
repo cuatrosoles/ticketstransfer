@@ -103,6 +103,8 @@ export async function getMe() {
 export type Profile = {
   id: string;
   email: string;
+  username: string | null;
+  numeroId: string | null;
   firstName: string | null;
   lastName: string | null;
   country: string | null;
@@ -192,3 +194,69 @@ export type TicketListingItem = {
   status: string;
   createdAt: string;
 };
+
+/** Mensajería interna */
+export type ConversationItem = {
+  id: string;
+  otherUser: {
+    id: string;
+    email: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    username?: string | null;
+    numeroId?: string | null;
+  };
+  lastMessage: { content: string; createdAt: string; isFromMe: boolean } | null;
+  updatedAt: string;
+};
+
+export type MessageItem = {
+  id: string;
+  content: string;
+  senderId: string;
+  sender: { id: string; email: string; firstName?: string | null; lastName?: string | null };
+  isFromMe: boolean;
+  createdAt: string;
+};
+
+export type UserSearchItem = {
+  id: string;
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  username?: string | null;
+  numeroId?: string | null;
+};
+
+export async function getConversations(): Promise<ConversationItem[]> {
+  return api<ConversationItem[]>('/api/messages/conversations');
+}
+
+export async function searchUsers(q: string): Promise<UserSearchItem[]> {
+  return api<UserSearchItem[]>(`/api/messages/users/search?q=${encodeURIComponent(q)}`);
+}
+
+export async function createOrGetConversation(otherUserId: string): Promise<{
+  id: string;
+  otherUser: UserSearchItem;
+  createdAt: string;
+}> {
+  return api('/api/messages/conversations', {
+    method: 'POST',
+    body: JSON.stringify({ otherUserId }),
+  });
+}
+
+export async function getConversationMessages(conversationId: string): Promise<MessageItem[]> {
+  return api<MessageItem[]>(`/api/messages/conversations/${conversationId}/messages`);
+}
+
+export async function sendMessageToConversation(
+  conversationId: string,
+  content: string
+): Promise<MessageItem> {
+  return api<MessageItem>(`/api/messages/conversations/${conversationId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  });
+}

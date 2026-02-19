@@ -1,36 +1,363 @@
 /**
- * Mensajes – Contenido dummy.
- * Ubicación: apps/mobile/src/screens/MensajesScreen.tsx
+ * Mensajes – Historial de conversaciones y nueva sesión.
+ * Mensajería interna entre usuarios (vendedor/comprador).
+ * Requiere usuarios logueados.
  */
 
 import * as React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  FlatList,
+  TextInput,
+  Modal,
+  Pressable,
+  ActivityIndicator,
+  RefreshControl,
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/types';
 import { AuthBackground } from '../components/AuthBackground';
-import { colors, spacing, glassCard } from '../theme';
+import {
+  getConversations,
+  searchUsers,
+  createOrGetConversation,
+  type ConversationItem,
+  type UserSearchItem,
+} from '../lib/api';
+import { colors, spacing, radius, glassCard } from '../theme';
+
+type Nav = NativeStackNavigationProp<RootStackParamList, 'Mensajes'>;
+
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = now.getTime() - d.getTime();
+  if (diff < 86400000) return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  if (diff < 604800000) return d.toLocaleDateString('es-AR', { weekday: 'short' });
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+}
+
+function otherUserLabel(u: ConversationItem['otherUser']): string {
+  if (u.username) return u.username;
+  if (u.firstName || u.lastName) return [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email;
+  return u.email;
+}
 
 export function MensajesScreen() {
+  const navigation = useNavigation<Nav>();
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<UserSearchItem[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [creating, setCreating] = useState<string | null>(null);
+
+  const loadConversations = useCallback(async () => {
+    try {
+      const list = await getConversations();
+      setConversations(list);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadConversations();
+  }, [loadConversations]);
+
+  useEffect(() => {
+    if (!searchQuery.trim() || searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const users = await searchUsers(searchQuery.trim());
+        setSearchResults(users);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  const handleNewConversation = async (user: UserSearchItem) => {
+    if (creating) return;
+    setCreating(user.id);
+    try {
+      const conv = await createOrGetConversation(user.id);
+      setModalOpen(false);
+      setSearchQuery('');
+      setSearchResults([]);
+      navigation.navigate('MensajesConversation', {
+        conversationId: conv.id,
+        otherUser: conv.otherUser,
+      });
+      loadConversations();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setCreating(null);
+    }
+  };
+
+  const renderConversation = ({ item }: { item: ConversationItem }) => (
+    <TouchableOpacity
+      style={[styles.convItem, glassCard]}
+      onPress={() =>
+        navigation.navigate('MensajesConversation', {
+          conversationId: item.id,
+          otherUser: item.otherUser,
+        })
+      }
+      activeOpacity={0.8}
+    >
+      <View style={styles.convAvatar}>
+        <Text style={styles.convAvatarText}>
+          {(item.otherUser.firstName?.[0] || item.otherUser.email[0] || '?').toUpperCase()}
+        </Text>
+      </View>
+      <View style={styles.convBody}>
+        <Text style={styles.convName} numberOfLines={1}>
+          {otherUserLabel(item.otherUser)}
+        </Text>
+        <Text style={styles.convMeta} numberOfLines={1}>
+          {item.otherUser.numeroId ? `ID: ${item.otherUser.numeroId}` : item.otherUser.email}
+        </Text>
+        {item.lastMessage && (
+          <Text style={styles.convPreview} numberOfLines={1}>
+            {item.lastMessage.isFromMe ? 'Vos: ' : ''}{item.lastMessage.content}
+          </Text>
+        )}
+      </View>
+      <Text style={styles.convTime}>{formatTime(item.updatedAt)}</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <AuthBackground>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <View style={[styles.card, glassCard]}>
-          <Text style={styles.cardTitle}></Text>
-          <Text style={styles.cardText}>
-            Aquí podrás ver los mensajes intercambiados con vendedores y compradores durante tus operaciones de compra o venta de tickets.
-          </Text>
-          <Text style={styles.dummy}>
-            La bandeja de mensajes estará disponible pronto. Te permitirá comunicarte de forma segura con los demás usuarios.
-          </Text>
-        </View>
-      </ScrollView>
+      <View style={styles.container}>
+        <TouchableOpacity
+          style={[styles.newBtn, glassCard]}
+          onPress={() => setModalOpen(true)}
+        >
+          <Text style={styles.newBtnIcon}>+</Text>
+          <Text style={styles.newBtnText}>Nueva conversación</Text>
+        </TouchableOpacity>
+
+        {loading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        ) : conversations.length === 0 ? (
+          <View style={[styles.empty, glassCard]}>
+            <Text style={styles.emptyIcon}>💬</Text>
+            <Text style={styles.emptyTitle}>Sin conversaciones</Text>
+            <Text style={styles.emptyText}>
+              Tocá "Nueva conversación" y buscá un usuario por ID o email para empezar a chatear.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={conversations}
+            keyExtractor={(c) => c.id}
+            renderItem={renderConversation}
+            contentContainerStyle={styles.list}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => {
+                  setRefreshing(true);
+                  loadConversations();
+                }}
+                tintColor={colors.primary}
+              />
+            }
+          />
+        )}
+      </View>
+
+      <Modal visible={modalOpen} transparent animationType="slide">
+        <Pressable style={styles.modalOverlay} onPress={() => setModalOpen(false)}>
+          <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+            <Text style={styles.modalTitle}>Nueva conversación</Text>
+            <Text style={styles.modalHint}>Buscá por ID, email o nombre de usuario</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="ID o email..."
+              placeholderTextColor={colors.textMuted}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {searching && (
+              <View style={styles.searching}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.searchingText}>Buscando...</Text>
+              </View>
+            )}
+            {!searching && searchResults.length > 0 && (
+              <FlatList
+                data={searchResults}
+                keyExtractor={(u) => u.id}
+                style={styles.searchList}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.searchItem}
+                    onPress={() => handleNewConversation(item)}
+                    disabled={creating === item.id}
+                  >
+                    <View style={styles.searchItemAvatar}>
+                      <Text style={styles.searchItemAvatarText}>
+                        {(item.firstName?.[0] || item.email[0] || '?').toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={styles.searchItemBody}>
+                      <Text style={styles.searchItemName}>
+                        {item.username || [item.firstName, item.lastName].filter(Boolean).join(' ') || item.email}
+                      </Text>
+                      <Text style={styles.searchItemEmail}>{item.email}</Text>
+                      {item.numeroId && (
+                        <Text style={styles.searchItemId}>ID: {item.numeroId}</Text>
+                      )}
+                    </View>
+                    {creating === item.id ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <Text style={styles.searchItemArrow}>→</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+            {!searching && searchQuery.length >= 2 && searchResults.length === 0 && (
+              <Text style={styles.noResults}>No se encontraron usuarios</Text>
+            )}
+            <TouchableOpacity style={styles.modalClose} onPress={() => setModalOpen(false)}>
+              <Text style={styles.modalCloseText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </AuthBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1 },
-  content: { paddingTop: 160, paddingHorizontal: spacing.lg, paddingBottom: 48 },
-  card: { padding: spacing.lg },
-  cardTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
-  cardText: { fontSize: 14, color: colors.textMuted, lineHeight: 22 },
-  dummy: { fontSize: 13, color: colors.textMuted, marginTop: spacing.md, fontStyle: 'italic' },
+  container: { flex: 1, paddingTop: spacing.lg, paddingHorizontal: spacing.lg },
+  newBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    borderRadius: radius,
+    gap: 10,
+  },
+  newBtnIcon: { fontSize: 24, color: colors.primaryLight, fontWeight: '600' },
+  newBtnText: { fontSize: 16, color: colors.text, fontWeight: '600' },
+  list: { paddingBottom: spacing.xl * 2 },
+  convItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderRadius: radius,
+    gap: spacing.md,
+  },
+  convAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(59, 130, 246, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  convAvatarText: { fontSize: 18, color: colors.primaryLight, fontWeight: '700' },
+  convBody: { flex: 1, minWidth: 0 },
+  convName: { fontSize: 16, fontWeight: '600', color: colors.text },
+  convMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  convPreview: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
+  convTime: { fontSize: 12, color: colors.textMuted },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  empty: {
+    flex: 1,
+    marginTop: spacing.xl,
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  emptyIcon: { fontSize: 48, marginBottom: spacing.md },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
+  emptyText: { fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 22 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  modalContent: {
+    backgroundColor: 'rgba(15, 23, 42, 0.98)',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: spacing.lg,
+    maxHeight: '80%',
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.3)',
+  },
+  modalTitle: { fontSize: 20, fontWeight: '700', color: colors.text },
+  modalHint: { fontSize: 13, color: colors.textMuted, marginTop: 4, marginBottom: spacing.md },
+  searchInput: {
+    backgroundColor: 'rgba(30, 58, 138, 0.4)',
+    borderRadius: 12,
+    padding: 14,
+    color: colors.text,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.3)',
+    marginBottom: spacing.md,
+  },
+  searching: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.md },
+  searchingText: { color: colors.textMuted, fontSize: 14 },
+  searchList: { maxHeight: 280, marginBottom: spacing.md },
+  searchItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(96, 165, 250, 0.2)',
+    gap: spacing.md,
+  },
+  searchItemAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(59, 130, 246, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchItemAvatarText: { fontSize: 16, color: colors.primaryLight, fontWeight: '600' },
+  searchItemBody: { flex: 1, minWidth: 0 },
+  searchItemName: { fontSize: 15, fontWeight: '600', color: colors.text },
+  searchItemEmail: { fontSize: 12, color: colors.textMuted },
+  searchItemId: { fontSize: 11, color: colors.primaryLight, marginTop: 2 },
+  searchItemArrow: { fontSize: 18, color: colors.primaryLight },
+  noResults: { color: colors.textMuted, textAlign: 'center', marginBottom: spacing.md },
+  modalClose: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.primaryLight,
+    borderRadius: radius,
+  },
+  modalCloseText: { color: colors.primaryLight, fontWeight: '600', fontSize: 16 },
 });

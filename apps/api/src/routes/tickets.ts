@@ -90,6 +90,10 @@ router.post('/', requireAuth, upload.fields([
   const baseUrl = process.env.APP_URL || 'http://localhost:3001';
   const captureTicketUrl = files.captureTicket?.[0] ? `${baseUrl}/uploads/${files.captureTicket[0].filename}` : undefined;
   const captureOwnershipUrl = files.captureOwnership?.[0] ? `${baseUrl}/uploads/${files.captureOwnership[0].filename}` : undefined;
+  const publicationPassword = (req.body.publicationPassword as string) || undefined;
+  const ticketeraOtra = (req.body.ticketeraOtra as string) || undefined;
+  const appBoletosOtra = (req.body.appBoletosOtra as string) || undefined;
+  const tipoEntradaOtro = (req.body.tipoEntradaOtro as string) || undefined;
 
   const listing = await prisma.ticketListing.create({
     data: {
@@ -110,6 +114,10 @@ router.post('/', requireAuth, upload.fields([
       status: 'PENDIENTE_VERIFICACION',
       captureTicketUrl,
       captureOwnershipUrl,
+      publicationPassword,
+      ticketeraOtra,
+      appBoletosOtra,
+      tipoEntradaOtro,
     },
   });
   res.status(201).json(listing);

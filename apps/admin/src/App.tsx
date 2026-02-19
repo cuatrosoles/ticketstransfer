@@ -7,6 +7,7 @@ import { Users } from './pages/Users';
 import { Kyc } from './pages/Kyc';
 import { Disputes } from './pages/Disputes';
 import { DisputeDetail } from './pages/DisputeDetail';
+import { Conversations } from './pages/Conversations';
 import { Orders } from './pages/Orders';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -26,6 +27,8 @@ export function App() {
         <Route path="kyc" element={<Kyc />} />
         <Route path="disputes" element={<Disputes />} />
         <Route path="disputes/:id" element={<DisputeDetail />} />
+        <Route path="conversations" element={<Conversations />} />
+        <Route path="conversations/:id" element={<Conversations />} />
         <Route path="orders" element={<Orders />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

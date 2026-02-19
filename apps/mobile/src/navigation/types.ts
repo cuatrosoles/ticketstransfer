@@ -20,6 +20,7 @@ export type RootStackParamList = {
   TarjetasAdheridas: undefined;
   ChatSoporte: undefined;
   Mensajes: undefined;
+  MensajesConversation: { conversationId: string; otherUser: { id: string; email: string; firstName?: string | null; lastName?: string | null; username?: string | null; numeroId?: string | null } };
   Acerca: undefined;
   PoliticaPrivacidad: undefined;
   TerminosYCondiciones: undefined;

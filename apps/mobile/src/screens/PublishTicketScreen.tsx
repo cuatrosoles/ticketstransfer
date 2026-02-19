@@ -17,27 +17,77 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { createTicketListing } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
-import { colors, spacing, radius, glassCard } from '../theme';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { UserMenuButton } from '../components/UserMenuButton';
+import { colors, spacing, radius } from '../theme';
+import { TICKETERA_LOGOS, APP_BOLETOS_LOGOS } from '../data/serviceLogos';
 
 const TIPOS_ENTRADA = ['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO'];
 const TICKETERAS = ['TICKETEK', 'ALLACCESS', 'TICKETERA', 'TICKET_PLUS', 'OTRA'];
 const APPS_BOLETOS = ['QUENTRO', 'ENIGMA', 'TICKET360', 'TICKETMAKER', 'OTRA'];
+const COMISION_PORCENTAJE = 5;
 
 type ImageAsset = { uri: string; fileName?: string; type?: string };
 
+function ServiceChip({
+  label,
+  selected,
+  onPress,
+  logoUri,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  logoUri?: string | null;
+}) {
+  return (
+    <TouchableOpacity
+      style={[chipStyles.chip, selected && chipStyles.chipActive]}
+      onPress={onPress}
+    >
+      {logoUri ? (
+        <Image source={{ uri: logoUri }} style={chipStyles.logo} resizeMode="contain" />
+      ) : null}
+      <Text style={chipStyles.chipText}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+const chipStyles = StyleSheet.create({
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.3)',
+    gap: 6,
+  },
+  chipActive: { borderColor: colors.primary, backgroundColor: 'rgba(59,130,246,0.2)' },
+  chipText: { color: colors.text, fontSize: 13 },
+  logo: { width: 24, height: 24 },
+});
+
 export function PublishTicketScreen() {
+  const navigation = useNavigation();
   const [eventName, setEventName] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventPlace, setEventPlace] = useState('');
   const [sector, setSector] = useState('');
   const [tipoEntrada, setTipoEntrada] = useState('GENERAL');
+  const [tipoEntradaOtro, setTipoEntradaOtro] = useState('');
   const [price, setPrice] = useState('');
   const [ticketera, setTicketera] = useState('TICKETEK');
+  const [ticketeraOtra, setTicketeraOtra] = useState('');
   const [appBoletos, setAppBoletos] = useState('QUENTRO');
+  const [appBoletosOtra, setAppBoletosOtra] = useState('');
   const [orderRef, setOrderRef] = useState('');
+  const [publicationPassword, setPublicationPassword] = useState('');
   const [captureTicket, setCaptureTicket] = useState<ImageAsset | null>(null);
   const [captureOwnership, setCaptureOwnership] = useState<ImageAsset | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -95,6 +145,10 @@ export function PublishTicketScreen() {
       formData.append('ticketera', ticketera);
       formData.append('appBoletos', appBoletos);
       if (orderRef.trim()) formData.append('orderRef', orderRef.trim());
+      if (publicationPassword.trim()) formData.append('publicationPassword', publicationPassword.trim());
+      if (ticketera === 'OTRA' && ticketeraOtra.trim()) formData.append('ticketeraOtra', ticketeraOtra.trim());
+      if (appBoletos === 'OTRA' && appBoletosOtra.trim()) formData.append('appBoletosOtra', appBoletosOtra.trim());
+      if (tipoEntrada === 'OTRO' && tipoEntradaOtro.trim()) formData.append('tipoEntradaOtro', tipoEntradaOtro.trim());
       const uri = (uri: string) => (Platform.OS === 'android' ? uri : uri.replace('file://', ''));
       formData.append('captureTicket', {
         uri: uri(captureTicket.uri),
@@ -122,9 +176,23 @@ export function PublishTicketScreen() {
     }
   };
 
+  const priceNum = parseFloat(price.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+  const comision = priceNum * (COMISION_PORCENTAJE / 100);
+  const montoVendedor = priceNum - comision;
+
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      {/* Header dentro del scroll: se desplaza con el contenido (sin sticky) */}
+      <View style={styles.inlineHeader}>
+        <ScreenHeader
+          title="Publicar ticket"
+          showBack
+          onBack={() => navigation.goBack()}
+          rightSlot={<UserMenuButton />}
+        />
+      </View>
+
       <Text style={styles.label}>Nombre del evento *</Text>
       <TextInput style={styles.input} placeholder="Ej. Recital X" placeholderTextColor={colors.textMuted} value={eventName} onChangeText={setEventName} />
 
@@ -145,27 +213,76 @@ export function PublishTicketScreen() {
           </TouchableOpacity>
         ))}
       </View>
+      {tipoEntrada === 'OTRO' && (
+        <>
+          <Text style={styles.label}>Especificar tipo de entrada</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Ej: Palco, Preferencial..."
+            placeholderTextColor={colors.textMuted}
+            value={tipoEntradaOtro}
+            onChangeText={setTipoEntradaOtro}
+          />
+        </>
+      )}
 
       <Text style={styles.label}>Precio (ARS) *</Text>
       <TextInput style={styles.input} placeholder="15000" placeholderTextColor={colors.textMuted} value={price} onChangeText={setPrice} keyboardType="numeric" />
+      {priceNum > 0 && (
+        <Text style={styles.montoVendedor}>
+          Comisión por transferencia {COMISION_PORCENTAJE}%. Usted recibirá: ARS ${montoVendedor.toLocaleString('es-AR')}
+        </Text>
+      )}
 
       <Text style={styles.label}>Ticketera</Text>
       <View style={styles.chipRow}>
         {TICKETERAS.map((t) => (
-          <TouchableOpacity key={t} style={[styles.chip, ticketera === t && styles.chipActive]} onPress={() => setTicketera(t)}>
-            <Text style={styles.chipText}>{t}</Text>
-          </TouchableOpacity>
+          <ServiceChip
+            key={t}
+            label={t}
+            selected={ticketera === t}
+            onPress={() => setTicketera(t)}
+            logoUri={TICKETERA_LOGOS[t]}
+          />
         ))}
       </View>
+      {ticketera === 'OTRA' && (
+        <>
+          <Text style={styles.label}>Especificar ticketera</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Nombre de la ticketera"
+            placeholderTextColor={colors.textMuted}
+            value={ticketeraOtra}
+            onChangeText={setTicketeraOtra}
+          />
+        </>
+      )}
 
       <Text style={styles.label}>App de boletos</Text>
       <View style={styles.chipRow}>
         {APPS_BOLETOS.map((a) => (
-          <TouchableOpacity key={a} style={[styles.chip, appBoletos === a && styles.chipActive]} onPress={() => setAppBoletos(a)}>
-            <Text style={styles.chipText}>{a}</Text>
-          </TouchableOpacity>
+          <ServiceChip
+            key={a}
+            label={a}
+            selected={appBoletos === a}
+            onPress={() => setAppBoletos(a)}
+            logoUri={APP_BOLETOS_LOGOS[a]}
+          />
         ))}
       </View>
+      {appBoletos === 'OTRA' && (
+        <>
+          <Text style={styles.label}>Especificar app de boletos</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Nombre de la app"
+            placeholderTextColor={colors.textMuted}
+            value={appBoletosOtra}
+            onChangeText={setAppBoletosOtra}
+          />
+        </>
+      )}
 
       <Text style={styles.label}>Código de orden / referencia</Text>
       <TextInput style={styles.input} placeholder="Opcional" placeholderTextColor={colors.textMuted} value={orderRef} onChangeText={setOrderRef} />
@@ -188,6 +305,16 @@ export function PublishTicketScreen() {
         )}
       </TouchableOpacity>
 
+      <Text style={styles.label}>Contraseña de la publicación</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Contraseña para transferir el ticket"
+        placeholderTextColor={colors.textMuted}
+        value={publicationPassword}
+        onChangeText={setPublicationPassword}
+        secureTextEntry
+      />
+
       <TouchableOpacity style={[styles.primaryButton, submitting && styles.disabled]} onPress={handleSubmit} disabled={submitting}>
         {submitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryButtonText}>Publicar</Text>}
       </TouchableOpacity>
@@ -198,7 +325,9 @@ export function PublishTicketScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 160, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: { paddingTop: spacing.lg, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  inlineHeader: { marginBottom: spacing.md },
+  montoVendedor: { fontSize: 13, color: colors.primaryLight, marginTop: -spacing.sm, marginBottom: spacing.md },
   label: { fontSize: 14, fontWeight: '600', color: colors.textMuted, marginBottom: spacing.sm },
   input: { backgroundColor: 'rgba(30, 58, 138, 0.4)', borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.3)', borderRadius: 20, padding: 14, color: colors.text, marginBottom: spacing.md },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },

@@ -60,10 +60,13 @@ export function RegisterScreen() {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [username, setUsername] = useState('');
   const [tipoDocumento, setTipoDocumento] = useState('');
+  const [documentNumber, setDocumentNumber] = useState('');
   const [sexo, setSexo] = useState<string>('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [country, setCountry] = useState('AR');
+  const [phoneAreaCode, setPhoneAreaCode] = useState('');
   const [phone, setPhone] = useState('');
   const [province, setProvince] = useState('');
   const [city, setCity] = useState('');
@@ -74,7 +77,8 @@ export function RegisterScreen() {
   const [depto, setDepto] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [pickerModal, setPickerModal] = useState<'province' | 'city' | null>(null);
+  const [pickerModal, setPickerModal] = useState<'province' | 'city' | 'date' | null>(null);
+  const [tempDate, setTempDate] = useState({ day: '', month: '', year: '' });
   const { register } = useAuth();
   const navigation = useNavigation<Nav>();
 
@@ -93,7 +97,7 @@ export function RegisterScreen() {
     setStep(2);
   };
 
-  const step2RequiredOk = !!firstName.trim() && !!lastName.trim();
+  const step2RequiredOk = !!firstName.trim() && !!lastName.trim() && !!username.trim();
 
   const handleRegister = async () => {
     setError('');
@@ -104,11 +108,14 @@ export function RegisterScreen() {
       confirmPassword,
       firstName: firstName.trim(),
       lastName: lastName.trim(),
+      username: username.trim() || undefined,
       agreeTerms,
       country: country || undefined,
       tipoDocumento: tipoDocumento || undefined,
+      documentNumber: documentNumber.trim() || undefined,
       sexo: (sexo === 'MASC' || sexo === 'FEM' || sexo === 'X' ? sexo : undefined) as 'MASC' | 'FEM' | 'X' | undefined,
-      phone: phone ? `${PREFIJO_TELEFONO_DEFAULT} ${phone}` : undefined,
+      phone: phone.trim() || undefined,
+      phoneAreaCode: phoneAreaCode.trim() || undefined,
       phonePrefix: PREFIJO_TELEFONO_DEFAULT,
       dateOfBirth: dateOfBirth || undefined,
       city: city || undefined,
@@ -129,6 +136,7 @@ export function RegisterScreen() {
         (first.confirmPassword && first.confirmPassword[0]) ||
         (first.firstName && first.firstName[0]) ||
         (first.lastName && first.lastName[0]) ||
+        (first.username && first.username[0]) ||
         (first.agreeTerms && first.agreeTerms[0]) ||
         result.error.message;
       setError(msg ?? 'Revisá los datos');
@@ -209,6 +217,8 @@ export function RegisterScreen() {
       <TextInput style={styles.input} placeholder="Nombre" placeholderTextColor={colors.textMuted} value={firstName} onChangeText={setFirstName} />
       <Text style={styles.label}>Apellido</Text>
       <TextInput style={styles.input} placeholder="Apellido" placeholderTextColor={colors.textMuted} value={lastName} onChangeText={setLastName} />
+      <Text style={styles.label}>Nombre de Usuario</Text>
+      <TextInput style={styles.input} placeholder="Valentin02" placeholderTextColor={colors.textMuted} value={username} onChangeText={setUsername} />
       <Text style={styles.label}>Tipo de DNI</Text>
       <View style={styles.pickerRow}>
         {TIPO_DOCUMENTO.map((t) => (
@@ -221,6 +231,19 @@ export function RegisterScreen() {
           </TouchableOpacity>
         ))}
       </View>
+      {tipoDocumento ? (
+        <>
+          <Text style={styles.label}>N°</Text>
+          <TextInput
+            style={styles.input}
+            placeholder={`Número de ${tipoDocumento}`}
+            placeholderTextColor={colors.textMuted}
+            value={documentNumber}
+            onChangeText={setDocumentNumber}
+            keyboardType="numeric"
+          />
+        </>
+      ) : null}
       <Text style={styles.label}>Sexo (según tu documento)</Text>
       <View style={styles.sexoRow}>
         {SEXO_OPCIONES.map((s) => (
@@ -234,7 +257,20 @@ export function RegisterScreen() {
         ))}
       </View>
       <Text style={styles.label}>Fecha de Nacimiento</Text>
-      <TextInput style={styles.input} placeholder="dd/mm/aaaa" placeholderTextColor={colors.textMuted} value={dateOfBirth} onChangeText={setDateOfBirth} />
+      <TouchableOpacity
+        style={styles.input}
+        onPress={() => {
+          const parts = dateOfBirth.split('/');
+          setTempDate({
+            day: parts[0] || '',
+            month: parts[1] || '',
+            year: parts[2] || '',
+          });
+          setPickerModal('date');
+        }}
+      >
+        <Text style={styles.pickerValue}>{dateOfBirth || 'dd/mm/aaaa'}</Text>
+      </TouchableOpacity>
       <Text style={styles.label}>País</Text>
       <View style={styles.pickerRow}>
         <TouchableOpacity style={[styles.chip, styles.chipSelected]}>
@@ -243,10 +279,19 @@ export function RegisterScreen() {
       </View>
       <Text style={styles.label}>Nro de Teléfono</Text>
       <View style={styles.phoneRow}>
-        <Text style={styles.phonePrefix}>+549</Text>
+        <Text style={styles.phoneLabel}>Cod Area</Text>
+        <TextInput
+          style={[styles.input, styles.phoneAreaInput]}
+          placeholder="011"
+          placeholderTextColor={colors.textMuted}
+          value={phoneAreaCode}
+          onChangeText={setPhoneAreaCode}
+          keyboardType="phone-pad"
+        />
+        <Text style={styles.phoneLabel}>Num</Text>
         <TextInput
           style={[styles.input, styles.phoneInput]}
-          placeholder="11 1234 5678"
+          placeholder="1234 5678"
           placeholderTextColor={colors.textMuted}
           value={phone}
           onChangeText={setPhone}
@@ -300,7 +345,65 @@ export function RegisterScreen() {
         </View>
       </ScrollView>
 
-      <Modal visible={pickerModal !== null} transparent animationType="slide">
+      <Modal visible={pickerModal === 'date'} transparent animationType="slide">
+        <Pressable style={styles.modalOverlay} onPress={() => setPickerModal(null)}>
+          <View style={styles.modalBox} onStartShouldSetResponder={() => true}>
+            <View style={styles.dateModalContent}>
+              <Text style={styles.dateModalTitle}>Seleccionar fecha</Text>
+              <View style={styles.dateInputRow}>
+                <TextInput
+                  style={[styles.input, styles.dateInput]}
+                  placeholder="Día"
+                  placeholderTextColor={colors.textMuted}
+                  value={tempDate.day}
+                  onChangeText={(t) => setTempDate((d) => ({ ...d, day: t.replace(/\D/g, '').slice(0, 2) }))}
+                  keyboardType="numeric"
+                />
+                <Text style={styles.dateSeparator}>/</Text>
+                <TextInput
+                  style={[styles.input, styles.dateInput]}
+                  placeholder="Mes"
+                  placeholderTextColor={colors.textMuted}
+                  value={tempDate.month}
+                  onChangeText={(t) => setTempDate((d) => ({ ...d, month: t.replace(/\D/g, '').slice(0, 2) }))}
+                  keyboardType="numeric"
+                />
+                <Text style={styles.dateSeparator}>/</Text>
+                <TextInput
+                  style={[styles.input, styles.dateInput]}
+                  placeholder="Año"
+                  placeholderTextColor={colors.textMuted}
+                  value={tempDate.year}
+                  onChangeText={(t) => setTempDate((d) => ({ ...d, year: t.replace(/\D/g, '').slice(0, 4) }))}
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={styles.dateModalActions}>
+                <TouchableOpacity style={styles.dateModalBtn} onPress={() => setPickerModal(null)}>
+                  <Text style={styles.dateModalBtnText}>CANCELAR</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dateModalBtn}
+                  onPress={() => {
+                    const { day, month, year } = tempDate;
+                    if (day && month && year) {
+                      const d = day.padStart(2, '0');
+                      const m = month.padStart(2, '0');
+                      setDateOfBirth(`${d}/${m}/${year}`);
+                    }
+                    setPickerModal(null);
+                    setTempDate({ day: '', month: '', year: '' });
+                  }}
+                >
+                  <Text style={styles.dateModalBtnText}>ACEPTAR</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={pickerModal !== null && pickerModal !== 'date'} transparent animationType="slide">
         <Pressable style={styles.modalOverlay} onPress={() => setPickerModal(null)}>
           <View style={styles.modalBox}>
             <ScrollView style={styles.modalScroll}>
@@ -365,9 +468,10 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.3)' },
   chipSelected: { borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.2)' },
   chipText: { color: '#f8fafc', fontSize: 14 },
-  phoneRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  phonePrefix: { paddingHorizontal: 12, color: '#94a3b8', fontSize: 16 },
-  phoneInput: { flex: 1, marginBottom: 0 },
+  phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' },
+  phoneLabel: { fontSize: 12, color: '#94a3b8', width: 60 },
+  phoneAreaInput: { width: 70, marginBottom: 0 },
+  phoneInput: { flex: 1, minWidth: 100, marginBottom: 0 },
   sexoRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   sexoBtn: { flex: 1, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.3)', alignItems: 'center' },
   sexoBtnSelected: { borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.2)' },
@@ -387,4 +491,12 @@ const styles = StyleSheet.create({
   modalScroll: { maxHeight: 400 },
   modalItem: { paddingVertical: 16, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: '#334155' },
   modalItemText: { color: '#f8fafc', fontSize: 16 },
+  dateModalContent: { padding: 24 },
+  dateModalTitle: { color: '#f8fafc', fontSize: 18, fontWeight: '600', marginBottom: 16 },
+  dateInputRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  dateInput: { flex: 1, marginBottom: 0, textAlign: 'center' },
+  dateSeparator: { color: '#94a3b8', fontSize: 18, marginHorizontal: 4 },
+  dateModalActions: { flexDirection: 'row', gap: 12, justifyContent: 'flex-end' },
+  dateModalBtn: { paddingVertical: 10, paddingHorizontal: 20 },
+  dateModalBtnText: { color: '#60a5fa', fontWeight: '600', fontSize: 14 },
 });

@@ -10,7 +10,8 @@
     "fix:android": "bash scripts/fix-android-build.sh",
     "postinstall": "patch-package && node scripts/patch-react-native-screens-cpp.js",
     "apk:debug": "cd android && ./gradlew assembleDebug && cd ..",
-    "apk:release": "cd android && ./gradlew assembleRelease && cd .."
+    "apk:release": "cd android && ./gradlew assembleRelease && cd ..",
+    "apk:release:no-daemon": "cd android && ./gradlew --stop && ./gradlew assembleRelease --no-daemon && cd .."
   },
   "dependencies": {
     "@babel/runtime": "^7.23.7",

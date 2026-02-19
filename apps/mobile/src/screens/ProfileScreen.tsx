@@ -191,6 +191,7 @@ export function ProfileScreen() {
             <ProfileField label="Email" value={profile.email} />
             <ProfileField label="Nombre" value={profile.firstName || '—'} />
             <ProfileField label="Apellido" value={profile.lastName || '—'} />
+            <ProfileField label="Usuario" value={profile.username || '—'} />
             <ProfileField label="Teléfono" value={profile.phone || '—'} />
             <ProfileField label="Ciudad" value={profile.city || '—'} />
             <ProfileField
@@ -199,6 +200,7 @@ export function ProfileScreen() {
             />
             <ProfileField label="Código postal" value={profile.postalCode || '—'} />
             {profile.dateOfBirth ? <ProfileField label="Fecha de nacimiento" value={formatDate(profile.dateOfBirth)} /> : null}
+            <ProfileField label="Número ID" value={profile.numeroId || '—'} />
             <View style={styles.kycRow}>
               <Text style={styles.label}>Verificación KYC</Text>
               <KycBadge status={profile.kyc?.status ?? 'PENDIENTE'} />

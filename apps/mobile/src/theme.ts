@@ -14,7 +14,7 @@ export const colors = {
   white: '#ffffff',
 };
 
-export const spacing = { xs: 4, sm: 8, md: 16, lg: 24 };
+export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };
 export const radius = 12;
 
 /** Estilo glass unificado (igual que auth) para cards en toda la app */

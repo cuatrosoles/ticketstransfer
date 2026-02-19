@@ -156,6 +156,44 @@ router.patch('/disputes/:id/resolve', async (req: AuthRequest, res) => {
   res.json(updated);
 });
 
+/** Listar conversaciones (monitoreo admin) */
+router.get('/conversations', async (req: AuthRequest, res) => {
+  const { page = '1', limit = '30' } = req.query;
+  const skip = (Number(page) - 1) * Number(limit);
+  const [conversations, total] = await Promise.all([
+    prisma.conversation.findMany({
+      include: {
+        user1: { select: { id: true, email: true, firstName: true, lastName: true, numeroId: true } },
+        user2: { select: { id: true, email: true, firstName: true, lastName: true, numeroId: true } },
+        messages: { take: 1, orderBy: { createdAt: 'desc' }, select: { content: true, createdAt: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      skip,
+      take: Number(limit),
+    }),
+    prisma.conversation.count(),
+  ]);
+  res.json({ conversations, total });
+});
+
+/** Ver mensajes de una conversación (monitoreo admin) */
+router.get('/conversations/:id/messages', async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const conv = await prisma.conversation.findUnique({
+    where: { id },
+    include: {
+      user1: { select: { id: true, email: true, firstName: true, lastName: true } },
+      user2: { select: { id: true, email: true, firstName: true, lastName: true } },
+      messages: {
+        include: { sender: { select: { id: true, email: true, firstName: true, lastName: true } } },
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+  });
+  if (!conv) return res.status(404).json({ error: 'Conversación no encontrada' });
+  res.json(conv);
+});
+
 /** Listar órdenes (admin) */
 router.get('/orders', async (req: AuthRequest, res) => {
   const { page = '1', limit = '20', status } = req.query;

@@ -1,0 +1,2 @@
+-- Baseline: la base de datos ya existe con el schema inicial.
+-- Esta migración se marca como aplicada sin ejecutarla (prisma migrate resolve --applied).

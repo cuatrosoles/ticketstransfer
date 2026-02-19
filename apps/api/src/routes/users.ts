@@ -22,11 +22,13 @@ const upload = multer({
 router.use(requireAuth);
 
 router.get('/profile', async (req: AuthRequest, res) => {
-  const user = await prisma.user.findUnique({
+  let user = await prisma.user.findUnique({
     where: { id: req.user!.id },
     select: {
       id: true,
       email: true,
+      username: true,
+      numeroId: true,
       firstName: true,
       lastName: true,
       country: true,
@@ -41,7 +43,32 @@ router.get('/profile', async (req: AuthRequest, res) => {
     },
   });
   if (!user) return res.status(404).json({ error: 'No encontrado' });
-  res.json(user);
+  if (!user.numeroId) {
+    const numeroId = `TT${Math.random().toString(36).slice(2, 10).toUpperCase()}${Date.now().toString(36).slice(-4).toUpperCase()}`;
+    user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { numeroId },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        numeroId: true,
+        firstName: true,
+        lastName: true,
+        country: true,
+        tipoDocumento: true,
+        phone: true,
+        dateOfBirth: true,
+        city: true,
+        province: true,
+        postalCode: true,
+        reputationScore: true,
+        kyc: { select: { status: true, rejectionReason: true } },
+      },
+    });
+  }
+  const phone = user.phone?.replace(/\+549\s*\+549/, '+549') ?? user.phone;
+  res.json({ ...user, phone });
 });
 
 router.patch('/profile', async (req: AuthRequest, res) => {

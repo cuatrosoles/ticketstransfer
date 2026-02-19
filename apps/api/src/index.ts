@@ -16,6 +16,7 @@ import { usersRouter } from './routes/users.js';
 import { ticketsRouter } from './routes/tickets.js';
 import { ordersRouter } from './routes/orders.js';
 import { disputesRouter } from './routes/disputes.js';
+import { messagesRouter } from './routes/messages.js';
 import { adminRouter } from './routes/admin.js';
 import { healthRouter } from './routes/health.js';
 import { webhooksRouter } from './routes/webhooks.js';
@@ -62,6 +63,7 @@ app.use('/api/users', usersRouter);
 app.use('/api/tickets', ticketsRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/disputes', disputesRouter);
+app.use('/api/messages', messagesRouter);
 app.use('/api/admin', adminRouter);
 
 app.use((_req, res) => {

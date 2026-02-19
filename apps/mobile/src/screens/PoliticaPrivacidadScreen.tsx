@@ -34,18 +34,21 @@ export function PoliticaPrivacidadScreen() {
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-      <Text style={styles.title}></Text>
+      <Text style={styles.title}>Política de Privacidad y Uso de Datos - Tickets Transfer</Text>
       <Text style={styles.updated}>Última actualización: febrero 2026</Text>
 
       <Section title="1. Introducción">
         <Text style={styles.para}>
-          La presente Política de Privacidad y Protección de Datos (en adelante, «Política») regula el tratamiento de la información personal de los usuarios de la aplicación «Tickets Transfer». Al registrarte, acceder o utilizar cualquier funcionalidad del servicio, reconocés, entendés y aceptás esta Política y los Términos y Condiciones del servicio. Tickets Transfer se compromete a garantizar el más alto estándar de seguridad, confidencialidad y protección de los datos personales que proporciones.
+          La presente Política de Privacidad y Protección de Datos («Política») regula el tratamiento de la información personal de los usuarios que utilizan la aplicación Tickets Transfer («la Aplicación»). Al registrarse, acceder o utilizar cualquiera de las funciones, el usuario declara conocer, comprender y aceptar esta Política y los Términos y Condiciones que rigen el servicio.
+        </Text>
+        <Text style={styles.para}>
+          Tickets Transfer se compromete a garantizar el más alto estándar de seguridad, confidencialidad y protección respecto de los datos personales proporcionados por el usuario.
         </Text>
       </Section>
 
       <Section title="2. Datos que recopilamos">
         <Text style={styles.para}>
-          Tickets Transfer podrá recopilar, solicitar y almacenar los siguientes datos personales para la verificación, funcionamiento y seguridad del servicio:
+          Para la correcta verificación, funcionamiento y seguridad del servicio, podremos solicitar, recopilar y almacenar los siguientes datos personales:
         </Text>
         <BulletList
           items={[
@@ -62,12 +65,12 @@ export function PoliticaPrivacidadScreen() {
           ]}
         />
         <Text style={styles.para}>
-          Estos datos se recopilan únicamente para asegurar la legitimidad de las transacciones y la seguridad de todos los usuarios.
+          Estos datos se recopilan con el único fin de garantizar la legitimidad de las transacciones y la seguridad de todos los usuarios.
         </Text>
       </Section>
 
       <Section title="3. Finalidad del tratamiento de datos">
-        <Text style={styles.para}>Los datos recopilados se utilizan exclusivamente para las siguientes finalidades:</Text>
+        <Text style={styles.para}>Los datos se utilizan estrictamente para:</Text>
         <BulletList
           items={[
             'Crear, mantener y verificar la identidad del usuario',
@@ -83,61 +86,28 @@ export function PoliticaPrivacidadScreen() {
 
       <Section title="4. Seguridad y resguardo de la información">
         <Text style={styles.para}>
-          Tickets Transfer aplica protocolos de seguridad avanzados, cifrado de datos, control de accesos y almacenamiento en servidores protegidos según estándares internacionales. Garantizamos que:
+          Tickets Transfer aplica protocolos de seguridad avanzados, cifrado de datos, control de accesos y almacenamiento en servidores protegidos bajo estándares internacionales.
         </Text>
+        <Text style={styles.para}>Garantizamos que:</Text>
         <BulletList
           items={[
-            'Los datos NO serán vendidos, cedidos, filtrados ni compartidos con terceros sin consentimiento',
-            'Las imágenes y datos biométricos se almacenan en repositorios seguros con acceso restringido',
-            'Implementamos monitoreo permanente contra intentos de intrusión o filtración',
+            'Los datos NO serán vendidos, cedidos, filtrados ni compartidos con terceros sin consentimiento.',
+            'Las imágenes y datos biométricos se almacenan en repositorios seguros con acceso restringido.',
+            'Implementamos monitoreo permanente contra intentos de intrusión o filtración.',
           ]}
         />
         <Text style={styles.para}>
-          Ningún sistema es 100% infalible, pero Tickets Transfer adopta todas las medidas razonables que exigen las normativas vigentes para resguardar los datos.
+          El usuario reconoce que ningún sistema es 100% infalible, pero Tickets Transfer adopta todas las medidas razonables y exigidas por la normativa vigente para asegurar los datos.
         </Text>
       </Section>
 
-      <Section title="5. Obligaciones del usuario">
-        <Text style={styles.para}>El usuario se compromete a:</Text>
-        <BulletList
-          items={[
-            'Brindar información veraz y actualizada',
-            'Utilizar la App de forma legal y conforme a Términos y Condiciones',
-            'No manipular, falsificar o alterar documentación, imágenes o entradas',
-            'No realizar conductas engañosas, fraudulentas o que dañen a otros usuarios',
-          ]}
-        />
-      </Section>
-
-      <Section title="6. Política antifraude y sanciones">
-        <Text style={styles.para}>Se considerará fraude, entre otras conductas:</Text>
-        <BulletList
-          items={[
-            'Presentar documentos de identidad falsos o adulterados',
-            'Manipular imágenes de tickets o códigos QR',
-            'Intercambiar entradas falsas o duplicadas',
-            'Suplantación de identidad',
-            'Cualquier acción que busque engañar al sistema o a otros usuarios',
-          ]}
-        />
-        <Text style={styles.para}>Consecuencias ante fraude:</Text>
-        <BulletList
-          items={[
-            'La cuenta será dada de baja de forma permanente',
-            'No habrá reintegro de dinero',
-            'No se devolverán ni restaurarán entradas',
-            'El caso podrá ser reportado a autoridades correspondientes',
-          ]}
-        />
-      </Section>
-
-      <Section title="7. Bases legales del tratamiento">
+      <Section title="5. Bases legales del tratamiento">
         <Text style={styles.para}>
           El tratamiento de datos se realiza conforme a las leyes de protección de datos vigentes en la jurisdicción del usuario, normativas de identificación digital y antifraude, y al consentimiento del usuario otorgado al registrarse.
         </Text>
       </Section>
 
-      <Section title="8. Derechos del usuario">
+      <Section title="6. Derechos del usuario">
         <Text style={styles.para}>El usuario podrá solicitar:</Text>
         <BulletList
           items={[
@@ -149,21 +119,21 @@ export function PoliticaPrivacidadScreen() {
         />
       </Section>
 
-      <Section title="9. Aceptación">
+      <Section title="7. Aceptación">
         <Text style={styles.para}>
           Al utilizar la App, el usuario acepta plenamente esta Política, los Términos y Condiciones, y cualquier modificación futura debidamente comunicada.
         </Text>
       </Section>
 
-      <Section title="10. Modificaciones">
+      <Section title="8. Modificaciones">
         <Text style={styles.para}>
           Tickets Transfer podrá actualizar esta Política para reflejar cambios normativos, técnicos o funcionales.
         </Text>
       </Section>
 
-      <Section title="11. Contacto">
+      <Section title="9. Contacto">
         <Text style={styles.para}>
-          Consultas o solicitudes podrán enviarse a los canales oficiales de soporte dentro de la aplicación.
+          Las consultas o solicitudes podrán enviarse a los canales oficiales de soporte dentro de la aplicación.
         </Text>
       </Section>
       </ScrollView>

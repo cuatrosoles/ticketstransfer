@@ -11,10 +11,13 @@ const registerBase = z.object({
   confirmPassword: z.string(),
   firstName: z.string().min(1, 'Nombre requerido'),
   lastName: z.string().min(1, 'Apellido requerido'),
+  username: z.string().min(2).optional(),
   country: z.string().optional(),
   tipoDocumento: z.string().optional(),
+  documentNumber: z.string().optional(),
   sexo: z.enum(['MASC', 'FEM', 'X']).optional(),
   phone: z.string().optional(),
+  phoneAreaCode: z.string().optional(),
   phonePrefix: z.string().optional(),
   dateOfBirth: z.string().optional(),
   city: z.string().optional(),
@@ -29,7 +32,7 @@ export const registerSchema = registerBase.refine((d) => d.password === d.confir
 export const registerBodySchema = registerBase.omit({ confirmPassword: true, agreeTerms: true });
 
 export const loginSchema = z.object({
-  email: z.string().min(1, 'Email o usuario requerido'),
+  email: z.string().min(1, 'Email o nombre de usuario requerido'),
   password: z.string().min(1, 'Contraseña requerida'),
 });
 
