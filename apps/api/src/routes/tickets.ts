@@ -5,16 +5,14 @@
 
 import { Router } from 'express';
 import multer from 'multer';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { prisma } from '../lib/prisma.js';
+import { uploadsDir } from '../lib/uploads.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { createTicketListingSchema } from '@tickets-transfer/shared';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
 const upload = multer({
-  dest: path.join(__dirname, '..', '..', 'uploads'),
+  dest: uploadsDir,
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 

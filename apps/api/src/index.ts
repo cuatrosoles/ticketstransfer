@@ -11,6 +11,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
+import { uploadsDir, ensureUploadsDir } from './lib/uploads.js';
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { ticketsRouter } from './routes/tickets.js';
@@ -49,7 +50,7 @@ app.use(
   })
 );
 
-const uploadsDir = path.join(__dirname, '..', 'uploads');
+ensureUploadsDir();
 app.use('/uploads', express.static(uploadsDir));
 
 app.use(

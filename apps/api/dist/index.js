@@ -7,11 +7,23 @@ var __export = (target, all) => {
 // src/index.ts
 import "dotenv/config";
 import express from "express";
-import path4 from "path";
-import { fileURLToPath as fileURLToPath4 } from "url";
+import path2 from "path";
+import { fileURLToPath as fileURLToPath2 } from "url";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+
+// src/lib/uploads.ts
+import path from "path";
+import { fileURLToPath } from "url";
+import { mkdirSync, existsSync } from "fs";
+var __dirname = path.dirname(fileURLToPath(import.meta.url));
+var uploadsDir = process.env.UPLOADS_PATH || process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(__dirname, "..", "uploads");
+function ensureUploadsDir() {
+  if (!existsSync(uploadsDir)) {
+    mkdirSync(uploadsDir, { recursive: true });
+  }
+}
 
 // src/routes/auth.ts
 import { Router } from "express";
@@ -507,8 +519,8 @@ function getErrorMap() {
 
 // ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path5, errorMaps, issueData } = params;
-  const fullPath = [...path5, ...issueData.path || []];
+  const { data, path: path3, errorMaps, issueData } = params;
+  const fullPath = [...path3, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -624,11 +636,11 @@ var errorUtil;
 
 // ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path5, key) {
+  constructor(parent, value, path3, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path5;
+    this._path = path3;
     this._key = key;
   }
   get path() {
@@ -4077,10 +4089,13 @@ var registerBase = external_exports.object({
   confirmPassword: external_exports.string(),
   firstName: external_exports.string().min(1, "Nombre requerido"),
   lastName: external_exports.string().min(1, "Apellido requerido"),
+  username: external_exports.string().min(2).optional(),
   country: external_exports.string().optional(),
   tipoDocumento: external_exports.string().optional(),
+  documentNumber: external_exports.string().optional(),
   sexo: external_exports.enum(["MASC", "FEM", "X"]).optional(),
   phone: external_exports.string().optional(),
+  phoneAreaCode: external_exports.string().optional(),
   phonePrefix: external_exports.string().optional(),
   dateOfBirth: external_exports.string().optional(),
   city: external_exports.string().optional(),
@@ -4091,7 +4106,7 @@ var registerBase = external_exports.object({
 var registerSchema = registerBase.refine((d) => d.password === d.confirmPassword, { message: "Las contrase\xF1as no coinciden", path: ["confirmPassword"] });
 var registerBodySchema = registerBase.omit({ confirmPassword: true, agreeTerms: true });
 var loginSchema = external_exports.object({
-  email: external_exports.string().min(1, "Email o usuario requerido"),
+  email: external_exports.string().min(1, "Email o nombre de usuario requerido"),
   password: external_exports.string().min(1, "Contrase\xF1a requerida")
 });
 var onboardingSchema = external_exports.object({
@@ -4195,10 +4210,13 @@ router.post("/register", async (req, res) => {
     password,
     firstName,
     lastName,
+    username,
     country,
     tipoDocumento,
+    documentNumber,
     sexo,
     phone,
+    phoneAreaCode,
     phonePrefix,
     dateOfBirth,
     city,
@@ -4210,16 +4228,27 @@ router.post("/register", async (req, res) => {
     res.status(409).json({ error: "Ya existe una cuenta con ese email" });
     return;
   }
+  if (username) {
+    const existingUsername = await prisma.user.findUnique({ where: { username } });
+    if (existingUsername) {
+      res.status(409).json({ error: "Ya existe un usuario con ese nombre de usuario" });
+      return;
+    }
+  }
   const passwordHash = await bcrypt.hash(password, 12);
-  const fullPhone = phone ? [phonePrefix || "+549", phone].filter(Boolean).join(" ").trim() : null;
+  const fullPhone = phone ? [phonePrefix || "+549", phoneAreaCode || "", phone].filter(Boolean).join(" ").trim() : null;
+  const numeroId = `TT${Math.random().toString(36).slice(2, 10).toUpperCase()}${Date.now().toString(36).slice(-4).toUpperCase()}`;
   const user = await prisma.user.create({
     data: {
       email,
+      username: username || null,
+      numeroId,
       passwordHash,
       firstName: firstName || null,
       lastName: lastName || null,
       country: country || null,
       tipoDocumento: tipoDocumento || null,
+      documentNumber: documentNumber || null,
       sexo,
       phone: fullPhone || phone || null,
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
@@ -4242,11 +4271,15 @@ router.post("/register", async (req, res) => {
 router.post("/login", async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Email y contrase\xF1a requeridos" });
+    res.status(400).json({ error: "Email/usuario y contrase\xF1a requeridos" });
     return;
   }
   const { email, password } = parsed.data;
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [{ email }, { username: email }]
+    }
+  });
   if (!user || !await bcrypt.compare(password, user.passwordHash)) {
     res.status(401).json({ error: "Credenciales incorrectas" });
     return;
@@ -4319,17 +4352,22 @@ var authRouter = router;
 // src/routes/users.ts
 import { Router as Router2 } from "express";
 import multer from "multer";
-import path from "path";
-import { fileURLToPath } from "url";
 
 // src/lib/didit.ts
 var DIDIT_BASE = "https://verification.didit.me";
 var DIDIT_API_KEY = process.env.DIDIT_API_KEY;
+var DIDIT_WORKFLOW_ID = process.env.DIDIT_WORKFLOW_ID;
 async function createDiditSession(params) {
   if (!DIDIT_API_KEY) {
     throw new Error("DIDIT_API_KEY no configurado. Configur\xE1 en business.didit.me y en .env");
   }
+  if (!DIDIT_WORKFLOW_ID) {
+    throw new Error(
+      "DIDIT_WORKFLOW_ID no configurado. Cre\xE1 un workflow en business.didit.me \u2192 Verifications \u2192 Workflows y copi\xE1 el ID."
+    );
+  }
   const body = {
+    workflow_id: DIDIT_WORKFLOW_ID,
     callback: params.callback,
     vendor_data: params.vendor_data,
     ...params.features && { features: params.features }
@@ -4373,19 +4411,20 @@ async function verifyDiditWebhookSignature(rawBody, signature, timestamp, secret
 }
 
 // src/routes/users.ts
-var __dirname = path.dirname(fileURLToPath(import.meta.url));
 var router2 = Router2();
 var upload = multer({
-  dest: path.join(__dirname, "..", "..", "uploads"),
+  dest: uploadsDir,
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 router2.use(requireAuth);
 router2.get("/profile", async (req, res) => {
-  const user = await prisma.user.findUnique({
+  let user = await prisma.user.findUnique({
     where: { id: req.user.id },
     select: {
       id: true,
       email: true,
+      username: true,
+      numeroId: true,
       firstName: true,
       lastName: true,
       country: true,
@@ -4396,25 +4435,80 @@ router2.get("/profile", async (req, res) => {
       province: true,
       postalCode: true,
       reputationScore: true,
+      profileImageUrl: true,
       kyc: { select: { status: true, rejectionReason: true } }
     }
   });
   if (!user) return res.status(404).json({ error: "No encontrado" });
-  res.json(user);
+  if (!user.numeroId) {
+    const numeroId = `TT${Math.random().toString(36).slice(2, 10).toUpperCase()}${Date.now().toString(36).slice(-4).toUpperCase()}`;
+    user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { numeroId },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        numeroId: true,
+        firstName: true,
+        lastName: true,
+        country: true,
+        tipoDocumento: true,
+        phone: true,
+        dateOfBirth: true,
+        city: true,
+        province: true,
+        postalCode: true,
+        reputationScore: true,
+        profileImageUrl: true,
+        kyc: { select: { status: true, rejectionReason: true } }
+      }
+    });
+  }
+  const phone = user.phone?.replace(/\+549\s*\+549/, "+549") ?? user.phone;
+  res.json({ ...user, phone });
+});
+router2.post("/profile/avatar", upload.single("avatar"), async (req, res) => {
+  const file = req.file;
+  if (!file) {
+    res.status(400).json({ error: "No se envi\xF3 ninguna imagen" });
+    return;
+  }
+  const baseUrl = process.env.APP_URL || "http://localhost:3001";
+  const profileImageUrl = `${baseUrl}/uploads/${file.filename}`;
+  await prisma.user.update({
+    where: { id: req.user.id },
+    data: { profileImageUrl }
+  });
+  res.json({ profileImageUrl });
 });
 router2.patch("/profile", async (req, res) => {
-  const { firstName, lastName, phone, city, province, postalCode } = req.body;
+  const body = req.body || {};
+  const { username, firstName, lastName, phone, city, province, postalCode } = body;
+  const updateData = {};
+  if (firstName !== void 0) updateData.firstName = firstName;
+  if (lastName !== void 0) updateData.lastName = lastName;
+  if (phone !== void 0) updateData.phone = phone;
+  if (city !== void 0) updateData.city = city;
+  if (province !== void 0) updateData.province = province;
+  if (postalCode !== void 0) updateData.postalCode = postalCode;
+  if (username !== void 0) {
+    const usernameVal = typeof username === "string" ? username.trim() : "";
+    if (usernameVal) {
+      const existing = await prisma.user.findFirst({
+        where: { username: usernameVal, NOT: { id: req.user.id } }
+      });
+      if (existing) {
+        res.status(409).json({ error: "Ya existe un usuario con ese nombre de usuario" });
+        return;
+      }
+    }
+    updateData.username = usernameVal || null;
+  }
   const user = await prisma.user.update({
     where: { id: req.user.id },
-    data: {
-      ...firstName !== void 0 && { firstName },
-      ...lastName !== void 0 && { lastName },
-      ...phone !== void 0 && { phone },
-      ...city !== void 0 && { city },
-      ...province !== void 0 && { province },
-      ...postalCode !== void 0 && { postalCode }
-    },
-    select: { id: true, email: true, firstName: true, lastName: true }
+    data: updateData,
+    select: { id: true, email: true, username: true, firstName: true, lastName: true }
   });
   res.json(user);
 });
@@ -4501,12 +4595,9 @@ var usersRouter = router2;
 // src/routes/tickets.ts
 import { Router as Router3 } from "express";
 import multer2 from "multer";
-import path2 from "path";
-import { fileURLToPath as fileURLToPath2 } from "url";
-var __dirname2 = path2.dirname(fileURLToPath2(import.meta.url));
 var router3 = Router3();
 var upload2 = multer2({
-  dest: path2.join(__dirname2, "..", "..", "uploads"),
+  dest: uploadsDir,
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 router3.get("/", async (_req, res) => {
@@ -4578,6 +4669,10 @@ router3.post("/", requireAuth, upload2.fields([
   const baseUrl = process.env.APP_URL || "http://localhost:3001";
   const captureTicketUrl = files.captureTicket?.[0] ? `${baseUrl}/uploads/${files.captureTicket[0].filename}` : void 0;
   const captureOwnershipUrl = files.captureOwnership?.[0] ? `${baseUrl}/uploads/${files.captureOwnership[0].filename}` : void 0;
+  const publicationPassword = req.body.publicationPassword || void 0;
+  const ticketeraOtra = req.body.ticketeraOtra || void 0;
+  const appBoletosOtra = req.body.appBoletosOtra || void 0;
+  const tipoEntradaOtro = req.body.tipoEntradaOtro || void 0;
   const listing = await prisma.ticketListing.create({
     data: {
       sellerId: req.user.id,
@@ -4596,7 +4691,11 @@ router3.post("/", requireAuth, upload2.fields([
       category: parsed.data.category ?? "OTRO",
       status: "PENDIENTE_VERIFICACION",
       captureTicketUrl,
-      captureOwnershipUrl
+      captureOwnershipUrl,
+      publicationPassword,
+      ticketeraOtra,
+      appBoletosOtra,
+      tipoEntradaOtro
     }
   });
   res.status(201).json(listing);
@@ -4629,12 +4728,9 @@ var ticketsRouter = router3;
 // src/routes/orders.ts
 import { Router as Router4 } from "express";
 import multer3 from "multer";
-import path3 from "path";
-import { fileURLToPath as fileURLToPath3 } from "url";
-var __dirname3 = path3.dirname(fileURLToPath3(import.meta.url));
 var router4 = Router4();
 var upload3 = multer3({
-  dest: path3.join(__dirname3, "..", "..", "uploads"),
+  dest: uploadsDir,
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 router4.use(requireAuth);
@@ -4870,12 +4966,193 @@ router5.post("/:id/messages", async (req, res) => {
 });
 var disputesRouter = router5;
 
-// src/routes/admin.ts
+// src/routes/messages.ts
 import { Router as Router6 } from "express";
 var router6 = Router6();
 router6.use(requireAuth);
-router6.use(requireAdmin);
-router6.get("/stats", async (_req, res) => {
+function normalizeUserIds(id1, id2) {
+  return id1 < id2 ? [id1, id2] : [id2, id1];
+}
+router6.get("/conversations", async (req, res) => {
+  const userId = req.user.id;
+  const conversations = await prisma.conversation.findMany({
+    where: { OR: [{ user1Id: userId }, { user2Id: userId }] },
+    include: {
+      user1: { select: { id: true, email: true, firstName: true, lastName: true, username: true, numeroId: true } },
+      user2: { select: { id: true, email: true, firstName: true, lastName: true, username: true, numeroId: true } },
+      messages: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { content: true, createdAt: true, senderId: true }
+      }
+    },
+    orderBy: { updatedAt: "desc" }
+  });
+  const list = conversations.map((c) => {
+    const other = c.user1Id === userId ? c.user2 : c.user1;
+    const lastMsg = c.messages[0];
+    return {
+      id: c.id,
+      otherUser: {
+        id: other.id,
+        email: other.email,
+        firstName: other.firstName,
+        lastName: other.lastName,
+        username: other.username,
+        numeroId: other.numeroId
+      },
+      lastMessage: lastMsg ? { content: lastMsg.content, createdAt: lastMsg.createdAt, isFromMe: lastMsg.senderId === userId } : null,
+      updatedAt: c.updatedAt
+    };
+  });
+  res.json(list);
+});
+router6.get("/users/search", async (req, res) => {
+  const q = req.query.q?.trim();
+  if (!q || q.length < 2) {
+    res.status(400).json({ error: "Ingres\xE1 al menos 2 caracteres (ID o email)" });
+    return;
+  }
+  const userId = req.user.id;
+  const users = await prisma.user.findMany({
+    where: {
+      id: { not: userId },
+      OR: [
+        { email: { contains: q, mode: "insensitive" } },
+        { username: { contains: q, mode: "insensitive" } },
+        { numeroId: { contains: q, mode: "insensitive" } }
+      ]
+    },
+    select: { id: true, email: true, firstName: true, lastName: true, username: true, numeroId: true },
+    take: 10
+  });
+  res.json(users);
+});
+router6.post("/conversations", async (req, res) => {
+  const { otherUserId } = req.body;
+  if (!otherUserId || typeof otherUserId !== "string") {
+    res.status(400).json({ error: "otherUserId requerido" });
+    return;
+  }
+  const userId = req.user.id;
+  if (otherUserId === userId) {
+    res.status(400).json({ error: "No pod\xE9s iniciar conversaci\xF3n con vos mismo" });
+    return;
+  }
+  const other = await prisma.user.findUnique({
+    where: { id: otherUserId },
+    select: { id: true, email: true, firstName: true, lastName: true, username: true, numeroId: true }
+  });
+  if (!other) {
+    res.status(404).json({ error: "Usuario no encontrado" });
+    return;
+  }
+  const [u1, u2] = normalizeUserIds(userId, otherUserId);
+  let conv = await prisma.conversation.findUnique({
+    where: { user1Id_user2Id: { user1Id: u1, user2Id: u2 } },
+    include: {
+      user1: { select: { id: true, email: true, firstName: true, lastName: true, username: true, numeroId: true } },
+      user2: { select: { id: true, email: true, firstName: true, lastName: true, username: true, numeroId: true } }
+    }
+  });
+  if (!conv) {
+    conv = await prisma.conversation.create({
+      data: { user1Id: u1, user2Id: u2 },
+      include: {
+        user1: { select: { id: true, email: true, firstName: true, lastName: true, username: true, numeroId: true } },
+        user2: { select: { id: true, email: true, firstName: true, lastName: true, username: true, numeroId: true } }
+      }
+    });
+  }
+  const otherUser = conv.user1Id === userId ? conv.user2 : conv.user1;
+  res.json({
+    id: conv.id,
+    otherUser,
+    createdAt: conv.createdAt
+  });
+});
+router6.get("/conversations/:id/messages", async (req, res) => {
+  const convId = req.params.id;
+  const userId = req.user.id;
+  const conv = await prisma.conversation.findUnique({
+    where: { id: convId }
+  });
+  if (!conv) {
+    res.status(404).json({ error: "Conversaci\xF3n no encontrada" });
+    return;
+  }
+  if (conv.user1Id !== userId && conv.user2Id !== userId) {
+    res.status(403).json({ error: "No ten\xE9s acceso a esta conversaci\xF3n" });
+    return;
+  }
+  const messages = await prisma.message.findMany({
+    where: { conversationId: convId },
+    include: { sender: { select: { id: true, email: true, firstName: true, lastName: true } } },
+    orderBy: { createdAt: "asc" }
+  });
+  res.json(
+    messages.map((m) => ({
+      id: m.id,
+      content: m.content,
+      senderId: m.senderId,
+      sender: m.sender,
+      isFromMe: m.senderId === userId,
+      createdAt: m.createdAt
+    }))
+  );
+});
+router6.post("/conversations/:id/messages", async (req, res) => {
+  const convId = req.params.id;
+  const { content } = req.body;
+  const userId = req.user.id;
+  if (!content || typeof content !== "string" || !content.trim()) {
+    res.status(400).json({ error: "Mensaje requerido" });
+    return;
+  }
+  if (content.length > 2e3) {
+    res.status(400).json({ error: "Mensaje demasiado largo" });
+    return;
+  }
+  const conv = await prisma.conversation.findUnique({
+    where: { id: convId }
+  });
+  if (!conv) {
+    res.status(404).json({ error: "Conversaci\xF3n no encontrada" });
+    return;
+  }
+  if (conv.user1Id !== userId && conv.user2Id !== userId) {
+    res.status(403).json({ error: "No ten\xE9s acceso a esta conversaci\xF3n" });
+    return;
+  }
+  const message = await prisma.message.create({
+    data: {
+      conversationId: convId,
+      senderId: userId,
+      content: content.trim()
+    },
+    include: { sender: { select: { id: true, email: true, firstName: true, lastName: true } } }
+  });
+  await prisma.conversation.update({
+    where: { id: convId },
+    data: { updatedAt: /* @__PURE__ */ new Date() }
+  });
+  res.status(201).json({
+    id: message.id,
+    content: message.content,
+    senderId: message.senderId,
+    sender: message.sender,
+    isFromMe: true,
+    createdAt: message.createdAt
+  });
+});
+var messagesRouter = router6;
+
+// src/routes/admin.ts
+import { Router as Router7 } from "express";
+var router7 = Router7();
+router7.use(requireAuth);
+router7.use(requireAdmin);
+router7.get("/stats", async (_req, res) => {
   const [usersCount, ordersCount, disputesOpen, kycPending, listingsCount] = await Promise.all([
     prisma.user.count(),
     prisma.order.count(),
@@ -4893,7 +5170,7 @@ router6.get("/stats", async (_req, res) => {
     listingsCount
   });
 });
-router6.get("/users", async (req, res) => {
+router7.get("/users", async (req, res) => {
   const { q, page = "1", limit = "20", role, kycStatus } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
   const where = {};
@@ -4928,7 +5205,7 @@ router6.get("/users", async (req, res) => {
   ]);
   res.json({ users, total });
 });
-router6.get("/kyc/pending", async (_req, res) => {
+router7.get("/kyc/pending", async (_req, res) => {
   const list = await prisma.kycVerification.findMany({
     where: { status: "EN_REVISION" },
     include: {
@@ -4940,7 +5217,7 @@ router6.get("/kyc/pending", async (_req, res) => {
   });
   res.json(list);
 });
-router6.patch("/kyc/:userId", async (req, res) => {
+router7.patch("/kyc/:userId", async (req, res) => {
   const { userId } = req.params;
   const { status, rejectionReason } = req.body;
   if (status !== "APROBADO" && status !== "RECHAZADO") {
@@ -4959,7 +5236,7 @@ router6.patch("/kyc/:userId", async (req, res) => {
   });
   res.json(kyc);
 });
-router6.get("/disputes", async (req, res) => {
+router7.get("/disputes", async (req, res) => {
   const { status } = req.query;
   const where = typeof status === "string" && status ? { status } : {};
   const disputes = await prisma.dispute.findMany({
@@ -4978,7 +5255,7 @@ router6.get("/disputes", async (req, res) => {
   });
   res.json(disputes);
 });
-router6.patch("/disputes/:id/resolve", async (req, res) => {
+router7.patch("/disputes/:id/resolve", async (req, res) => {
   const { id } = req.params;
   const { resolution } = req.body;
   if (resolution !== "RESUELTA_FAVOR_COMPRADOR" && resolution !== "RESUELTA_FAVOR_VENDEDOR") {
@@ -5004,7 +5281,41 @@ router6.patch("/disputes/:id/resolve", async (req, res) => {
   });
   res.json(updated);
 });
-router6.get("/orders", async (req, res) => {
+router7.get("/conversations", async (req, res) => {
+  const { page = "1", limit = "30" } = req.query;
+  const skip = (Number(page) - 1) * Number(limit);
+  const [conversations, total] = await Promise.all([
+    prisma.conversation.findMany({
+      include: {
+        user1: { select: { id: true, email: true, firstName: true, lastName: true, numeroId: true } },
+        user2: { select: { id: true, email: true, firstName: true, lastName: true, numeroId: true } },
+        messages: { take: 1, orderBy: { createdAt: "desc" }, select: { content: true, createdAt: true } }
+      },
+      orderBy: { updatedAt: "desc" },
+      skip,
+      take: Number(limit)
+    }),
+    prisma.conversation.count()
+  ]);
+  res.json({ conversations, total });
+});
+router7.get("/conversations/:id/messages", async (req, res) => {
+  const { id } = req.params;
+  const conv = await prisma.conversation.findUnique({
+    where: { id },
+    include: {
+      user1: { select: { id: true, email: true, firstName: true, lastName: true } },
+      user2: { select: { id: true, email: true, firstName: true, lastName: true } },
+      messages: {
+        include: { sender: { select: { id: true, email: true, firstName: true, lastName: true } } },
+        orderBy: { createdAt: "asc" }
+      }
+    }
+  });
+  if (!conv) return res.status(404).json({ error: "Conversaci\xF3n no encontrada" });
+  res.json(conv);
+});
+router7.get("/orders", async (req, res) => {
   const { page = "1", limit = "20", status } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
   const where = typeof status === "string" && status ? { status } : {};
@@ -5024,11 +5335,11 @@ router6.get("/orders", async (req, res) => {
   ]);
   res.json({ orders, total });
 });
-var adminRouter = router6;
+var adminRouter = router7;
 
 // src/routes/health.ts
-import { Router as Router7 } from "express";
-var healthRouter = Router7();
+import { Router as Router8 } from "express";
+var healthRouter = Router8();
 healthRouter.get("/", async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -5039,8 +5350,8 @@ healthRouter.get("/", async (_req, res) => {
 });
 
 // src/routes/webhooks.ts
-import { Router as Router8 } from "express";
-var router7 = Router8();
+import { Router as Router9 } from "express";
+var router8 = Router9();
 var WEBHOOK_SECRET = process.env.DIDIT_WEBHOOK_SECRET_KEY;
 function mapDiditStatus(status) {
   switch (status) {
@@ -5056,7 +5367,7 @@ function mapDiditStatus(status) {
       return status === "In Review" ? "EN_REVISION" : "PENDIENTE";
   }
 }
-router7.post("/didit", async (req, res) => {
+router8.post("/didit", async (req, res) => {
   const rawBody = req.rawBody;
   if (!rawBody) {
     return res.status(400).json({ error: "Raw body no disponible" });
@@ -5099,12 +5410,13 @@ router7.post("/didit", async (req, res) => {
     return res.status(500).json({ error: "Error interno" });
   }
 });
-var webhooksRouter = router7;
+var webhooksRouter = router8;
 
 // src/index.ts
-var __dirname4 = path4.dirname(fileURLToPath4(import.meta.url));
+var __dirname2 = path2.dirname(fileURLToPath2(import.meta.url));
 var app = express();
 var PORT = process.env.PORT ?? 3001;
+app.set("trust proxy", 1);
 var isProduction = process.env.NODE_ENV === "production";
 var corsOrigin = isProduction ? true : [
   process.env.CORS_ORIGIN_WEB || "http://localhost:5173",
@@ -5120,7 +5432,7 @@ app.use(
     }
   })
 );
-var uploadsDir = path4.join(__dirname4, "..", "uploads");
+ensureUploadsDir();
 app.use("/uploads", express.static(uploadsDir));
 app.use(
   rateLimit({
@@ -5136,6 +5448,7 @@ app.use("/api/users", usersRouter);
 app.use("/api/tickets", ticketsRouter);
 app.use("/api/orders", ordersRouter);
 app.use("/api/disputes", disputesRouter);
+app.use("/api/messages", messagesRouter);
 app.use("/api/admin", adminRouter);
 app.use((_req, res) => {
   res.status(404).json({ error: "No encontrado" });
