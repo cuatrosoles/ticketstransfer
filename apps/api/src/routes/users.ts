@@ -39,6 +39,7 @@ router.get('/profile', async (req: AuthRequest, res) => {
       province: true,
       postalCode: true,
       reputationScore: true,
+      profileImageUrl: true,
       kyc: { select: { status: true, rejectionReason: true } },
     },
   });
@@ -63,6 +64,7 @@ router.get('/profile', async (req: AuthRequest, res) => {
         province: true,
         postalCode: true,
         reputationScore: true,
+        profileImageUrl: true,
         kyc: { select: { status: true, rejectionReason: true } },
       },
     });
@@ -71,19 +73,56 @@ router.get('/profile', async (req: AuthRequest, res) => {
   res.json({ ...user, phone });
 });
 
+router.post('/profile/avatar', upload.single('avatar'), async (req: AuthRequest, res) => {
+  const file = req.file;
+  if (!file) {
+    res.status(400).json({ error: 'No se envió ninguna imagen' });
+    return;
+  }
+  const baseUrl = process.env.APP_URL || 'http://localhost:3001';
+  const profileImageUrl = `${baseUrl}/uploads/${file.filename}`;
+  await prisma.user.update({
+    where: { id: req.user!.id },
+    data: { profileImageUrl },
+  });
+  res.json({ profileImageUrl });
+});
+
 router.patch('/profile', async (req: AuthRequest, res) => {
-  const { firstName, lastName, phone, city, province, postalCode } = req.body;
+  const body = req.body || {};
+  const { username, firstName, lastName, phone, city, province, postalCode } = body;
+  const updateData: {
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    city?: string;
+    province?: string;
+    postalCode?: string;
+    username?: string | null;
+  } = {};
+  if (firstName !== undefined) updateData.firstName = firstName;
+  if (lastName !== undefined) updateData.lastName = lastName;
+  if (phone !== undefined) updateData.phone = phone;
+  if (city !== undefined) updateData.city = city;
+  if (province !== undefined) updateData.province = province;
+  if (postalCode !== undefined) updateData.postalCode = postalCode;
+  if (username !== undefined) {
+    const usernameVal = typeof username === 'string' ? username.trim() : '';
+    if (usernameVal) {
+      const existing = await prisma.user.findFirst({
+        where: { username: usernameVal, NOT: { id: req.user!.id } },
+      });
+      if (existing) {
+        res.status(409).json({ error: 'Ya existe un usuario con ese nombre de usuario' });
+        return;
+      }
+    }
+    updateData.username = usernameVal || null;
+  }
   const user = await prisma.user.update({
     where: { id: req.user!.id },
-    data: {
-      ...(firstName !== undefined && { firstName }),
-      ...(lastName !== undefined && { lastName }),
-      ...(phone !== undefined && { phone }),
-      ...(city !== undefined && { city }),
-      ...(province !== undefined && { province }),
-      ...(postalCode !== undefined && { postalCode }),
-    },
-    select: { id: true, email: true, firstName: true, lastName: true },
+    data: updateData,
+    select: { id: true, email: true, username: true, firstName: true, lastName: true },
   });
   res.json(user);
 });

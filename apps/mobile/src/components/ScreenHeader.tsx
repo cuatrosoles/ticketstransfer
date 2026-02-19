@@ -32,7 +32,7 @@ export function ScreenHeader({ title, showBack, onBack, rightSlot }: Props) {
           style={styles.logo}
           resizeMode="contain"
         />
-        {rightSlot ?? <View style={styles.spacer} />}
+        {rightSlot ? <View style={styles.rightSlot}>{rightSlot}</View> : <View style={styles.spacer} />}
       </View>
       <Text style={styles.title}>{title}</Text>
     </View>
@@ -40,11 +40,12 @@ export function ScreenHeader({ title, showBack, onBack, rightSlot }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { width: '100%', paddingHorizontal: 8, paddingVertical: 8 },
+  container: { width: '100%', paddingHorizontal: 8, paddingVertical: 8, overflow: 'hidden' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
+    flexShrink: 1,
   },
   spacer: { width: 4, height: 4 },
   backBtn: {
@@ -54,12 +55,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
+  rightSlot: { flexShrink: 0 },
   backIcon: { fontSize: 22, color: '#f8fafc' },
   logo: {
-    width: MAX_LOGO_WIDTH,
+    flex: 1,
+    maxWidth: MAX_LOGO_WIDTH,
     height: MAX_LOGO_WIDTH / LOGO_ASPECT,
-    flex: 0,
+    minWidth: 0,
   },
   userBtn: {
     width: 40,

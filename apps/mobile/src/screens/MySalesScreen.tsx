@@ -6,12 +6,15 @@
 import * as React from 'react';
 import { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { getMySales, type OrderItem } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { UserMenuButton } from '../components/UserMenuButton';
 import { colors, spacing, radius, glassCard } from '../theme';
 
 export function MySalesScreen() {
+  const navigation = useNavigation();
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -74,6 +77,14 @@ export function MySalesScreen() {
       data={orders}
       keyExtractor={(item) => item.id}
       renderItem={renderItem}
+      ListHeaderComponent={
+        <ScreenHeader
+          title="Mis ventas"
+          showBack
+          onBack={() => navigation.goBack()}
+          rightSlot={<UserMenuButton />}
+        />
+      }
       contentContainerStyle={styles.list}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
       ListEmptyComponent={<Text style={styles.emptyText}>No tenés ventas.</Text>}
@@ -83,7 +94,7 @@ export function MySalesScreen() {
 }
 
 const styles = StyleSheet.create({
-  list: { paddingTop: 160, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  list: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   card: { padding: spacing.lg, marginBottom: spacing.md },
   eventName: { fontSize: 16, fontWeight: '600', color: colors.text },

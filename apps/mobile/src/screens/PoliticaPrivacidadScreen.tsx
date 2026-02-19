@@ -5,7 +5,11 @@
 
 import * as React from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { AuthBackground } from '../components/AuthBackground';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { UserMenuButton } from '../components/UserMenuButton';
+import { useAuth } from '../context/AuthContext';
 import { colors, spacing, radius, glassCard } from '../theme';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -31,9 +35,17 @@ function BulletList({ items }: { items: string[] }) {
 }
 
 export function PoliticaPrivacidadScreen() {
+  const navigation = useNavigation();
+  const { user } = useAuth();
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <ScreenHeader
+          title="Política de privacidad"
+          showBack
+          onBack={() => navigation.goBack()}
+          rightSlot={user ? <UserMenuButton /> : undefined}
+        />
       <Text style={styles.title}>Política de Privacidad y Uso de Datos - Tickets Transfer</Text>
       <Text style={styles.updated}>Última actualización: febrero 2026</Text>
 
@@ -143,7 +155,7 @@ export function PoliticaPrivacidadScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 160, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
   title: { fontSize: 22, fontWeight: '800', color: colors.text, marginBottom: spacing.sm },
   updated: { fontSize: 14, color: colors.textMuted, marginBottom: spacing.lg },
   section: {

@@ -1,18 +1,25 @@
 /**
  * Botón de usuario para el header – Abre el dropdown como en web.
- * Estilo compacto: círculo sutil, sin padding excesivo.
+ * Muestra la imagen de perfil si existe, sino el icono de usuario.
  */
 
 import * as React from 'react';
-import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { TouchableOpacity, StyleSheet, Image } from 'react-native';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { useUserMenu } from '../context/UserMenuContext';
+import { useProfileImage } from '../context/ProfileImageContext';
 
 export function UserMenuButton() {
   const { openMenu } = useUserMenu();
+  const { profileImageUrl } = useProfileImage();
 
   return (
     <TouchableOpacity onPress={openMenu} style={styles.btn} hitSlop={{ top: 8, bottom: 8 }}>
-      <Text style={styles.icon}>👤</Text>
+      {profileImageUrl ? (
+        <Image source={{ uri: profileImageUrl }} style={styles.avatar} />
+      ) : (
+        <FontAwesome5 name="user" size={18} color="#fff" solid />
+      )}
     </TouchableOpacity>
   );
 }
@@ -22,12 +29,16 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(59, 130, 246, 0.35)',
-    borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#f8fafc',
+    overflow: 'hidden',
   },
-  icon: { fontSize: 20 },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
 });

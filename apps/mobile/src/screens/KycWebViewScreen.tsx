@@ -7,18 +7,22 @@ import * as React from 'react';
 import { useEffect } from 'react';
 import {
   View,
+  ScrollView,
   StyleSheet,
   ActivityIndicator,
   Text,
   TouchableOpacity,
   Linking,
+  useWindowDimensions,
 } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { WebView } from 'react-native-webview';
 import { AuthBackground } from '../components/AuthBackground';
-import { colors } from '../theme';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { UserMenuButton } from '../components/UserMenuButton';
+import { colors, spacing } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'KycWebView'>;
 type KycWebViewRoute = RouteProp<RootStackParamList, 'KycWebView'>;
@@ -29,6 +33,7 @@ const USER_AGENT =
 export function KycWebViewScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<KycWebViewRoute>();
+  const { height } = useWindowDimensions();
   const { sessionUrl } = route.params;
 
   useEffect(() => {
@@ -55,8 +60,15 @@ export function KycWebViewScreen() {
 
   return (
     <AuthBackground>
-      <View style={styles.container}>
-        <WebView
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <ScreenHeader
+          title="Verificación KYC"
+          showBack
+          onBack={() => navigation.goBack()}
+          rightSlot={<UserMenuButton />}
+        />
+        <View style={[styles.webviewWrap, { minHeight: height - 120 }]}>
+          <WebView
           source={{ uri: sessionUrl }}
           userAgent={USER_AGENT}
           originWhitelist={['https://*', 'http://*', 'ticketTransfer://*']}
@@ -81,17 +93,20 @@ export function KycWebViewScreen() {
           )}
           style={styles.webview}
         />
+        </View>
         <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.closeBtnText}>Cancelar</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </AuthBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  webview: { flex: 1, backgroundColor: 'transparent' },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 80 },
+  webviewWrap: { width: '100%' },
+  webview: { width: '100%', height: 600, backgroundColor: 'transparent' },
   loading: {
     position: 'absolute',
     top: 0,
@@ -105,8 +120,8 @@ const styles = StyleSheet.create({
   },
   loadingText: { color: colors.primaryLight, fontSize: 16 },
   closeBtn: {
-    position: 'absolute',
-    bottom: 24,
+    marginTop: spacing.md,
+    marginBottom: 24,
     alignSelf: 'center',
     paddingVertical: 12,
     paddingHorizontal: 24,

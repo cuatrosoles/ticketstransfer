@@ -115,10 +115,12 @@ export type Profile = {
   province: string | null;
   postalCode: string | null;
   reputationScore: number | null;
+  profileImageUrl: string | null;
   kyc: { status: string; rejectionReason: string | null } | null;
 };
 
 export type ProfileUpdate = {
+  username?: string;
   firstName?: string;
   lastName?: string;
   phone?: string;
@@ -133,6 +135,14 @@ export async function getProfile(): Promise<Profile> {
 
 export async function updateProfile(data: ProfileUpdate): Promise<Profile> {
   return api<Profile>('/api/users/profile', { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+/** Subir imagen de perfil (avatar) */
+export async function uploadProfileImage(formData: FormData): Promise<{ profileImageUrl: string }> {
+  return api<{ profileImageUrl: string }>('/api/users/profile/avatar', {
+    method: 'POST',
+    body: formData,
+  });
 }
 
 /** KYC – Didit */

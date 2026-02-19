@@ -18,7 +18,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { AuthBackground } from '../components/AuthBackground';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { UserMenuButton } from '../components/UserMenuButton';
 import { colors, spacing, radius, glassCard } from '../theme';
 import { sendMessage, generateMessageId, type ChatMessage } from '../lib/chatService';
 
@@ -31,6 +34,7 @@ const WELCOME_MESSAGE: ChatMessage = {
 };
 
 export function ChatSoporteScreen() {
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
@@ -97,6 +101,12 @@ export function ChatSoporteScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          <ScreenHeader
+            title="Chat Soporte"
+            showBack
+            onBack={() => navigation.goBack()}
+            rightSlot={<UserMenuButton />}
+          />
           {messages.map((msg) => (
             <View key={msg.id} style={[styles.messageRow, msg.isUser && styles.messageRowUser]}>
               <View style={[styles.bubble, msg.isUser ? styles.bubbleUser : styles.bubbleBot]}>

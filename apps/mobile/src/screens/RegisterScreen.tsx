@@ -25,6 +25,7 @@ import { useAuth } from '../context/AuthContext';
 import { registerSchema, SEXO_OPCIONES, TIPO_DOCUMENTO, PREFIJO_TELEFONO_DEFAULT } from '../lib/registerConstants';
 import { PROVINCIAS_ARGENTINA, CIUDADES_POR_PROVINCIA } from '../data/provinciasArgentina';
 import { AuthBackground } from '../components/AuthBackground';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { GradientButton } from '../components/GradientButton';
 import { colors } from '../theme';
 
@@ -337,6 +338,7 @@ export function RegisterScreen() {
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScreenHeader title="CREAR CUENTA" showBack onBack={() => navigation.goBack()} />
         <View style={styles.glassWrap}>
           <View style={styles.glassPanel}>
           {step === 1 ? renderStep1() : renderStep2()}
@@ -443,7 +445,7 @@ export function RegisterScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingHorizontal: 24, paddingTop: 200, paddingBottom: 48, flexGrow: 1, alignItems: 'center' },
+  content: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 48, flexGrow: 1, alignItems: 'center' },
   glassWrap: { width: '100%', maxWidth: 420 },
   glassPanel: {
     backgroundColor: 'rgba(30, 58, 138, 0.4)',

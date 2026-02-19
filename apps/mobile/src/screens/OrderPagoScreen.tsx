@@ -5,11 +5,13 @@
 
 import * as React from 'react';
 import { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../navigation/types';
 import { api } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { UserMenuButton } from '../components/UserMenuButton';
 import { colors, spacing, radius, glassCard } from '../theme';
 
 type Order = {
@@ -74,7 +76,13 @@ export function OrderPagoScreen() {
 
   return (
     <AuthBackground>
-      <View style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
+        <ScreenHeader
+          title="Pago"
+          showBack
+          onBack={() => navigation.goBack()}
+          rightSlot={<UserMenuButton />}
+        />
         <Text style={styles.title}>Confirmar pago</Text>
         <View style={[styles.card, glassCard]}>
         <Text style={styles.eventName}>{order.ticketListing?.eventName ?? 'Orden'}</Text>
@@ -95,13 +103,14 @@ export function OrderPagoScreen() {
           <Text style={styles.muted}>Esta orden ya fue procesada.</Text>
         )}
         </View>
-      </View>
+      </ScrollView>
     </AuthBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 120, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  scroll: { flex: 1 },
+  container: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   text: { color: colors.textMuted },
   title: { fontSize: 20, fontWeight: '700', color: colors.white, marginBottom: spacing.lg },

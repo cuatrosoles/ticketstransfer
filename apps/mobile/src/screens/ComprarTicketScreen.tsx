@@ -19,6 +19,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { api } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { UserMenuButton } from '../components/UserMenuButton';
 import { colors, spacing, radius, glassCard } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ComprarTicket'>;
@@ -77,6 +79,12 @@ export function ComprarTicketScreen() {
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <ScreenHeader
+          title="Comprar Ticket"
+          showBack
+          onBack={() => navigation.goBack()}
+          rightSlot={<UserMenuButton />}
+        />
       <Text style={styles.title}></Text>
       <Text style={styles.subtitle}>Ingresá el ID que te pasó el vendedor para ver la publicación y continuar con la compra.</Text>
 
@@ -132,7 +140,7 @@ export function ComprarTicketScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 160, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
   title: { fontSize: 20, fontWeight: '700', color: colors.white, marginBottom: spacing.sm },
   subtitle: { fontSize: 14, color: colors.textMuted, marginBottom: spacing.lg },
   label: { fontSize: 14, fontWeight: '600', color: colors.textMuted, marginBottom: spacing.sm, marginTop: spacing.md },

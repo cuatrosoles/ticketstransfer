@@ -16,12 +16,21 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  Image,
+  Platform,
+  Alert,
+  PermissionsAndroid,
 } from 'react-native';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
-import { getProfile, updateProfile, type Profile, type ProfileUpdate } from '../lib/api';
+import { useProfileImage } from '../context/ProfileImageContext';
+import { getProfile, updateProfile, uploadProfileImage, type Profile, type ProfileUpdate } from '../lib/api';
 import { PROVINCIAS_ARGENTINA, CIUDADES_POR_PROVINCIA } from '../data/provinciasArgentina';
 import { getBiometricsEnabled } from '../lib/secureStorage';
 import { AuthBackground } from '../components/AuthBackground';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { UserMenuButton } from '../components/UserMenuButton';
 import { colors, spacing, radius, glassCard } from '../theme';
 
 function formatDate(value: string | null): string {
@@ -51,7 +60,9 @@ function KycBadge({ status }: { status: string }) {
 }
 
 export function ProfileScreen() {
+  const navigation = useNavigation();
   const { fetchUser, enableBiometrics, disableBiometrics, biometricAvailability } = useAuth();
+  const { refreshProfileImage } = useProfileImage();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -59,7 +70,9 @@ export function ProfileScreen() {
   const [error, setError] = useState('');
   const [biometricsOn, setBiometricsOn] = useState<boolean | null>(null);
   const [pickerModal, setPickerModal] = useState<'province' | 'city' | null>(null);
-  const [form, setForm] = useState<ProfileUpdate>({
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [form, setForm] = useState<ProfileUpdate & { username: string }>({
+    username: '',
     firstName: '',
     lastName: '',
     phone: '',
@@ -75,6 +88,7 @@ export function ProfileScreen() {
       const data = await getProfile();
       setProfile(data);
       setForm({
+        username: data.username ?? '',
         firstName: data.firstName ?? '',
         lastName: data.lastName ?? '',
         phone: data.phone ?? '',
@@ -101,14 +115,16 @@ export function ProfileScreen() {
     setSaving(true);
     setError('');
     try {
-      await updateProfile({
+      const payload: ProfileUpdate = {
+        username: form.username.trim(),
         firstName: form.firstName?.trim() || undefined,
         lastName: form.lastName?.trim() || undefined,
         phone: form.phone?.trim() || undefined,
         city: form.city?.trim() || undefined,
         province: form.province || undefined,
         postalCode: form.postalCode?.trim() || undefined,
-      });
+      };
+      await updateProfile(payload);
       await loadProfile();
       await fetchUser();
       setEditing(false);
@@ -122,6 +138,7 @@ export function ProfileScreen() {
   const handleCancel = () => {
     if (profile) {
       setForm({
+        username: profile.username ?? '',
         firstName: profile.firstName ?? '',
         lastName: profile.lastName ?? '',
         phone: profile.phone ?? '',
@@ -132,6 +149,70 @@ export function ProfileScreen() {
     }
     setEditing(false);
     setError('');
+  };
+
+  const uploadAvatarFromAsset = async (asset: { uri?: string; fileName?: string; type?: string }) => {
+    if (!asset.uri) return;
+    setUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      const uri = Platform.OS === 'android' ? asset.uri : asset.uri.replace('file://', '');
+      formData.append('avatar', {
+        uri,
+        name: asset.fileName || `avatar_${Date.now()}.jpg`,
+        type: asset.type || 'image/jpeg',
+      } as unknown as Blob);
+      await uploadProfileImage(formData);
+      await loadProfile();
+      await refreshProfileImage();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al subir la foto');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const openCamera = async () => {
+    if (Platform.OS === 'android') {
+      const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA, {
+        title: 'Permiso de cámara',
+        message: 'La app necesita acceso a la cámara para tomar tu foto de perfil.',
+        buttonPositive: 'Aceptar',
+        buttonNegative: 'Cancelar',
+      });
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        setError('Se necesita permiso de cámara para tomar fotos.');
+        return;
+      }
+    }
+    setTimeout(() => {
+      launchCamera(
+        { mediaType: 'photo', quality: 0.8, saveToPhotos: false },
+        (res) => {
+          if (res.errorCode) {
+            setError(res.errorMessage || 'Error al abrir la cámara');
+            return;
+          }
+          if (res.didCancel || !res.assets?.[0]) return;
+          uploadAvatarFromAsset(res.assets[0]);
+        }
+      );
+    }, 300);
+  };
+
+  const handleChangeAvatar = () => {
+    Alert.alert('Cambiar foto de perfil', '¿De dónde querés la foto?', [
+      { text: 'Tomar foto', onPress: openCamera },
+      {
+        text: 'Elegir de galería',
+        onPress: () =>
+          launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, (res) => {
+            if (res.didCancel || !res.assets?.[0]) return;
+            uploadAvatarFromAsset(res.assets[0]);
+          }),
+      },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
   };
 
   const handleToggleBiometrics = async () => {
@@ -174,7 +255,42 @@ export function ProfileScreen() {
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <ScreenHeader
+          title="Mi perfil"
+          showBack
+          onBack={() => navigation.goBack()}
+          rightSlot={<UserMenuButton />}
+        />
         <View style={[styles.card, glassCard]}>
+        <View style={styles.avatarSection}>
+          <TouchableOpacity
+            onPress={handleChangeAvatar}
+            disabled={uploadingAvatar}
+            style={styles.avatarTouch}
+          >
+            {profile.profileImageUrl ? (
+              <Image source={{ uri: profile.profileImageUrl }} style={styles.avatarImg} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarPlaceholderText}>📷</Text>
+              </View>
+            )}
+            {uploadingAvatar && (
+              <View style={styles.avatarOverlay}>
+                <ActivityIndicator color="#fff" size="small" />
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleChangeAvatar}
+            disabled={uploadingAvatar}
+            style={styles.changePhotoBtn}
+          >
+            <Text style={styles.changePhotoBtnText}>
+              {profile.profileImageUrl ? 'Cambiar foto' : 'Subir foto de perfil'}
+            </Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.perfilHeader}>
           <Text style={styles.title}>Información personal</Text>
           {!editing ? (
@@ -228,6 +344,16 @@ export function ProfileScreen() {
               placeholderTextColor={colors.textMuted}
               value={form.lastName}
               onChangeText={(t) => setForm((f) => ({ ...f, lastName: t }))}
+            />
+            <Text style={styles.label}>Usuario</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Nombre de usuario"
+              placeholderTextColor={colors.textMuted}
+              value={form.username}
+              onChangeText={(t) => setForm((f) => ({ ...f, username: t }))}
+              autoCapitalize="none"
+              autoCorrect={false}
             />
             <Text style={styles.label}>Teléfono</Text>
             <TextInput
@@ -336,12 +462,37 @@ function ProfileField({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 160, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   card: {
     padding: spacing.lg,
     marginBottom: spacing.lg,
   },
+  avatarSection: { alignItems: 'center', marginBottom: spacing.lg },
+  avatarTouch: { position: 'relative' },
+  avatarImg: { width: 80, height: 80, borderRadius: 40 },
+  avatarPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(96, 165, 250, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarPlaceholderText: { fontSize: 32 },
+  avatarOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 40,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  changePhotoBtn: { marginTop: spacing.sm },
+  changePhotoBtnText: { color: colors.primaryLight, fontSize: 14, fontWeight: '600' },
   perfilHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
   title: { fontSize: 20, fontWeight: '700', color: colors.white },
   editBtn: { paddingVertical: 6, paddingHorizontal: spacing.sm },

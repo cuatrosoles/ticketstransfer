@@ -174,6 +174,23 @@ Agregar a `android/gradle.properties` en `org.gradle.jvmargs`:
 
 ---
 
+### Error: "Illegal type at constant pool entry" / "Constant pool index invalid" (TestComponentImpl)
+
+Incompatibilidad entre Zulu JDK 17 y AGP 8.1.1. Ya se actualizó AGP a 8.4.2 en `android/build.gradle`. Si sigue fallando:
+
+**Usar Eclipse Temurin JDK 17 en lugar de Zulu:**
+
+```bash
+brew install --cask temurin@17
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+# Verificá que apunte a Temurin, no a Zulu:
+java -version   # debe decir "Eclipse Temurin"
+cd apps/mobile
+pnpm android
+```
+
+---
+
 ### Error de Gradle o compilación
 
 ```bash

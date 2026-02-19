@@ -5,13 +5,23 @@
 
 import * as React from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { AuthBackground } from '../components/AuthBackground';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { UserMenuButton } from '../components/UserMenuButton';
 import { colors, spacing, glassCard } from '../theme';
 
 export function TarjetasAdheridasScreen() {
+  const navigation = useNavigation();
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <ScreenHeader
+          title="Tarjetas adheridas"
+          showBack
+          onBack={() => navigation.goBack()}
+          rightSlot={<UserMenuButton />}
+        />
         <View style={[styles.card, glassCard]}>
           <Text style={styles.cardTitle}></Text>
           <Text style={styles.cardText}>
@@ -28,7 +38,7 @@ export function TarjetasAdheridasScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 160, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
   card: { padding: spacing.lg },
   cardTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
   cardText: { fontSize: 14, color: colors.textMuted, lineHeight: 22 },

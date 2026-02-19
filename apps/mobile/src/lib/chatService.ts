@@ -36,7 +36,7 @@ export async function sendMessage(
   message: string,
   _conversationId?: string
 ): Promise<{ reply: string; quickReplies?: string[] }> {
-  await new Promise((r) => setTimeout(r, BOT_DELAY_MS));
+  await new Promise<void>((r) => setTimeout(() => r(), BOT_DELAY_MS));
 
   const intent = matchIntent(message);
   const response = getBotResponse(intent);

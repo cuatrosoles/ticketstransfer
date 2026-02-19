@@ -9,6 +9,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { AuthBackground } from '../components/AuthBackground';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { GradientButton } from '../components/GradientButton';
 
 const ACERCA_DE_LA_APP =
@@ -22,6 +23,7 @@ export function WelcomeScreen() {
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScreenHeader title="¡BIENVENIDOS!" />
         <View style={styles.cardWrap}>
           <View style={styles.card}>
             <Text style={styles.cardTitle}>ACERCA DE LA APP:</Text>
@@ -39,7 +41,7 @@ export function WelcomeScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 260, paddingBottom: 48, paddingHorizontal: 24, flexGrow: 1, alignItems: 'center' },
+  content: { paddingTop: 24, paddingBottom: 48, paddingHorizontal: 24, flexGrow: 1, alignItems: 'center' },
   cardWrap: { width: '100%', maxWidth: 420, marginBottom: 32 },
   card: {
     backgroundColor: 'rgba(30, 58, 138, 0.4)',

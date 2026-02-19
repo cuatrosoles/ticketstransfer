@@ -20,7 +20,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../navigation/types';
+import { useNavigation } from '@react-navigation/native';
 import { AuthBackground } from '../components/AuthBackground';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { UserMenuButton } from '../components/UserMenuButton';
 import {
   getConversationMessages,
   sendMessageToConversation,
@@ -37,9 +40,15 @@ function formatMessageTime(iso: string): string {
 }
 
 export function MensajesConversationScreen() {
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const route = useRoute<Route>();
   const { conversationId, otherUser } = route.params;
+  const title =
+    otherUser?.username ||
+    [otherUser?.firstName, otherUser?.lastName].filter(Boolean).join(' ') ||
+    otherUser?.email ||
+    'Conversación';
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -107,6 +116,12 @@ export function MensajesConversationScreen() {
             onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
             keyboardShouldPersistTaps="handled"
           >
+            <ScreenHeader
+              title={title}
+              showBack
+              onBack={() => navigation.goBack()}
+              rightSlot={<UserMenuButton />}
+            />
             {messages.map((msg) => (
               <View
                 key={msg.id}

@@ -22,6 +22,7 @@ import { useAuth } from '../context/AuthContext';
 import { getBiometricsEnabled } from '../lib/secureStorage';
 import { BiometricActivationModal } from '../components/BiometricActivationModal';
 import { AuthBackground } from '../components/AuthBackground';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { GradientButton } from '../components/GradientButton';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
@@ -63,6 +64,7 @@ export function LoginScreen() {
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScreenHeader title="INICIAR SESIÓN" showBack onBack={() => navigation.goBack()} />
         <View style={styles.glassWrap}>
           <View style={styles.glassPanel}>
             <Text style={styles.label}>Email o Usuario:</Text>
@@ -127,7 +129,7 @@ export function LoginScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 200, paddingBottom: 48, paddingHorizontal: 24, flexGrow: 1, alignItems: 'center' },
+  content: { paddingTop: 24, paddingBottom: 48, paddingHorizontal: 24, flexGrow: 1, alignItems: 'center' },
   glassWrap: { width: '100%', maxWidth: 420 },
   glassPanel: {
     backgroundColor: 'rgba(30, 58, 138, 0.4)',

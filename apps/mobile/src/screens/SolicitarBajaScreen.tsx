@@ -5,13 +5,23 @@
 
 import * as React from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { AuthBackground } from '../components/AuthBackground';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { UserMenuButton } from '../components/UserMenuButton';
 import { colors, spacing, radius, glassCard } from '../theme';
 
 export function SolicitarBajaScreen() {
+  const navigation = useNavigation();
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <ScreenHeader
+          title="Solicitar baja de cuenta"
+          showBack
+          onBack={() => navigation.goBack()}
+          rightSlot={<UserMenuButton />}
+        />
         <Text style={styles.title}></Text>
         <View style={[styles.card, glassCard]}>
         <Text style={styles.cardTitle}>BAJA DE CUENTA</Text>
@@ -35,7 +45,7 @@ export function SolicitarBajaScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 160, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
   title: { fontSize: 22, fontWeight: '800', color: colors.text, marginBottom: spacing.lg },
   card: {
     padding: spacing.lg,

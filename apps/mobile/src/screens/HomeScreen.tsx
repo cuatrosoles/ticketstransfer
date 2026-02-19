@@ -21,6 +21,9 @@ import { useAuth } from '../context/AuthContext';
 import { getBiometricsEnabled } from '../lib/secureStorage';
 import { BiometricActivationModal } from '../components/BiometricActivationModal';
 import { AuthBackground } from '../components/AuthBackground';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { UserMenuButton } from '../components/UserMenuButton';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { colors, spacing, radius, glassCard } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
@@ -60,7 +63,12 @@ export function HomeScreen() {
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-
+        <ScreenHeader
+          title="INICIO"
+          showBack={navigation.canGoBack()}
+          onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
+          rightSlot={<UserMenuButton />}
+        />
         <TouchableOpacity style={[styles.card, glassCard]} onPress={() => navigation.navigate('Kyc')}>
           <Text style={styles.cardTitle}>Verificación KYC</Text>
           <Text style={styles.cardSubtitle}>Verificar identidad con DNI y selfie</Text>
@@ -84,14 +92,21 @@ export function HomeScreen() {
 
         <Text style={styles.socialTitle}>Seguinos en nuestras redes</Text>
         <View style={styles.socialRow}>
-          <TouchableOpacity style={[styles.socialIcon, { backgroundColor: '#1877f2' }]} onPress={() => Linking.openURL('https://facebook.com')} />
-          <TouchableOpacity style={[styles.socialIcon, { backgroundColor: '#e1306c' }]} onPress={() => Linking.openURL('https://instagram.com')} />
-          <TouchableOpacity style={[styles.socialIcon, { backgroundColor: '#25d366' }]} onPress={() => Linking.openURL('https://wa.me')} />
+          <TouchableOpacity style={[styles.socialIcon, { backgroundColor: '#1877f2' }]} onPress={() => Linking.openURL('https://facebook.com')}>
+            <FontAwesome5 name="facebook-f" size={22} color="#fff" brand />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.socialIcon, { backgroundColor: '#e1306c' }]} onPress={() => Linking.openURL('https://instagram.com')}>
+            <FontAwesome5 name="instagram" size={24} color="#fff" brand />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.socialIcon, { backgroundColor: '#25d366' }]} onPress={() => Linking.openURL('https://wa.me')}>
+            <FontAwesome5 name="whatsapp" size={24} color="#fff" brand />
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+        {/* <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <Text style={styles.logoutText}>Cerrar Sesion</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
+        
       </ScrollView>
 
       <BiometricActivationModal
@@ -107,7 +122,7 @@ export function HomeScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 260, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
   banner: { marginBottom: spacing.lg, alignItems: 'center' },
   bannerLogo: { width: 200, height: 56 },
   card: {
@@ -118,7 +133,13 @@ const styles = StyleSheet.create({
   cardSubtitle: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
   socialTitle: { fontWeight: '700', color: colors.text, marginTop: spacing.lg, marginBottom: spacing.sm, textAlign: 'center' },
   socialRow: { flexDirection: 'row', justifyContent: 'center', gap: spacing.lg, marginBottom: spacing.lg },
-  socialIcon: { width: 48, height: 48, borderRadius: 24 },
+  socialIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   logoutBtn: {
     marginTop: spacing.lg,
     paddingVertical: 14,

@@ -22,6 +22,8 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { AuthBackground } from '../components/AuthBackground';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { UserMenuButton } from '../components/UserMenuButton';
 import {
   getConversations,
   searchUsers,
@@ -147,34 +149,40 @@ export function MensajesScreen() {
     </TouchableOpacity>
   );
 
+  const listHeader = (
+    <>
+      <ScreenHeader
+        title="Mensajes"
+        showBack
+        onBack={() => navigation.goBack()}
+        rightSlot={<UserMenuButton />}
+      />
+      <TouchableOpacity
+        style={[styles.newBtn, glassCard]}
+        onPress={() => setModalOpen(true)}
+      >
+        <Text style={styles.newBtnIcon}>+</Text>
+        <Text style={styles.newBtnText}>Nueva conversación</Text>
+      </TouchableOpacity>
+    </>
+  );
+
   return (
     <AuthBackground>
       <View style={styles.container}>
-        <TouchableOpacity
-          style={[styles.newBtn, glassCard]}
-          onPress={() => setModalOpen(true)}
-        >
-          <Text style={styles.newBtnIcon}>+</Text>
-          <Text style={styles.newBtnText}>Nueva conversación</Text>
-        </TouchableOpacity>
-
-        {loading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator size="large" color={colors.primary} />
-          </View>
-        ) : conversations.length === 0 ? (
-          <View style={[styles.empty, glassCard]}>
-            <Text style={styles.emptyIcon}>💬</Text>
-            <Text style={styles.emptyTitle}>Sin conversaciones</Text>
-            <Text style={styles.emptyText}>
-              Tocá "Nueva conversación" y buscá un usuario por ID o email para empezar a chatear.
-            </Text>
+        {loading && conversations.length === 0 ? (
+          <View style={styles.containerLoading}>
+            {listHeader}
+            <View style={styles.centered}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
           </View>
         ) : (
           <FlatList
             data={conversations}
             keyExtractor={(c) => c.id}
             renderItem={renderConversation}
+            ListHeaderComponent={listHeader}
             contentContainerStyle={styles.list}
             refreshControl={
               <RefreshControl
@@ -185,6 +193,15 @@ export function MensajesScreen() {
                 }}
                 tintColor={colors.primary}
               />
+            }
+            ListEmptyComponent={
+              <View style={[styles.empty, glassCard]}>
+                <Text style={styles.emptyIcon}>💬</Text>
+                <Text style={styles.emptyTitle}>Sin conversaciones</Text>
+                <Text style={styles.emptyText}>
+                  Tocá "Nueva conversación" y buscá un usuario por ID o email para empezar a chatear.
+                </Text>
+              </View>
             }
           />
         )}
@@ -258,7 +275,8 @@ export function MensajesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: spacing.lg, paddingHorizontal: spacing.lg },
+  container: { flex: 1, paddingHorizontal: spacing.lg },
+  containerLoading: { flex: 1, paddingHorizontal: spacing.lg },
   newBtn: {
     flexDirection: 'row',
     alignItems: 'center',
