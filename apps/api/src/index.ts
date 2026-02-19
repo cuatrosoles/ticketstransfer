@@ -25,6 +25,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
+// Necesario cuando la API está detrás de un proxy (Railway, etc.) para que express-rate-limit
+// identifique correctamente la IP del cliente mediante X-Forwarded-For
+app.set('trust proxy', 1);
+
 const isProduction = process.env.NODE_ENV === 'production';
 // En producción permitir cualquier origen (app móvil, web, etc.). En desarrollo solo orígenes configurados.
 const corsOrigin = isProduction
