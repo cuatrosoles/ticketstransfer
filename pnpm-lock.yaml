@@ -10,9 +10,6 @@ importers:
 
   apps/admin:
     dependencies:
-      '@tickets-transfer/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       lucide-react:
         specifier: ^0.323.0
         version: 0.323.0(react@18.2.0)

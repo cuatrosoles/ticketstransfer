@@ -10,13 +10,15 @@ type Conversation = {
   updatedAt: string;
 };
 
-type ConversationDetail = Conversation & {
-  messages: {
-    id: string;
-    content: string;
-    createdAt: string;
-    sender: { id: string; email: string; firstName: string | null; lastName: string | null };
-  }[];
+type MessageDetail = {
+  id: string;
+  content: string;
+  createdAt: string;
+  sender: { id: string; email: string; firstName: string | null; lastName: string | null };
+};
+
+type ConversationDetail = Omit<Conversation, 'messages'> & {
+  messages: MessageDetail[];
 };
 
 export function Conversations() {
@@ -77,7 +79,7 @@ export function Conversations() {
         <div className="card">
           <h3 style={{ marginBottom: 12 }}>Mensajes</h3>
           <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-            {detail.messages.map((m) => (
+            {detail.messages.map((m: MessageDetail) => (
               <div
                 key={m.id}
                 style={{

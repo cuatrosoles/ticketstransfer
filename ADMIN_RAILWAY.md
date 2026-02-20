@@ -56,21 +56,21 @@ Para un dominio propio, dejalo en `'/'`.
 2. **Settings** → **Source** → **Connect Repo**
 3. Elegí el repo y la rama (ej: `main`)
 
-### 2.3 Configurar build y start (IMPORTANTE: usar pnpm, no npm)
+### 2.3 Configurar build y start
 
-Railway usa `npm` por defecto, pero el admin depende de `workspace:*` (pnpm). Hay que construir desde la **raíz del monorepo** y usar **pnpm**.
+El admin ya no usa dependencias `workspace:*`, así que Railway puede usar **npm** por defecto.
 
 En **Settings** del servicio admin:
 
 | Variable | Valor |
 |----------|-------|
-| **Root Directory** | `v2` *(o la ruta a la carpeta que contiene `package.json`, `pnpm-lock.yaml` y `apps/admin`)* |
-| **Build Command** | `pnpm install && pnpm --filter admin build` |
-| **Start Command** | `cd apps/admin && npx serve -s dist -l $PORT` |
+| **Root Directory** | `apps/admin` |
+| **Build Command** | *(vacío – Railway detecta Vite y ejecuta `npm run build`)* |
+| **Start Command** | `npx serve -s dist -l $PORT` |
 
-Si el repo tiene la estructura `ticketTransfer/v2/...`, usá **Root Directory: `v2`**.
-
-Si la raíz del repo ya es el monorepo (contiene `apps/admin` directamente), dejá **Root Directory** vacío y usá los mismos comandos.
+Si Railway no detecta el build, usá explícitamente:
+- **Build Command:** `npm install && npm run build`
+- **Start Command:** `npx serve -s dist -l $PORT`
 
 ### 2.4 Variables de entorno
 
@@ -165,17 +165,9 @@ Para usar algo como `admin.ticketstransfer.com`:
 
 ### Error: `Unsupported URL Type "workspace:": workspace:*`
 
-Este error indica que Railway está usando **npm** en lugar de **pnpm**. El admin usa dependencias de workspace (`workspace:*`) que solo pnpm entiende.
+Este error ocurría cuando el admin usaba `@tickets-transfer/shared` con `workspace:*`. **Ya está resuelto**: se eliminó esa dependencia porque el admin no la utilizaba.
 
-**Solución:**
-
-1. **Root Directory** debe apuntar a la raíz del monorepo (donde está `pnpm-lock.yaml`), por ejemplo `v2`.
-2. **Build Command:** `pnpm install && pnpm --filter admin build`
-3. **Start Command:** `cd apps/admin && npx serve -s dist -l $PORT`
-4. El archivo `v2/nixpacks.toml` fuerza el uso de pnpm en la fase de install.
-
-Si sigue fallando, añadí en **Variables** del servicio admin:
-- `NIXPACKS_PKGS` = `nodejs_20 pnpm`
+Si el error persiste en un deploy anterior, hacé un nuevo deploy tras el último commit.
 
 ### El admin no carga / pantalla en blanco
 
