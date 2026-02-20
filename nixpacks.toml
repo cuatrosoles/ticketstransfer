@@ -1,5 +1,5 @@
-# Nixpacks para servicios que requieren pnpm (monorepo)
-# Usar cuando Root Directory = v2 (o raíz del monorepo)
+# Nixpacks para API (monorepo con pnpm)
+# Solo aplica cuando Root Directory = v2 y el servicio es la API
 
 [phases.setup]
 nixPkgs = ["nodejs_20", "pnpm"]
@@ -8,4 +8,4 @@ nixPkgs = ["nodejs_20", "pnpm"]
 cmds = ["corepack enable && pnpm install"]
 
 [start]
-cmd = "echo 'Override Start Command en Railway Settings'"
+cmd = "echo 'Override en Railway Settings'"
