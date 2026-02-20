@@ -1,0 +1,14 @@
+# Configuración Nixpacks para Railway – Admin Tickets Transfer
+# Sirve el build estático de Vite + React
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "pnpm"]
+
+[phases.install]
+cmds = ["cd ../.. && pnpm install --frozen-lockfile"]
+
+[phases.build]
+cmds = ["cd ../.. && pnpm --filter admin build"]
+
+[start]
+cmd = "npx serve -s dist -l ${PORT:-3000}"
