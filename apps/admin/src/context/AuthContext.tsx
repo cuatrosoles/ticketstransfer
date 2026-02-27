@@ -53,11 +53,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadUser]);
 
   const login = async (email: string, password: string) => {
-    const credential = await signInWithEmailAndPassword(auth, email, password);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (e: unknown) {
+      const err = e as { code?: string; message?: string };
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+        throw new Error('Usuario no encontrado en Firebase Auth. Creá el usuario en Firebase Console → Authentication → Add user.');
+      }
+      if (err.code === 'auth/wrong-password') {
+        throw new Error('Contraseña incorrecta');
+      }
+      throw new Error(err.message || 'Error al iniciar sesión');
+    }
     const data = await getMe();
     if (data.role !== 'admin') {
       await signOut(auth);
-      throw new Error('Acceso solo para administradores');
+      throw new Error('Acceso solo para administradores. Tu usuario debe tener role "admin" en Firestore.');
     }
     setUser({ id: data.id, email: data.email, role: data.role });
   };

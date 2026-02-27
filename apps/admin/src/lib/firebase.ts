@@ -1,5 +1,6 @@
 /**
  * Configuración de Firebase para el panel admin.
+ * Requiere VITE_FIREBASE_* en las variables de entorno al hacer build.
  */
 
 import { initializeApp } from 'firebase/app';
@@ -13,6 +14,10 @@ const firebaseConfig = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
+
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+  console.error('Firebase no configurado. Definí VITE_FIREBASE_API_KEY y VITE_FIREBASE_PROJECT_ID en Railway.');
+}
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);

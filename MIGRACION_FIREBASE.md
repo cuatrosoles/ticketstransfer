@@ -117,4 +117,32 @@ Si tenés datos en PostgreSQL, podés crear un script que:
 
 ## 7. Usuario admin
 
-Para crear el primer admin, registrar un usuario normal y luego en Firestore Console editar el documento `users/{uid}` y poner `role: "admin"`.
+**Importante:** El usuario admin debe existir en **Firebase Auth** (no solo en Firestore).
+
+### Crear el primer admin
+
+1. **Firebase Console** → Authentication → Add user
+   - Email: tu@email.com
+   - Password: (elegir contraseña)
+
+2. Copiar el **UID** del usuario creado (aparece en la lista de usuarios).
+
+3. **Firestore** → Colección `users` → Crear documento con ID = UID copiado:
+   ```json
+   {
+     "email": "tu@email.com",
+     "role": "admin",
+     "firstName": "...",
+     "lastName": "...",
+     "createdAt": (timestamp),
+     "updatedAt": (timestamp)
+   }
+   ```
+
+4. Iniciar sesión en el admin con ese email y contraseña.
+
+### Admin en Railway
+
+- Definir `VITE_API_URL` = URL de la API en producción (ej: `https://tu-api.up.railway.app`)
+- Definir todas las `VITE_FIREBASE_*` para que el build las incluya
+- **Reconstruir** el admin después de la migración: `pnpm run build:admin`
