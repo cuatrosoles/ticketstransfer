@@ -20,12 +20,13 @@ import {
   Platform,
   Alert,
   PermissionsAndroid,
+  Share,
 } from 'react-native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useProfileImage } from '../context/ProfileImageContext';
-import { getProfile, updateProfile, uploadProfileImage, type Profile, type ProfileUpdate } from '../lib/api';
+import { getProfile, updateProfile, uploadProfileImage, requestPhoneVerification, confirmPhoneVerification, ensureImageUrl, type Profile, type ProfileUpdate } from '../lib/api';
 import { PROVINCIAS_ARGENTINA, CIUDADES_POR_PROVINCIA } from '../data/provinciasArgentina';
 import { getBiometricsEnabled } from '../lib/secureStorage';
 import { AuthBackground } from '../components/AuthBackground';
@@ -71,6 +72,12 @@ export function ProfileScreen() {
   const [biometricsOn, setBiometricsOn] = useState<boolean | null>(null);
   const [pickerModal, setPickerModal] = useState<'province' | 'city' | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [phoneVerifyModal, setPhoneVerifyModal] = useState(false);
+  const [phoneVerifyStep, setPhoneVerifyStep] = useState<'phone' | 'code'>('phone');
+  const [phoneVerifyPhone, setPhoneVerifyPhone] = useState('');
+  const [phoneVerifyCode, setPhoneVerifyCode] = useState('');
+  const [phoneVerifyLoading, setPhoneVerifyLoading] = useState(false);
+  const [phoneVerifyError, setPhoneVerifyError] = useState('');
   const [form, setForm] = useState<ProfileUpdate & { username: string }>({
     username: '',
     firstName: '',
@@ -269,7 +276,7 @@ export function ProfileScreen() {
             style={styles.avatarTouch}
           >
             {profile.profileImageUrl ? (
-              <Image source={{ uri: profile.profileImageUrl }} style={styles.avatarImg} />
+              <Image source={{ uri: ensureImageUrl(profile.profileImageUrl)! }} style={styles.avatarImg} />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarPlaceholderText}>📷</Text>
@@ -308,7 +315,30 @@ export function ProfileScreen() {
             <ProfileField label="Nombre" value={profile.firstName || '—'} />
             <ProfileField label="Apellido" value={profile.lastName || '—'} />
             <ProfileField label="Usuario" value={profile.username || '—'} />
-            <ProfileField label="Teléfono" value={profile.phone || '—'} />
+            <View style={styles.phoneSection}>
+              <Text style={styles.label}>Teléfono</Text>
+              <View style={styles.phoneValueRow}>
+                <Text style={styles.value}>{profile.phone || '—'}</Text>
+                {profile.phone ? (
+                  <View style={styles.phoneVerifyBadge}>
+                    {profile.phoneVerified ? (
+                      <Text style={styles.phoneVerified}>✔ Verificado</Text>
+                    ) : (
+                      <>
+                        <Text style={styles.phoneUnverified}>Sin verificar</Text>
+                        <TouchableOpacity style={styles.verifyPhoneBtn} onPress={() => { setPhoneVerifyPhone(profile.phone || ''); setPhoneVerifyStep('phone'); setPhoneVerifyModal(true); setPhoneVerifyError(''); }}>
+                          <Text style={styles.verifyPhoneBtnText}>VERIFICAR TELEFONO</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                ) : (
+                  <TouchableOpacity style={styles.verifyPhoneBtn} onPress={() => setEditing(true)}>
+                    <Text style={styles.verifyPhoneBtnText}>Agregar teléfono</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
             <ProfileField label="Ciudad" value={profile.city || '—'} />
             <ProfileField
               label="Provincia"
@@ -316,7 +346,26 @@ export function ProfileScreen() {
             />
             <ProfileField label="Código postal" value={profile.postalCode || '—'} />
             {profile.dateOfBirth ? <ProfileField label="Fecha de nacimiento" value={formatDate(profile.dateOfBirth)} /> : null}
-            <ProfileField label="Número ID" value={profile.numeroId || '—'} />
+            <View style={styles.copyIdRow}>
+              <Text style={styles.label}>Número ID</Text>
+              <View style={styles.copyIdValue}>
+                <Text style={styles.value}>{profile.numeroId || '—'}</Text>
+                {profile.numeroId ? (
+                  <TouchableOpacity
+                    style={styles.copyIdBtn}
+                    onPress={async () => {
+                      try {
+                        await Share.share({ message: profile.numeroId!, title: 'ID Tickets Transfer' });
+                      } catch {
+                        Alert.alert('ID', profile.numeroId!, [{ text: 'OK' }]);
+                      }
+                    }}
+                  >
+                    <Text style={styles.copyIdBtnText}>📋 Copiar / Compartir</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
             <View style={styles.kycRow}>
               <Text style={styles.label}>Verificación KYC</Text>
               <KycBadge status={profile.kyc?.status ?? 'PENDIENTE'} />
@@ -411,6 +460,71 @@ export function ProfileScreen() {
         )}
 
         <Text style={styles.subtitle}>Podés verificar tu identidad en Verificación KYC desde Inicio.</Text>
+
+        <Modal visible={phoneVerifyModal} transparent animationType="slide">
+          <Pressable style={styles.modalOverlay} onPress={() => setPhoneVerifyModal(false)}>
+            <View style={styles.phoneVerifyModal} onStartShouldSetResponder={() => true}>
+              <Text style={styles.phoneVerifyTitle}>Verificar teléfono</Text>
+              {phoneVerifyStep === 'phone' ? (
+                <>
+                  <Text style={styles.label}>Número de teléfono</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="+549 11 1234 5678"
+                    placeholderTextColor={colors.textMuted}
+                    value={phoneVerifyPhone}
+                    onChangeText={(t) => { setPhoneVerifyPhone(t); setPhoneVerifyError(''); }}
+                    keyboardType="phone-pad"
+                  />
+                </>
+              ) : (
+                <>
+                  <Text style={styles.label}>Código de 6 dígitos</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="000000"
+                    placeholderTextColor={colors.textMuted}
+                    value={phoneVerifyCode}
+                    onChangeText={(t) => { setPhoneVerifyCode(t.replace(/\D/g, '').slice(0, 6)); setPhoneVerifyError(''); }}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                  />
+                </>
+              )}
+              {phoneVerifyError ? <Text style={styles.error}>{phoneVerifyError}</Text> : null}
+              <View style={styles.phoneVerifyActions}>
+                <TouchableOpacity style={styles.secondaryButton} onPress={() => setPhoneVerifyModal(false)}>
+                  <Text style={styles.secondaryButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.primaryButton, phoneVerifyLoading && styles.disabled]}
+                  onPress={async () => {
+                    setPhoneVerifyError('');
+                    setPhoneVerifyLoading(true);
+                    try {
+                      if (phoneVerifyStep === 'phone') {
+                        await requestPhoneVerification(phoneVerifyPhone);
+                        setPhoneVerifyStep('code');
+                        setPhoneVerifyCode('');
+                      } else {
+                        await confirmPhoneVerification(phoneVerifyCode);
+                        setPhoneVerifyModal(false);
+                        await loadProfile();
+                      }
+                    } catch (e) {
+                      setPhoneVerifyError(e instanceof Error ? e.message : 'Error');
+                    } finally {
+                      setPhoneVerifyLoading(false);
+                    }
+                  }}
+                  disabled={phoneVerifyLoading || (phoneVerifyStep === 'phone' ? !phoneVerifyPhone.trim() : phoneVerifyCode.length !== 6)}
+                >
+                  {phoneVerifyLoading ? <ActivityIndicator color={colors.white} size="small" /> : <Text style={styles.primaryButtonText}>{phoneVerifyStep === 'phone' ? 'Enviar código' : 'Confirmar'}</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Pressable>
+        </Modal>
 
         <Modal visible={pickerModal !== null} transparent animationType="slide">
         <Pressable style={styles.modalOverlay} onPress={() => setPickerModal(null)}>
@@ -541,4 +655,18 @@ const styles = StyleSheet.create({
   pickerList: { maxHeight: 280 },
   pickerItem: { paddingVertical: 16, paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
   pickerItemText: { color: colors.text, fontSize: 16 },
+  phoneSection: { marginBottom: spacing.md },
+  phoneValueRow: { flexDirection: 'column', gap: 4 },
+  phoneVerifyBadge: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  phoneVerified: { fontSize: 14, color: '#22c55e', fontWeight: '600' },
+  phoneUnverified: { fontSize: 14, color: '#ef4444' },
+  verifyPhoneBtn: { paddingVertical: 4, paddingHorizontal: 8, backgroundColor: colors.primary, borderRadius: 8 },
+  verifyPhoneBtnText: { color: colors.white, fontSize: 12, fontWeight: '600' },
+  copyIdRow: { marginBottom: spacing.md },
+  copyIdValue: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  copyIdBtn: { paddingVertical: 4, paddingHorizontal: 10, backgroundColor: colors.primary, borderRadius: 8 },
+  copyIdBtnText: { color: colors.white, fontSize: 13, fontWeight: '600' },
+  phoneVerifyModal: { backgroundColor: 'rgba(30, 58, 138, 0.98)', margin: 24, padding: 24, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.3)' },
+  phoneVerifyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: spacing.lg },
+  phoneVerifyActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
 });

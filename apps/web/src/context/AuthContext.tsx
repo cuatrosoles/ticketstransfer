@@ -1,10 +1,13 @@
 /**
- * Contexto de autenticación.
- * Ubicación: apps/web/src/context/AuthContext.tsx
+ * Contexto de autenticación - Firebase Auth + API.
+ * Login: Firebase signInWithEmailAndPassword.
+ * Register: API crea usuario + customToken -> signInWithCustomToken.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { getMe, login as apiLogin, register as apiRegister, refreshToken } from '../lib/api';
+import { signInWithEmailAndPassword, signInWithCustomToken, signOut, onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../lib/firebase';
+import { getMe, register as apiRegister } from '../lib/api';
 
 type User = {
   id: string;
@@ -16,7 +19,6 @@ type User = {
 
 type AuthContextType = {
   user: User | null;
-  accessToken: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (data: Record<string, unknown>) => Promise<void>;
@@ -28,11 +30,10 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(() => localStorage.getItem('accessToken'));
   const [loading, setLoading] = useState(true);
 
   const fetchUser = useCallback(async () => {
-    if (!accessToken) {
+    if (!auth.currentUser) {
       setUser(null);
       setLoading(false);
       return;
@@ -47,59 +48,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: data.role,
       });
     } catch {
-      const ref = localStorage.getItem('refreshToken');
-      if (ref) {
-        try {
-          const tokens = await refreshToken(ref);
-          localStorage.setItem('accessToken', tokens.accessToken);
-          localStorage.setItem('refreshToken', tokens.refreshToken);
-          setAccessToken(tokens.accessToken);
-          return;
-        } catch {
-          /* fall through */
-        }
-      }
       setUser(null);
-      setAccessToken(null);
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
     } finally {
       setLoading(false);
     }
-  }, [accessToken]);
+  }, []);
 
   useEffect(() => {
-    fetchUser();
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        fetchUser();
+      } else {
+        setUser(null);
+        setLoading(false);
+      }
+    });
+    return () => unsub();
   }, [fetchUser]);
 
   const login = async (email: string, password: string) => {
-    const data = await apiLogin(email, password);
-    setAccessToken(data.accessToken);
-    localStorage.setItem('accessToken', data.accessToken);
-    localStorage.setItem('refreshToken', data.refreshToken || '');
-    setUser(data.user as User);
+    const credential = await signInWithEmailAndPassword(auth, email, password);
+    const data = await getMe() as User;
+    setUser(data);
   };
 
   const register = async (payload: Record<string, unknown>) => {
     const { confirmPassword, agreeTerms, ...body } = payload as Record<string, unknown>;
     void confirmPassword;
     void agreeTerms;
-    const data = await apiRegister(body);
-    setAccessToken(data.accessToken);
-    localStorage.setItem('accessToken', data.accessToken);
-    localStorage.setItem('refreshToken', data.refreshToken || '');
-    setUser(data.user as User);
+    const res = await apiRegister(body);
+    await signInWithCustomToken(auth, res.customToken);
+    setUser(res.user as User);
   };
 
   const logout = () => {
+    signOut(auth);
     setUser(null);
-    setAccessToken(null);
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
   };
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, loading, login, register, logout, fetchUser }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, fetchUser }}>
       {children}
     </AuthContext.Provider>
   );

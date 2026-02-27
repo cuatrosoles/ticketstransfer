@@ -1,34 +1,16 @@
 /**
- * Rutas de autenticación: registro, login, refresh, me.
- * Ubicación: apps/api/src/routes/auth.ts
+ * Rutas de autenticación - Firebase Auth.
+ * Register: backend crea usuario en Firebase Auth + Firestore, devuelve customToken.
+ * Login: se realiza en el cliente con Firebase Auth SDK (signInWithEmailAndPassword).
  */
 
 import { Router } from 'express';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { prisma } from '../lib/prisma.js';
-import { registerBodySchema, loginSchema } from '@tickets-transfer/shared';
+import { getAuth } from '../lib/firebase-admin.js';
+import { db, COLLECTIONS } from '../lib/firestore.js';
+import { registerBodySchema } from '@tickets-transfer/shared';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || '';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET;
-const ACCESS_EXP = '15m';
-const REFRESH_EXP = '7d';
-
-function signTokens(userId: string, email: string, role: string) {
-  const access = jwt.sign(
-    { userId, email, role },
-    JWT_SECRET,
-    { expiresIn: ACCESS_EXP }
-  );
-  const refresh = jwt.sign(
-    { userId },
-    JWT_REFRESH_SECRET,
-    { expiresIn: REFRESH_EXP }
-  );
-  return { access, refresh };
-}
 
 router.post('/register', async (req, res) => {
   const parsed = registerBodySchema.safeParse(req.body);
@@ -55,143 +37,148 @@ router.post('/register', async (req, res) => {
     postalCode,
   } = parsed.data;
 
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
+  const auth = getAuth();
+  const usersRef = db().collection(COLLECTIONS.USERS);
+
+  // Verificar email único
+  const existingByEmail = await usersRef.where('email', '==', email).limit(1).get();
+  if (!existingByEmail.empty) {
     res.status(409).json({ error: 'Ya existe una cuenta con ese email' });
     return;
   }
 
   if (username) {
-    const existingUsername = await prisma.user.findUnique({ where: { username } });
-    if (existingUsername) {
+    const existingByUsername = await usersRef.where('username', '==', username).limit(1).get();
+    if (!existingByUsername.empty) {
       res.status(409).json({ error: 'Ya existe un usuario con ese nombre de usuario' });
       return;
     }
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
-  // Formato: Cod Area 011 Num 1234 5678 -> +549 11 1234 5678
   const fullPhone = phone
     ? [phonePrefix || '+549', phoneAreaCode || '', phone].filter(Boolean).join(' ').trim()
     : null;
-
   const numeroId = `TT${Math.random().toString(36).slice(2, 10).toUpperCase()}${Date.now().toString(36).slice(-4).toUpperCase()}`;
 
-  const user = await prisma.user.create({
-    data: {
-      email,
-      username: username || null,
-      numeroId,
-      passwordHash,
-      firstName: firstName || null,
-      lastName: lastName || null,
-      country: country || null,
-      tipoDocumento: tipoDocumento || null,
-      documentNumber: documentNumber || null,
-      sexo: sexo as 'MASC' | 'FEM' | 'X' | undefined,
-      phone: fullPhone || phone || null,
-      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-      city: city || null,
-      province: province || null,
-      postalCode: postalCode || null,
-    },
-    select: { id: true, email: true, firstName: true, lastName: true, role: true },
-  });
-
-  await prisma.kycVerification.create({
-    data: { userId: user.id },
-  });
-
-  const { access, refresh } = signTokens(user.id, user.email, user.role);
-  res.status(201).json({
-    user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role },
-    accessToken: access,
-    refreshToken: refresh,
-  });
-});
-
-router.post('/login', async (req, res) => {
-  const parsed = loginSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: 'Email/usuario y contraseña requeridos' });
-    return;
-  }
-  const { email, password } = parsed.data;
-
-  const user = await prisma.user.findFirst({
-    where: {
-      OR: [{ email }, { username: email }],
-    },
-  });
-  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-    res.status(401).json({ error: 'Credenciales incorrectas' });
-    return;
-  }
-
-  const { access, refresh } = signTokens(user.id, user.email, user.role);
-  res.json({
-    user: {
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-    },
-    accessToken: access,
-    refreshToken: refresh,
-  });
-});
-
-router.post('/refresh', async (req, res) => {
-  const refreshToken = req.body.refreshToken;
-  if (!refreshToken) {
-    res.status(401).json({ error: 'Refresh token requerido' });
-    return;
-  }
+  let firebaseUser;
   try {
-    const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET) as { userId: string };
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: { id: true, email: true, role: true },
+    firebaseUser = await auth.createUser({
+      email,
+      password,
+      displayName: [firstName, lastName].filter(Boolean).join(' ').trim() || undefined,
     });
-    if (!user) {
-      res.status(401).json({ error: 'Usuario no encontrado' });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Error al crear usuario';
+    if (msg.includes('email-already-exists')) {
+      res.status(409).json({ error: 'Ya existe una cuenta con ese email' });
       return;
     }
-    const { access, refresh } = signTokens(user.id, user.email, user.role);
-    res.json({ accessToken: access, refreshToken: refresh });
-  } catch {
-    res.status(401).json({ error: 'Refresh token inválido' });
+    res.status(500).json({ error: msg });
+    return;
   }
+
+  const uid = firebaseUser.uid;
+
+  const userData = {
+    email,
+    username: username || null,
+    numeroId,
+    firstName: firstName || null,
+    lastName: lastName || null,
+    country: country || null,
+    tipoDocumento: tipoDocumento || null,
+    documentNumber: documentNumber || null,
+    sexo: sexo || null,
+    phone: fullPhone || phone || null,
+    phoneVerified: false,
+    role: 'user',
+    emailVerified: false,
+    reputationScore: 0,
+    profileImageUrl: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  await db().collection(COLLECTIONS.USERS).doc(uid).set(userData);
+  await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(uid).set({
+    userId: uid,
+    status: 'PENDIENTE',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  const customToken = await auth.createCustomToken(uid);
+
+  res.status(201).json({
+    user: {
+      id: uid,
+      email,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      role: userData.role,
+    },
+    customToken,
+    accessToken: customToken, // Alias para compatibilidad - cliente debe usar signInWithCustomToken
+  });
+});
+
+router.get('/username/check', async (req, res) => {
+  const q = (req.query.q as string)?.trim();
+  if (!q || q.length < 2) {
+    res.status(400).json({ error: 'Mínimo 2 caracteres' });
+    return;
+  }
+  const existing = await db().collection(COLLECTIONS.USERS).where('username', '==', q).limit(1).get();
+  if (existing.empty) {
+    return res.json({ available: true });
+  }
+  const base = q.replace(/\d+$/, '') || q;
+  const suggestions: string[] = [];
+  for (let i = 1; i <= 999 && suggestions.length < 3; i++) {
+    const candidate = `${base}${i}`;
+    if (candidate !== q) {
+      const taken = await db().collection(COLLECTIONS.USERS).where('username', '==', candidate).limit(1).get();
+      if (taken.empty) suggestions.push(candidate);
+    }
+  }
+  res.json({ available: false, suggestions });
+});
+
+/** Login: el cliente usa Firebase Auth signInWithEmailAndPassword. Este endpoint devuelve el usuario si ya tiene token. */
+router.post('/login', async (_req, res) => {
+  res.status(400).json({
+    error: 'Usá Firebase Auth en el cliente: signInWithEmailAndPassword(email, password). Luego enviá el idToken en Authorization.',
+  });
 });
 
 router.get('/me', requireAuth, async (req: AuthRequest, res) => {
-  const user = await prisma.user.findUnique({
-    where: { id: req.user!.id },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      country: true,
-      tipoDocumento: true,
-      sexo: true,
-      phone: true,
-      dateOfBirth: true,
-      city: true,
-      province: true,
-      postalCode: true,
-      role: true,
-      reputationScore: true,
-      createdAt: true,
-      kyc: { select: { status: true } },
-    },
-  });
-  if (!user) {
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
+  if (!userDoc.exists) {
     res.status(404).json({ error: 'Usuario no encontrado' });
     return;
   }
-  res.json(user);
+  const data = userDoc.data()!;
+  const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(req.user!.id).get();
+  const kyc = kycDoc.exists ? kycDoc.data() : null;
+
+  res.json({
+    id: req.user!.id,
+    email: data.email,
+    firstName: data.firstName,
+    lastName: data.lastName,
+    country: data.country,
+    tipoDocumento: data.tipoDocumento,
+    sexo: data.sexo,
+    phone: data.phone,
+    dateOfBirth: data.dateOfBirth,
+    city: data.city,
+    province: data.province,
+    postalCode: data.postalCode,
+    role: data.role,
+    reputationScore: data.reputationScore ?? 0,
+    createdAt: data.createdAt,
+    kyc: kyc ? { status: kyc.status } : { status: 'PENDIENTE' },
+  });
 });
 
 export const authRouter = router;

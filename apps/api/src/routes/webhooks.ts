@@ -1,17 +1,15 @@
 /**
- * Webhooks externos (Didit KYC, etc.)
- * No requieren autenticación; se validan por firma.
+ * Webhooks externos (Didit KYC) - Firestore.
  */
 
 import { Router, type Request, type Response } from 'express';
-import { prisma } from '../lib/prisma.js';
+import { db, COLLECTIONS } from '../lib/firestore.js';
 import { verifyDiditWebhookSignature } from '../lib/didit.js';
 
 const router = Router();
 
 const WEBHOOK_SECRET = process.env.DIDIT_WEBHOOK_SECRET_KEY;
 
-/** Mapeo Didit status -> nuestro KycStatus */
 function mapDiditStatus(status: string): 'PENDIENTE' | 'EN_REVISION' | 'APROBADO' | 'RECHAZADO' {
   switch (status) {
     case 'Approved':
@@ -19,6 +17,7 @@ function mapDiditStatus(status: string): 'PENDIENTE' | 'EN_REVISION' | 'APROBADO
     case 'Declined':
       return 'RECHAZADO';
     case 'In Review':
+      return 'EN_REVISION';
     case 'Not Started':
     case 'Kyc Expired':
     case 'Abandoned':
@@ -27,7 +26,6 @@ function mapDiditStatus(status: string): 'PENDIENTE' | 'EN_REVISION' | 'APROBADO
   }
 }
 
-/** Webhook Didit: actualiza estado KYC según verificación */
 router.post('/didit', async (req: Request, res: Response) => {
   const rawBody = (req as Request & { rawBody?: string }).rawBody;
   if (!rawBody) {
@@ -54,7 +52,7 @@ router.post('/didit', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'JSON inválido' });
   }
 
-  const { session_id, status, vendor_data, decision } = body;
+  const { status, vendor_data } = body;
   const userId = vendor_data;
 
   if (!userId) {
@@ -62,17 +60,18 @@ router.post('/didit', async (req: Request, res: Response) => {
   }
 
   const ourStatus = mapDiditStatus(status || '');
-  const rejectionReason = status === 'Declined' && decision?.kyc ? 'Verificación rechazada por Didit' : null;
+  const rejectionReason = status === 'Declined' && body.decision?.kyc ? 'Verificación rechazada por Didit' : null;
 
   try {
-    await prisma.kycVerification.update({
-      where: { userId },
-      data: {
+    await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).set(
+      {
         status: ourStatus,
         ...(rejectionReason && { rejectionReason }),
         ...(ourStatus === 'APROBADO' || ourStatus === 'RECHAZADO' ? { reviewedAt: new Date() } : {}),
+        updatedAt: new Date(),
       },
-    });
+      { merge: true }
+    );
     return res.json({ message: 'Webhook procesado' });
   } catch (e) {
     console.error('Error actualizando KYC:', e);

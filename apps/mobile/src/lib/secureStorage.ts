@@ -12,7 +12,7 @@ const SERVICE_NAME = 'com.ttmobiletemp.auth';
 const TOKEN_USERNAME = 'user';
 const BIOMETRICS_ENABLED_KEY = 'biometricsEnabled';
 
-const rnBiometrics = new ReactNativeBiometrics();
+const rnBiometrics = new ReactNativeBiometrics({ allowDeviceCredentials: true });
 
 export type BiometricType = 'FaceID' | 'TouchID' | 'Biometrics' | null;
 
@@ -78,7 +78,7 @@ export async function setSecureToken(token: string, useBiometric: boolean): Prom
     options.accessControl = Keychain.ACCESS_CONTROL.BIOMETRY_CURRENT_SET;
   }
   if (useBiometric && Platform.OS === 'android') {
-    options.accessControl = Keychain.ACCESS_CONTROL.BIOMETRY_CURRENT_SET;
+    options.accessControl = Keychain.ACCESS_CONTROL.BIOMETRY_CURRENT_SET_OR_DEVICE_PASSCODE;
   }
 
   await Keychain.setGenericPassword(TOKEN_USERNAME, token, options);
@@ -95,7 +95,10 @@ export async function getSecureToken(): Promise<string | null> {
     const options: Keychain.Options = { service: SERVICE_NAME };
 
     if (biometricsEnabled) {
-      options.accessControl = Keychain.ACCESS_CONTROL.BIOMETRY_CURRENT_SET;
+      options.accessControl =
+        Platform.OS === 'android'
+          ? Keychain.ACCESS_CONTROL.BIOMETRY_CURRENT_SET_OR_DEVICE_PASSCODE
+          : Keychain.ACCESS_CONTROL.BIOMETRY_CURRENT_SET;
       options.authenticationPrompt = {
         title: 'Autenticarse para continuar',
         cancel: 'Cancelar',

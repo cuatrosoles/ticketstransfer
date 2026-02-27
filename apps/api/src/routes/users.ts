@@ -1,74 +1,110 @@
 /**
  * Rutas de usuarios: perfil, onboarding, KYC.
- * Ubicación: apps/api/src/routes/users.ts
+ * Firestore + Firebase Storage.
  */
 
 import { Router } from 'express';
 import multer from 'multer';
-import { prisma } from '../lib/prisma.js';
-import { uploadsDir } from '../lib/uploads.js';
+import { db, COLLECTIONS } from '../lib/firestore.js';
+import { uploadFile } from '../lib/firebase-storage.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { onboardingSchema } from '@tickets-transfer/shared';
 import { createDiditSession } from '../lib/didit.js';
 
 const router = Router();
 const upload = multer({
-  dest: uploadsDir,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
 router.use(requireAuth);
 
 router.get('/profile', async (req: AuthRequest, res) => {
-  let user = await prisma.user.findUnique({
-    where: { id: req.user!.id },
-    select: {
-      id: true,
-      email: true,
-      username: true,
-      numeroId: true,
-      firstName: true,
-      lastName: true,
-      country: true,
-      tipoDocumento: true,
-      phone: true,
-      dateOfBirth: true,
-      city: true,
-      province: true,
-      postalCode: true,
-      reputationScore: true,
-      profileImageUrl: true,
-      kyc: { select: { status: true, rejectionReason: true } },
-    },
-  });
-  if (!user) return res.status(404).json({ error: 'No encontrado' });
-  if (!user.numeroId) {
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
+  if (!userDoc.exists) return res.status(404).json({ error: 'No encontrado' });
+  let data = userDoc.data()!;
+
+  if (!data.numeroId) {
     const numeroId = `TT${Math.random().toString(36).slice(2, 10).toUpperCase()}${Date.now().toString(36).slice(-4).toUpperCase()}`;
-    user = await prisma.user.update({
-      where: { id: req.user!.id },
-      data: { numeroId },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        numeroId: true,
-        firstName: true,
-        lastName: true,
-        country: true,
-        tipoDocumento: true,
-        phone: true,
-        dateOfBirth: true,
-        city: true,
-        province: true,
-        postalCode: true,
-        reputationScore: true,
-        profileImageUrl: true,
-        kyc: { select: { status: true, rejectionReason: true } },
-      },
-    });
+    await db().collection(COLLECTIONS.USERS).doc(req.user!.id).update({ numeroId, updatedAt: new Date() });
+    data = { ...data, numeroId };
   }
-  const phone = user.phone?.replace(/\+549\s*\+549/, '+549') ?? user.phone;
-  res.json({ ...user, phone });
+
+  const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(req.user!.id).get();
+  const kyc = kycDoc.exists ? kycDoc.data() : null;
+  const phone = data.phone?.replace(/\+549\s*\+549/, '+549') ?? data.phone;
+
+  res.json({
+    id: req.user!.id,
+    email: data.email,
+    username: data.username ?? null,
+    numeroId: data.numeroId ?? null,
+    firstName: data.firstName ?? null,
+    lastName: data.lastName ?? null,
+    country: data.country ?? null,
+    tipoDocumento: data.tipoDocumento ?? null,
+    phone,
+    phoneVerified: data.phoneVerified ?? false,
+    dateOfBirth: data.dateOfBirth ?? null,
+    city: data.city ?? null,
+    province: data.province ?? null,
+    postalCode: data.postalCode ?? null,
+    reputationScore: data.reputationScore ?? null,
+    profileImageUrl: data.profileImageUrl ?? null,
+    kyc: kyc ? { status: kyc.status, rejectionReason: kyc.rejectionReason ?? null } : { status: 'PENDIENTE', rejectionReason: null },
+  });
+});
+
+router.post('/phone/verify-request', async (req: AuthRequest, res) => {
+  const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : null;
+  if (!phone || phone.length < 8) {
+    res.status(400).json({ error: 'Número de teléfono requerido' });
+    return;
+  }
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  await db().collection(COLLECTIONS.USERS).doc(req.user!.id).update({
+    phone,
+    phoneVerified: false,
+    phoneVerificationCode: code,
+    phoneVerificationExpires: expiresAt,
+    updatedAt: new Date(),
+  });
+  if (process.env.SMS_PROVIDER === 'twilio' && process.env.TWILIO_ACCOUNT_SID) {
+    console.log('[SMS] Código para', phone, ':', code);
+  } else {
+    console.log('[DEV] Código de verificación para', phone, ':', code);
+  }
+  res.json({ ok: true, message: 'Código enviado' });
+});
+
+router.post('/phone/verify-confirm', async (req: AuthRequest, res) => {
+  const code = typeof req.body?.code === 'string' ? req.body.code.trim() : null;
+  if (!code || code.length !== 6) {
+    res.status(400).json({ error: 'Código de 6 dígitos requerido' });
+    return;
+  }
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
+  const data = userDoc.data();
+  if (!data?.phoneVerificationCode || !data?.phoneVerificationExpires) {
+    res.status(400).json({ error: 'Solicitá primero un código de verificación' });
+    return;
+  }
+  if (new Date() > data.phoneVerificationExpires.toDate()) {
+    res.status(400).json({ error: 'El código expiró. Solicitá uno nuevo.' });
+    return;
+  }
+  if (data.phoneVerificationCode !== code) {
+    res.status(400).json({ error: 'Código incorrecto' });
+    return;
+  }
+  await db().collection(COLLECTIONS.USERS).doc(req.user!.id).update({
+    phoneVerified: true,
+    phoneVerificationCode: null,
+    phoneVerificationExpires: null,
+    updatedAt: new Date(),
+  });
+  res.json({ ok: true, phoneVerified: true });
 });
 
 router.post('/profile/avatar', upload.single('avatar'), async (req: AuthRequest, res) => {
@@ -77,52 +113,54 @@ router.post('/profile/avatar', upload.single('avatar'), async (req: AuthRequest,
     res.status(400).json({ error: 'No se envió ninguna imagen' });
     return;
   }
-  const baseUrl = process.env.APP_URL || 'http://localhost:3001';
-  const profileImageUrl = `${baseUrl}/uploads/${file.filename}`;
-  await prisma.user.update({
-    where: { id: req.user!.id },
-    data: { profileImageUrl },
+  const ext = file.originalname.split('.').pop() || 'jpg';
+  const path = `avatars/${req.user!.id}/${Date.now()}.${ext}`;
+  const profileImageUrl = await uploadFile(path, file.buffer, file.mimetype || 'image/jpeg');
+  await db().collection(COLLECTIONS.USERS).doc(req.user!.id).update({
+    profileImageUrl,
+    updatedAt: new Date(),
   });
   res.json({ profileImageUrl });
 });
 
 router.patch('/profile', async (req: AuthRequest, res) => {
   const body = req.body || {};
-  const { username, firstName, lastName, phone, city, province, postalCode } = body;
-  const updateData: {
-    firstName?: string;
-    lastName?: string;
-    phone?: string;
-    city?: string;
-    province?: string;
-    postalCode?: string;
-    username?: string | null;
-  } = {};
+  const { username, firstName, lastName, phone, city, province, postalCode, fcmToken } = body;
+  const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (firstName !== undefined) updateData.firstName = firstName;
   if (lastName !== undefined) updateData.lastName = lastName;
   if (phone !== undefined) updateData.phone = phone;
   if (city !== undefined) updateData.city = city;
   if (province !== undefined) updateData.province = province;
   if (postalCode !== undefined) updateData.postalCode = postalCode;
+  if (fcmToken !== undefined) updateData.fcmToken = fcmToken;
+
   if (username !== undefined) {
     const usernameVal = typeof username === 'string' ? username.trim() : '';
     if (usernameVal) {
-      const existing = await prisma.user.findFirst({
-        where: { username: usernameVal, NOT: { id: req.user!.id } },
-      });
-      if (existing) {
+      const existing = await db()
+        .collection(COLLECTIONS.USERS)
+        .where('username', '==', usernameVal)
+        .get();
+      const takenByOther = existing.docs.some((d) => d.id !== req.user!.id);
+      if (takenByOther) {
         res.status(409).json({ error: 'Ya existe un usuario con ese nombre de usuario' });
         return;
       }
     }
     updateData.username = usernameVal || null;
   }
-  const user = await prisma.user.update({
-    where: { id: req.user!.id },
-    data: updateData,
-    select: { id: true, email: true, username: true, firstName: true, lastName: true },
+
+  await db().collection(COLLECTIONS.USERS).doc(req.user!.id).update(updateData);
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
+  const data = userDoc.data()!;
+  res.json({
+    id: req.user!.id,
+    email: data.email,
+    username: data.username,
+    firstName: data.firstName,
+    lastName: data.lastName,
   });
-  res.json(user);
 });
 
 router.post('/onboarding', async (req: AuthRequest, res) => {
@@ -133,68 +171,79 @@ router.post('/onboarding', async (req: AuthRequest, res) => {
   }
   const { accion, ticketeras, appsBoletos } = parsed.data;
 
-  await prisma.userOnboarding.upsert({
-    where: { userId: req.user!.id },
-    create: {
+  const ref = db().collection(COLLECTIONS.USER_ONBOARDING).doc(req.user!.id);
+  const existing = await ref.get();
+  await ref.set(
+    {
       userId: req.user!.id,
-      accion: accion as string[],
-      ticketeras: ticketeras as string[],
-      appsBoletos: appsBoletos as string[],
+      accion,
+      ticketeras,
+      appsBoletos,
+      ...(existing.exists ? {} : { createdAt: new Date() }),
+      updatedAt: new Date(),
     },
-    update: {
-      accion: accion as string[],
-      ticketeras: ticketeras as string[],
-      appsBoletos: appsBoletos as string[],
-    },
-  });
+    { merge: true }
+  );
   res.json({ ok: true });
 });
 
 router.get('/onboarding', async (req: AuthRequest, res) => {
-  const onboarding = await prisma.userOnboarding.findUnique({
-    where: { userId: req.user!.id },
+  const doc = await db().collection(COLLECTIONS.USER_ONBOARDING).doc(req.user!.id).get();
+  if (!doc.exists) return res.json(null);
+  const data = doc.data()!;
+  res.json({
+    id: doc.id,
+    userId: data.userId,
+    accion: data.accion || [],
+    ticketeras: data.ticketeras || [],
+    appsBoletos: data.appsBoletos || [],
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
   });
-  res.json(onboarding || null);
 });
 
-router.post('/kyc/upload', upload.fields([
-  { name: 'dniFront', maxCount: 1 },
-  { name: 'dniBack', maxCount: 1 },
-  { name: 'selfie', maxCount: 1 },
-]), async (req: AuthRequest, res) => {
-  const files = req.files as { [key: string]: Express.Multer.File[] };
-  const baseUrl = process.env.APP_URL || 'http://localhost:3001';
-  const dniFrontUrl = files.dniFront?.[0] ? `${baseUrl}/uploads/${files.dniFront[0].filename}` : undefined;
-  const dniBackUrl = files.dniBack?.[0] ? `${baseUrl}/uploads/${files.dniBack[0].filename}` : undefined;
-  const selfieUrl = files.selfie?.[0] ? `${baseUrl}/uploads/${files.selfie[0].filename}` : undefined;
+router.post(
+  '/kyc/upload',
+  upload.fields([
+    { name: 'dniFront', maxCount: 1 },
+    { name: 'dniBack', maxCount: 1 },
+    { name: 'selfie', maxCount: 1 },
+  ]),
+  async (req: AuthRequest, res) => {
+    const files = req.files as { [key: string]: Express.Multer.File[] };
+    const uid = req.user!.id;
+    const updates: Record<string, string> = { status: 'EN_REVISION', updatedAt: new Date() };
 
-  await prisma.kycVerification.update({
-    where: { userId: req.user!.id },
-    data: {
-      ...(dniFrontUrl && { dniFrontUrl }),
-      ...(dniBackUrl && { dniBackUrl }),
-      ...(selfieUrl && { selfieUrl }),
-      status: 'EN_REVISION',
-    },
-  });
-  res.json({ ok: true, status: 'EN_REVISION' });
-});
+    if (files.dniFront?.[0]) {
+      const path = `kyc/${uid}/dni_front_${Date.now()}.jpg`;
+      updates.dniFrontUrl = await uploadFile(path, files.dniFront[0].buffer, files.dniFront[0].mimetype || 'image/jpeg');
+    }
+    if (files.dniBack?.[0]) {
+      const path = `kyc/${uid}/dni_back_${Date.now()}.jpg`;
+      updates.dniBackUrl = await uploadFile(path, files.dniBack[0].buffer, files.dniBack[0].mimetype || 'image/jpeg');
+    }
+    if (files.selfie?.[0]) {
+      const path = `kyc/${uid}/selfie_${Date.now()}.jpg`;
+      updates.selfieUrl = await uploadFile(path, files.selfie[0].buffer, files.selfie[0].mimetype || 'image/jpeg');
+    }
+
+    await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(uid).set(updates, { merge: true });
+    res.json({ ok: true, status: 'EN_REVISION' });
+  }
+);
 
 router.get('/kyc', async (req: AuthRequest, res) => {
-  const kyc = await prisma.kycVerification.findUnique({
-    where: { userId: req.user!.id },
-    select: { status: true, rejectionReason: true },
-  });
-  res.json(kyc || { status: 'PENDIENTE' });
+  const doc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(req.user!.id).get();
+  if (!doc.exists) return res.json({ status: 'PENDIENTE' });
+  const data = doc.data()!;
+  res.json({ status: data.status || 'PENDIENTE', rejectionReason: data.rejectionReason ?? null });
 });
 
-/** Crear sesión Didit para KYC (WebView móvil o redirect web) */
 router.post('/kyc/session', async (req: AuthRequest, res) => {
   const userId = req.user!.id;
   const webUrl = process.env.WEB_URL || process.env.APP_URL || 'http://localhost:5173';
   const platform = (req.body?.platform as string) || 'web';
 
-  // Callback: web = URL absoluta; móvil = deep link ticketTransfer://
   const callback =
     platform === 'mobile'
       ? 'ticketTransfer://kyc/callback'
@@ -207,10 +256,10 @@ router.post('/kyc/session', async (req: AuthRequest, res) => {
       features: 'OCR + FACE',
     });
 
-    await prisma.kycVerification.update({
-      where: { userId },
-      data: { diditSessionId: session.session_id },
-    });
+    await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).set(
+      { diditSessionId: session.session_id, updatedAt: new Date() },
+      { merge: true }
+    );
 
     res.json({ url: session.url, sessionId: session.session_id });
   } catch (e) {

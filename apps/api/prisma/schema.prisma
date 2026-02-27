@@ -107,6 +107,9 @@ model User {
   documentNumber     String?   @map("document_number")
   sexo               Sexo?
   phone              String?
+  phoneVerified      Boolean   @default(false) @map("phone_verified")
+  phoneVerificationCode String? @map("phone_verification_code")
+  phoneVerificationExpires DateTime? @map("phone_verification_expires")
   dateOfBirth        DateTime? @map("date_of_birth")
   city               String?
   province           String?
@@ -169,6 +172,7 @@ model TicketListing {
   sector             String?
   row                String?
   seat               String?
+  quantityEntries    String?            @map("quantity_entries")
   tipoEntrada        TipoEntrada        @map("tipo_entrada")
   price              Float
   currency           String             @default("ARS")
@@ -213,6 +217,21 @@ model Order {
   updatedAt        DateTime    @updatedAt @map("updated_at")
 
   dispute Dispute?
+  ratings OrderRating[]
+}
+
+model OrderRating {
+  id          String   @id @default(uuid())
+  orderId     String   @map("order_id")
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  raterId     String   @map("rater_id")
+  ratedUserId String   @map("rated_user_id")
+  positive    Boolean
+  points      Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([orderId, raterId])
+  @@map("order_ratings")
 }
 
 model Dispute {

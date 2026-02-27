@@ -8,15 +8,17 @@ import { TouchableOpacity, StyleSheet, Image } from 'react-native';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { useUserMenu } from '../context/UserMenuContext';
 import { useProfileImage } from '../context/ProfileImageContext';
+import { ensureImageUrl } from '../lib/api';
 
 export function UserMenuButton() {
   const { openMenu } = useUserMenu();
   const { profileImageUrl } = useProfileImage();
+  const imageUri = ensureImageUrl(profileImageUrl);
 
   return (
     <TouchableOpacity onPress={openMenu} style={styles.btn} hitSlop={{ top: 8, bottom: 8 }}>
-      {profileImageUrl ? (
-        <Image source={{ uri: profileImageUrl }} style={styles.avatar} />
+      {imageUri ? (
+        <Image source={{ uri: imageUri }} style={styles.avatar} />
       ) : (
         <FontAwesome5 name="user" size={18} color="#fff" solid />
       )}

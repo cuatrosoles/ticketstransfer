@@ -1,19 +1,11 @@
 /**
- * Middleware de autenticación JWT.
- * Ubicación: apps/api/src/middleware/auth.ts
+ * Middleware de autenticación - Firebase ID Token.
+ * Verifica el token de Firebase Auth enviado en Authorization: Bearer <token>
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { prisma } from '../lib/prisma.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || '';
-
-export interface JwtPayload {
-  userId: string;
-  email: string;
-  role?: string;
-}
+import { getAuth } from '../lib/firebase-admin.js';
+import { db, COLLECTIONS } from '../lib/firestore.js';
 
 export interface AuthRequest extends Request {
   user?: { id: string; email: string; role: string };
@@ -29,16 +21,19 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: { id: true, email: true, role: true },
-    });
-    if (!user) {
+    const auth = getAuth();
+    const decoded = await auth.verifyIdToken(token);
+    const userDoc = await db().collection(COLLECTIONS.USERS).doc(decoded.uid).get();
+    if (!userDoc.exists) {
       res.status(401).json({ error: 'Usuario no encontrado' });
       return;
     }
-    req.user = { id: user.id, email: user.email, role: user.role };
+    const data = userDoc.data()!;
+    req.user = {
+      id: decoded.uid,
+      email: decoded.email || data.email || '',
+      role: data.role || 'user',
+    };
     next();
   } catch {
     res.status(401).json({ error: 'Token inválido o expirado' });

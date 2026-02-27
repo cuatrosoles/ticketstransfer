@@ -1,19 +1,18 @@
 /**
- * Rutas de órdenes (compra, pago, confirmación, evidencia).
- * Ubicación: apps/api/src/routes/orders.ts
+ * Rutas de órdenes - Firestore + Firebase Storage.
  */
 
 import { Router } from 'express';
 import multer from 'multer';
-import { prisma } from '../lib/prisma.js';
-import { uploadsDir } from '../lib/uploads.js';
+import { db, COLLECTIONS } from '../lib/firestore.js';
+import { uploadFile } from '../lib/firebase-storage.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { createOrderSchema, confirmReceivedSchema } from '@tickets-transfer/shared';
 import { HORAS_MAX_TRANSFERENCIA_VENDEDOR } from '@tickets-transfer/shared';
 
 const router = Router();
 const upload = multer({
-  dest: uploadsDir,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
@@ -27,10 +26,13 @@ router.post('/', async (req: AuthRequest, res) => {
   }
   const { ticketListingId, paymentMethod } = parsed.data;
 
-  const listing = await prisma.ticketListing.findFirst({
-    where: { id: ticketListingId, status: 'DISPONIBLE' },
-  });
-  if (!listing) {
+  const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(ticketListingId).get();
+  if (!listingDoc.exists) {
+    res.status(404).json({ error: 'Ticket no disponible' });
+    return;
+  }
+  const listing = listingDoc.data()!;
+  if (listing.status !== 'DISPONIBLE') {
     res.status(404).json({ error: 'Ticket no disponible' });
     return;
   }
@@ -44,23 +46,30 @@ router.post('/', async (req: AuthRequest, res) => {
   const transferDeadline = new Date();
   transferDeadline.setHours(transferDeadline.getHours() + HORAS_MAX_TRANSFERENCIA_VENDEDOR);
 
-  const order = await prisma.order.create({
-    data: {
-      ticketListingId,
-      buyerId: req.user!.id,
-      sellerId: listing.sellerId,
-      status: 'PENDIENTE_PAGO',
-      totalAmount,
-      commissionAmount,
-      currency: listing.currency,
-      paymentMethod,
-      transferDeadline,
-    },
-    include: {
-      ticketListing: true,
-      seller: { select: { id: true, email: true } },
-    },
-  });
+  const orderId = db().collection(COLLECTIONS.ORDERS).doc().id;
+  const orderData = {
+    ticketListingId,
+    buyerId: req.user!.id,
+    sellerId: listing.sellerId,
+    status: 'PENDIENTE_PAGO',
+    totalAmount,
+    commissionAmount,
+    currency: listing.currency || 'ARS',
+    paymentMethod,
+    transferDeadline,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  await db().collection(COLLECTIONS.ORDERS).doc(orderId).set(orderData);
+
+  const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(listing.sellerId).get();
+  const order = {
+    id: orderId,
+    ...orderData,
+    ticketListing: { id: listingDoc.id, ...listing },
+    seller: { id: listing.sellerId, email: sellerDoc.data()?.email },
+  };
 
   res.status(201).json({
     order,
@@ -70,63 +79,99 @@ router.post('/', async (req: AuthRequest, res) => {
 });
 
 router.get('/my/purchases', async (req: AuthRequest, res) => {
-  const orders = await prisma.order.findMany({
-    where: { buyerId: req.user!.id },
-    include: { ticketListing: true, seller: { select: { id: true, reputationScore: true } } },
-    orderBy: { createdAt: 'desc' },
-  });
+  const snap = await db()
+    .collection(COLLECTIONS.ORDERS)
+    .where('buyerId', '==', req.user!.id)
+    .orderBy('createdAt', 'desc')
+    .get();
+
+  const orders = await Promise.all(
+    snap.docs.map(async (doc) => {
+      const d = doc.data();
+      const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
+      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+      return {
+        id: doc.id,
+        ...d,
+        ticketListing: listingDoc.exists ? { id: listingDoc.id, ...listingDoc.data() } : null,
+        seller: sellerDoc.exists ? { id: d.sellerId, reputationScore: sellerDoc.data()?.reputationScore } : null,
+        createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+        updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+        transferDeadline: d.transferDeadline?.toDate?.() ?? d.transferDeadline,
+      };
+    })
+  );
   res.json(orders);
 });
 
 router.get('/my/sales', async (req: AuthRequest, res) => {
-  const orders = await prisma.order.findMany({
-    where: { sellerId: req.user!.id },
-    include: { ticketListing: true, buyer: { select: { id: true, email: true } } },
-    orderBy: { createdAt: 'desc' },
-  });
+  const snap = await db()
+    .collection(COLLECTIONS.ORDERS)
+    .where('sellerId', '==', req.user!.id)
+    .orderBy('createdAt', 'desc')
+    .get();
+
+  const orders = await Promise.all(
+    snap.docs.map(async (doc) => {
+      const d = doc.data();
+      const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
+      const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(d.buyerId).get();
+      return {
+        id: doc.id,
+        ...d,
+        ticketListing: listingDoc.exists ? { id: listingDoc.id, ...listingDoc.data() } : null,
+        buyer: buyerDoc.exists ? { id: d.buyerId, email: buyerDoc.data()?.email } : null,
+        createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+        updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+        transferDeadline: d.transferDeadline?.toDate?.() ?? d.transferDeadline,
+      };
+    })
+  );
   res.json(orders);
 });
 
 router.get('/:id', async (req: AuthRequest, res) => {
-  const order = await prisma.order.findFirst({
-    where: {
-      id: req.params.id,
-      OR: [{ buyerId: req.user!.id }, { sellerId: req.user!.id }],
-    },
-    include: {
-      ticketListing: true,
-      buyer: { select: { id: true, email: true } },
-      seller: { select: { id: true, email: true } },
-    },
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
+  const d = doc.data()!;
+  if (d.buyerId !== req.user!.id && d.sellerId !== req.user!.id) {
+    return res.status(404).json({ error: 'No encontrado' });
+  }
+
+  const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
+  const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(d.buyerId).get();
+  const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+
+  res.json({
+    id: doc.id,
+    ...d,
+    ticketListing: listingDoc.exists ? { id: listingDoc.id, ...listingDoc.data() } : null,
+    buyer: buyerDoc.exists ? { id: d.buyerId, email: buyerDoc.data()?.email } : null,
+    seller: sellerDoc.exists ? { id: d.sellerId, email: sellerDoc.data()?.email } : null,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+    transferDeadline: d.transferDeadline?.toDate?.() ?? d.transferDeadline,
   });
-  if (!order) return res.status(404).json({ error: 'No encontrado' });
-  res.json(order);
 });
 
 router.post('/:id/confirm-payment', async (req: AuthRequest, res) => {
-  const order = await prisma.order.findFirst({
-    where: { id: req.params.id, buyerId: req.user!.id, status: 'PENDIENTE_PAGO' },
-  });
-  if (!order) return res.status(404).json({ error: 'No encontrado' });
-  await prisma.order.update({
-    where: { id: order.id },
-    data: { status: 'ESPERANDO_TRANSFERENCIA' },
-  });
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
+  const d = doc.data()!;
+  if (d.buyerId !== req.user!.id || d.status !== 'PENDIENTE_PAGO') return res.status(404).json({ error: 'No encontrado' });
+  await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({ status: 'ESPERANDO_TRANSFERENCIA', updatedAt: new Date() });
   res.json({ ok: true, status: 'ESPERANDO_TRANSFERENCIA' });
 });
 
 router.post('/:id/transfer-done', async (req: AuthRequest, res) => {
-  const order = await prisma.order.findFirst({
-    where: { id: req.params.id, sellerId: req.user!.id },
-  });
-  if (!order) return res.status(404).json({ error: 'No encontrado' });
-  if (order.status !== 'ESPERANDO_TRANSFERENCIA') {
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
+  const d = doc.data()!;
+  if (d.sellerId !== req.user!.id) return res.status(404).json({ error: 'No encontrado' });
+  if (d.status !== 'ESPERANDO_TRANSFERENCIA') {
     return res.status(400).json({ error: 'Estado no permite marcar transferencia' });
   }
-  await prisma.order.update({
-    where: { id: order.id },
-    data: { status: 'TRANSFERIDO_VENDEDOR' },
-  });
+  await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({ status: 'TRANSFERIDO_VENDEDOR', updatedAt: new Date() });
   res.json({ ok: true });
 });
 
@@ -139,36 +184,87 @@ router.post('/:id/confirm-received', async (req: AuthRequest, res) => {
     res.status(400).json({ error: 'Datos inválidos' });
     return;
   }
-  const order = await prisma.order.findFirst({
-    where: { id: req.params.id, buyerId: req.user!.id },
-  });
-  if (!order) return res.status(404).json({ error: 'No encontrado' });
-  await prisma.order.update({
-    where: { id: order.id },
-    data: {
-      status: parsed.data.received ? 'ESPERANDO_CONFIRMACION_COMPRADOR' : order.status,
-      buyerConfirmedAt: parsed.data.received ? new Date() : null,
-    },
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
+  const d = doc.data()!;
+  if (d.buyerId !== req.user!.id) return res.status(404).json({ error: 'No encontrado' });
+  await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({
+    status: parsed.data.received ? 'ESPERANDO_CONFIRMACION_COMPRADOR' : d.status,
+    buyerConfirmedAt: parsed.data.received ? new Date() : null,
+    updatedAt: new Date(),
   });
   res.json({ ok: true });
 });
 
 router.post('/:id/evidence', upload.single('evidence'), async (req: AuthRequest, res) => {
-  const order = await prisma.order.findFirst({
-    where: { id: req.params.id, buyerId: req.user!.id },
-  });
-  if (!order) return res.status(404).json({ error: 'No encontrado' });
-  const baseUrl = process.env.APP_URL || 'http://localhost:3001';
-  const evidenceUrl = req.file ? `${baseUrl}/uploads/${req.file.filename}` : undefined;
-  if (!evidenceUrl) {
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
+  const d = doc.data()!;
+  if (d.buyerId !== req.user!.id) return res.status(404).json({ error: 'No encontrado' });
+  const file = req.file;
+  if (!file) {
     res.status(400).json({ error: 'Archivo requerido' });
     return;
   }
-  await prisma.order.update({
-    where: { id: order.id },
-    data: { evidenceUrl, status: 'EVIDENCIA_SUBIDA' },
+  const evidenceUrl = await uploadFile(
+    `evidence/${req.params.id}/${Date.now()}.jpg`,
+    file.buffer,
+    file.mimetype || 'image/jpeg'
+  );
+  await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({
+    evidenceUrl,
+    status: 'EVIDENCIA_SUBIDA',
+    updatedAt: new Date(),
   });
   res.json({ ok: true, status: 'EVIDENCIA_SUBIDA' });
+});
+
+const PUNTOS_POR_RATING_POSITIVO = 5;
+
+router.post('/:id/rate', async (req: AuthRequest, res) => {
+  const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
+  if (!orderDoc.exists) return res.status(404).json({ error: 'No encontrado' });
+  const order = orderDoc.data()!;
+  if (order.status !== 'COMPLETADA') return res.status(404).json({ error: 'No encontrado' });
+  if (order.buyerId !== req.user!.id && order.sellerId !== req.user!.id) {
+    return res.status(404).json({ error: 'No encontrado' });
+  }
+
+  const positive = req.body?.positive === true;
+  const isBuyer = order.buyerId === req.user!.id;
+  const ratedUserId = isBuyer ? order.sellerId : order.buyerId;
+
+  const existingRating = await db()
+    .collection(COLLECTIONS.ORDER_RATINGS)
+    .where('orderId', '==', req.params.id)
+    .where('raterId', '==', req.user!.id)
+    .limit(1)
+    .get();
+
+  if (!existingRating.empty) {
+    return res.status(400).json({ error: 'Ya puntuaste esta orden' });
+  }
+
+  const ratingId = db().collection(COLLECTIONS.ORDER_RATINGS).doc().id;
+  await db().collection(COLLECTIONS.ORDER_RATINGS).doc(ratingId).set({
+    orderId: req.params.id,
+    raterId: req.user!.id,
+    ratedUserId,
+    positive,
+    points: positive ? PUNTOS_POR_RATING_POSITIVO : 0,
+    createdAt: new Date(),
+  });
+
+  if (positive) {
+    const ratedUserDoc = await db().collection(COLLECTIONS.USERS).doc(ratedUserId).get();
+    const currentScore = ratedUserDoc.data()?.reputationScore ?? 0;
+    await db().collection(COLLECTIONS.USERS).doc(ratedUserId).update({
+      reputationScore: currentScore + PUNTOS_POR_RATING_POSITIVO,
+      updatedAt: new Date(),
+    });
+  }
+
+  res.json({ ok: true, points: positive ? PUNTOS_POR_RATING_POSITIVO : 0 });
 });
 
 export const ordersRouter = router;

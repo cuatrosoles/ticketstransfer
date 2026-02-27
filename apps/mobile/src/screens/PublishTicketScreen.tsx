@@ -27,8 +27,8 @@ import { colors, spacing, radius } from '../theme';
 import { TICKETERA_LOGOS, APP_BOLETOS_LOGOS } from '../data/serviceLogos';
 
 const TIPOS_ENTRADA = ['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO'];
-const TICKETERAS = ['TICKETEK', 'ALLACCESS', 'TICKETERA', 'TICKET_PLUS', 'OTRA'];
-const APPS_BOLETOS = ['QUENTRO', 'ENIGMA', 'TICKET360', 'TICKETMAKER', 'OTRA'];
+const TICKETERAS = ['TICKETEK', 'ALLACCESS', 'TICKET_PLUS', 'OTRA'];
+const APPS_BOLETOS = ['QUENTRO', 'ENIGMA', 'OTRA'];
 const COMISION_PORCENTAJE = 5;
 
 type ImageAsset = { uri: string; fileName?: string; type?: string };
@@ -79,12 +79,15 @@ export function PublishTicketScreen() {
   const [eventDate, setEventDate] = useState('');
   const [eventPlace, setEventPlace] = useState('');
   const [sector, setSector] = useState('');
+  const [fila, setFila] = useState('');
+  const [cantidadEntradas, setCantidadEntradas] = useState('');
   const [tipoEntrada, setTipoEntrada] = useState('GENERAL');
   const [tipoEntradaOtro, setTipoEntradaOtro] = useState('');
   const [price, setPrice] = useState('');
   const [ticketera, setTicketera] = useState('TICKETEK');
   const [ticketeraOtra, setTicketeraOtra] = useState('');
   const [appBoletos, setAppBoletos] = useState('QUENTRO');
+  const [butacasAsientos, setButacasAsientos] = useState('');
   const [appBoletosOtra, setAppBoletosOtra] = useState('');
   const [orderRef, setOrderRef] = useState('');
   const [publicationPassword, setPublicationPassword] = useState('');
@@ -139,6 +142,8 @@ export function PublishTicketScreen() {
       formData.append('eventDate', dateStr);
       formData.append('eventPlace', eventPlace.trim());
       formData.append('sector', sector.trim());
+      if (fila.trim()) formData.append('row', fila.trim());
+      if (cantidadEntradas.trim()) formData.append('quantityEntries', cantidadEntradas.trim());
       formData.append('tipoEntrada', tipoEntrada);
       formData.append('price', String(priceNum));
       formData.append('currency', 'ARS');
@@ -148,6 +153,7 @@ export function PublishTicketScreen() {
       if (publicationPassword.trim()) formData.append('publicationPassword', publicationPassword.trim());
       if (ticketera === 'OTRA' && ticketeraOtra.trim()) formData.append('ticketeraOtra', ticketeraOtra.trim());
       if (appBoletos === 'OTRA' && appBoletosOtra.trim()) formData.append('appBoletosOtra', appBoletosOtra.trim());
+      if (butacasAsientos.trim()) formData.append('seat', butacasAsientos.trim());
       if (tipoEntrada === 'OTRO' && tipoEntradaOtro.trim()) formData.append('tipoEntradaOtro', tipoEntradaOtro.trim());
       const uri = (uri: string) => (Platform.OS === 'android' ? uri : uri.replace('file://', ''));
       formData.append('captureTicket', {
@@ -205,6 +211,9 @@ export function PublishTicketScreen() {
       <Text style={styles.label}>Sector</Text>
       <TextInput style={styles.input} placeholder="Platea, Campo..." placeholderTextColor={colors.textMuted} value={sector} onChangeText={setSector} />
 
+      <Text style={styles.label}>Fila</Text>
+      <TextInput style={styles.input} placeholder="Fila" placeholderTextColor={colors.textMuted} value={fila} onChangeText={setFila} />
+
       <Text style={styles.label}>Tipo de entrada</Text>
       <View style={styles.chipRow}>
         {TIPOS_ENTRADA.map((t) => (
@@ -225,6 +234,16 @@ export function PublishTicketScreen() {
           />
         </>
       )}
+
+      <Text style={styles.label}>Cantidad de entradas</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Ej: 2"
+        placeholderTextColor={colors.textMuted}
+        value={cantidadEntradas}
+        onChangeText={setCantidadEntradas}
+        keyboardType="numeric"
+      />
 
       <Text style={styles.label}>Precio (ARS) *</Text>
       <TextInput style={styles.input} placeholder="15000" placeholderTextColor={colors.textMuted} value={price} onChangeText={setPrice} keyboardType="numeric" />
@@ -284,6 +303,15 @@ export function PublishTicketScreen() {
         </>
       )}
 
+      <Text style={styles.label}>Butacas - Asientos Nro.</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Ej: 1, 2, 3"
+        placeholderTextColor={colors.textMuted}
+        value={butacasAsientos}
+        onChangeText={setButacasAsientos}
+      />
+
       <Text style={styles.label}>Código de orden / referencia</Text>
       <TextInput style={styles.input} placeholder="Opcional" placeholderTextColor={colors.textMuted} value={orderRef} onChangeText={setOrderRef} />
 
@@ -296,7 +324,7 @@ export function PublishTicketScreen() {
         )}
       </TouchableOpacity>
 
-      <Text style={styles.label}>Captura de titularidad</Text>
+      <Text style={styles.label}>Captura de titularidad o factura</Text>
       <TouchableOpacity style={styles.imageButton} onPress={() => pickImage(setCaptureOwnership)}>
         {captureOwnership ? (
           <Image source={{ uri: captureOwnership.uri }} style={styles.thumb} resizeMode="cover" />

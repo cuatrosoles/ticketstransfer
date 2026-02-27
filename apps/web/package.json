@@ -9,14 +9,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@hookform/resolvers": "^3.3.4",
     "@tickets-transfer/shared": "workspace:*",
-    "zod": "^3.22.4",
+    "firebase": "^10.14.1",
+    "lucide-react": "^0.323.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.0",
     "react-hook-form": "^7.49.0",
-    "@hookform/resolvers": "^3.3.4",
-    "lucide-react": "^0.323.0"
+    "react-router-dom": "^6.22.0",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/react": "^18.2.48",

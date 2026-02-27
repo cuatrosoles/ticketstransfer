@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "437946218621",
+    "project_id": "ticketstransfer-8bd76",
+    "storage_bucket": "ticketstransfer-8bd76.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:437946218621:android:9ccef5416080aede231914",
+        "android_client_info": {
+          "package_name": "com.ticketstransfer.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "437946218621-ekpf7l08uh8s3augjd9uv1iu3glv7aqf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBp4cCmXv9dI5Jn7UTDYgmAynZ1V8WRTA8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "437946218621-ekpf7l08uh8s3augjd9uv1iu3glv7aqf.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

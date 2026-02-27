@@ -1,10 +1,9 @@
 /**
- * Rutas exclusivas para administradores.
- * Ubicación: apps/api/src/routes/admin.ts
+ * Rutas exclusivas para administradores - Firestore.
  */
 
 import { Router } from 'express';
-import { prisma } from '../lib/prisma.js';
+import { db, COLLECTIONS } from '../lib/firestore.js';
 import { requireAuth, requireAdmin, type AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
@@ -12,78 +11,102 @@ const router = Router();
 router.use(requireAuth);
 router.use(requireAdmin);
 
-/** Estadísticas para el dashboard */
 router.get('/stats', async (_req, res) => {
-  const [usersCount, ordersCount, disputesOpen, kycPending, listingsCount] = await Promise.all([
-    prisma.user.count(),
-    prisma.order.count(),
-    prisma.dispute.count({ where: { status: { in: ['ABIERTA', 'EN_REVISION', 'ESPERANDO_INFO'] } } }),
-    prisma.kycVerification.count({ where: { status: 'EN_REVISION' } }),
-    prisma.ticketListing.count({ where: { status: 'DISPONIBLE' } }),
+  const [usersSnap, ordersSnap, disputesSnap, kycSnap, listingsSnap, ordersCompletedSnap] = await Promise.all([
+    db().collection(COLLECTIONS.USERS).get(),
+    db().collection(COLLECTIONS.ORDERS).get(),
+    db()
+      .collection(COLLECTIONS.DISPUTES)
+      .where('status', 'in', ['ABIERTA', 'EN_REVISION', 'ESPERANDO_INFO'])
+      .get(),
+    db().collection(COLLECTIONS.KYC_VERIFICATIONS).where('status', '==', 'EN_REVISION').get(),
+    db().collection(COLLECTIONS.TICKET_LISTINGS).where('status', '==', 'DISPONIBLE').get(),
+    db().collection(COLLECTIONS.ORDERS).where('status', '==', 'COMPLETADA').get(),
   ]);
-  const ordersCompleted = await prisma.order.count({ where: { status: 'COMPLETADA' } });
+
   res.json({
-    usersCount,
-    ordersCount,
-    ordersCompleted,
-    disputesOpen,
-    kycPending,
-    listingsCount,
+    usersCount: usersSnap.size,
+    ordersCount: ordersSnap.size,
+    ordersCompleted: ordersCompletedSnap.size,
+    disputesOpen: disputesSnap.size,
+    kycPending: kycSnap.size,
+    listingsCount: listingsSnap.size,
   });
 });
 
-/** Listar todos los usuarios */
 router.get('/users', async (req: AuthRequest, res) => {
   const { q, page = '1', limit = '20', role, kycStatus } = req.query;
-  const skip = (Number(page) - 1) * Number(limit);
-  const where: Record<string, unknown> = {};
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+
+  let query = db().collection(COLLECTIONS.USERS).orderBy('createdAt', 'desc');
+
+  if (typeof role === 'string' && role) {
+    query = query.where('role', '==', role) as FirebaseFirestore.Query;
+  }
+
+  const snap = await query.limit(limitNum * 3).get(); // Fetch extra for client filter
+
+  let users = snap.docs.map((doc) => {
+    const d = doc.data();
+    return { id: doc.id, ...d, createdAt: d.createdAt?.toDate?.() ?? d.createdAt };
+  });
+
   if (typeof q === 'string' && q) {
-    where.OR = [
-      { email: { contains: q, mode: 'insensitive' as const } },
-      { firstName: { contains: q, mode: 'insensitive' as const } },
-      { lastName: { contains: q, mode: 'insensitive' as const } },
-    ];
+    const ql = q.toLowerCase();
+    users = users.filter(
+      (u) =>
+        (u.email || '').toLowerCase().includes(ql) ||
+        (u.firstName || '').toLowerCase().includes(ql) ||
+        (u.lastName || '').toLowerCase().includes(ql)
+    );
   }
-  if (typeof role === 'string' && role) where.role = role;
+
   if (typeof kycStatus === 'string' && kycStatus) {
-    where.kyc = { status: kycStatus as 'PENDIENTE' | 'EN_REVISION' | 'APROBADO' | 'RECHAZADO' };
+    const kycIds = await db()
+      .collection(COLLECTIONS.KYC_VERIFICATIONS)
+      .where('status', '==', kycStatus)
+      .get();
+    const kycUserIds = new Set(kycIds.docs.map((d) => d.data().userId || d.id));
+    users = users.filter((u) => kycUserIds.has(u.id));
   }
-  const [users, total] = await Promise.all([
-    prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        createdAt: true,
-        kyc: { select: { status: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: Number(limit),
-    }),
-    prisma.user.count({ where }),
-  ]);
-  res.json({ users, total });
+
+  const total = users.length;
+  const skip = (pageNum - 1) * limitNum;
+  const paginated = users.slice(skip, skip + limitNum);
+
+  const withKyc = await Promise.all(
+    paginated.map(async (u) => {
+      const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(u.id).get();
+      return { ...u, kyc: kycDoc.exists ? { status: kycDoc.data()?.status } : { status: 'PENDIENTE' } };
+    })
+  );
+
+  res.json({ users: withKyc, total });
 });
 
-/** Listar KYC pendientes de revisión */
 router.get('/kyc/pending', async (_req, res) => {
-  const list = await prisma.kycVerification.findMany({
-    where: { status: 'EN_REVISION' },
-    include: {
-      user: {
-        select: { id: true, email: true, firstName: true, lastName: true },
-      },
-    },
-    orderBy: { updatedAt: 'desc' },
-  });
+  const snap = await db()
+    .collection(COLLECTIONS.KYC_VERIFICATIONS)
+    .where('status', '==', 'EN_REVISION')
+    .get();
+
+  const list = await Promise.all(
+    snap.docs.map(async (doc) => {
+      const d = doc.data();
+      const userDoc = await db().collection(COLLECTIONS.USERS).doc(d.userId || doc.id).get();
+      const user = userDoc.data();
+      return {
+        id: doc.id,
+        ...d,
+        user: user ? { id: userDoc.id, email: user.email, firstName: user.firstName, lastName: user.lastName } : null,
+        updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+      };
+    })
+  );
   res.json(list);
 });
 
-/** Aprobar o rechazar KYC */
 router.patch('/kyc/:userId', async (req: AuthRequest, res) => {
   const { userId } = req.params;
   const { status, rejectionReason } = req.body;
@@ -91,41 +114,63 @@ router.patch('/kyc/:userId', async (req: AuthRequest, res) => {
     res.status(400).json({ error: 'status debe ser APROBADO o RECHAZADO' });
     return;
   }
-  const kyc = await prisma.kycVerification.update({
-    where: { userId },
-    data: {
+  await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).set(
+    {
       status,
-      rejectionReason: status === 'RECHAZADO' ? (rejectionReason || 'Rechazado por el administrador') : null,
+      rejectionReason: status === 'RECHAZADO' ? rejectionReason || 'Rechazado por el administrador' : null,
       reviewedAt: new Date(),
       reviewedBy: req.user!.id,
+      updatedAt: new Date(),
     },
-    include: { user: { select: { id: true, email: true } } },
+    { merge: true }
+  );
+  const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+  res.json({
+    ...kycDoc.data(),
+    user: userDoc.exists ? { id: userId, email: userDoc.data()?.email } : null,
   });
-  res.json(kyc);
 });
 
-/** Listar todas las disputas */
 router.get('/disputes', async (req: AuthRequest, res) => {
-  const { status } = req.query;
-  const where = typeof status === 'string' && status ? { status: status as 'ABIERTA' | 'EN_REVISION' | 'ESPERANDO_INFO' | 'RESUELTA_FAVOR_COMPRADOR' | 'RESUELTA_FAVOR_VENDEDOR' } : {};
-  const disputes = await prisma.dispute.findMany({
-    where,
-    include: {
-      order: {
-        include: {
-          ticketListing: { select: { eventName: true, eventDate: true } },
-          buyer: { select: { id: true, email: true } },
-          seller: { select: { id: true, email: true } },
+  let query = db().collection(COLLECTIONS.DISPUTES).orderBy('createdAt', 'desc');
+  if (typeof req.query.status === 'string' && req.query.status) {
+    query = query.where('status', '==', req.query.status) as FirebaseFirestore.Query;
+  }
+  const snap = await query.limit(100).get();
+
+  const disputes = await Promise.all(
+    snap.docs.map(async (doc) => {
+      const d = doc.data();
+      const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(d.orderId).get();
+      const order = orderDoc.data()!;
+      const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(order.ticketListingId).get();
+      const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(order.buyerId).get();
+      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(order.sellerId).get();
+      const messagesSnap = await db()
+        .collection(COLLECTIONS.DISPUTE_MESSAGES)
+        .where('disputeId', '==', doc.id)
+        .orderBy('createdAt', 'desc')
+        .limit(1)
+        .get();
+      return {
+        id: doc.id,
+        ...d,
+        order: {
+          ...order,
+          ticketListing: listingDoc.exists ? listingDoc.data() : null,
+          buyer: buyerDoc.exists ? { id: order.buyerId, email: buyerDoc.data()?.email } : null,
+          seller: sellerDoc.exists ? { id: order.sellerId, email: sellerDoc.data()?.email } : null,
         },
-      },
-      messages: { take: 1, orderBy: { createdAt: 'desc' } },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+        messages: messagesSnap.empty ? [] : [messagesSnap.docs[0].data()],
+        createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+        updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+      };
+    })
+  );
   res.json(disputes);
 });
 
-/** Resolver disputa (admin) */
 router.patch('/disputes/:id/resolve', async (req: AuthRequest, res) => {
   const { id } = req.params;
   const { resolution } = req.body;
@@ -133,87 +178,126 @@ router.patch('/disputes/:id/resolve', async (req: AuthRequest, res) => {
     res.status(400).json({ error: 'resolution debe ser RESUELTA_FAVOR_COMPRADOR o RESUELTA_FAVOR_VENDEDOR' });
     return;
   }
-  const dispute = await prisma.dispute.findUnique({ where: { id }, include: { order: true } });
-  if (!dispute) return res.status(404).json({ error: 'Disputa no encontrada' });
+  const disputeDoc = await db().collection(COLLECTIONS.DISPUTES).doc(id).get();
+  if (!disputeDoc.exists) return res.status(404).json({ error: 'Disputa no encontrada' });
+  const dispute = disputeDoc.data()!;
 
   const orderStatus = resolution === 'RESUELTA_FAVOR_COMPRADOR' ? 'DISPUTA_RESUELTA_COMPRADOR' : 'DISPUTA_RESUELTA_VENDEDOR';
 
-  await prisma.$transaction([
-    prisma.dispute.update({
-      where: { id },
-      data: { status: resolution as 'RESUELTA_FAVOR_COMPRADOR' | 'RESUELTA_FAVOR_VENDEDOR', resolvedAt: new Date(), resolvedBy: req.user!.id },
-    }),
-    prisma.order.update({
-      where: { id: dispute.orderId },
-      data: { status: orderStatus },
-    }),
-  ]);
-
-  const updated = await prisma.dispute.findUnique({
-    where: { id },
-    include: { order: true },
+  await db().collection(COLLECTIONS.DISPUTES).doc(id).update({
+    status: resolution,
+    resolvedAt: new Date(),
+    resolvedBy: req.user!.id,
+    updatedAt: new Date(),
   });
-  res.json(updated);
+  await db().collection(COLLECTIONS.ORDERS).doc(dispute.orderId).update({ status: orderStatus, updatedAt: new Date() });
+
+  const updatedDoc = await db().collection(COLLECTIONS.DISPUTES).doc(id).get();
+  const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(dispute.orderId).get();
+  res.json({
+    ...updatedDoc.data(),
+    order: orderDoc.exists ? orderDoc.data() : null,
+  });
 });
 
-/** Listar conversaciones (monitoreo admin) */
 router.get('/conversations', async (req: AuthRequest, res) => {
   const { page = '1', limit = '30' } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
-  const [conversations, total] = await Promise.all([
-    prisma.conversation.findMany({
-      include: {
-        user1: { select: { id: true, email: true, firstName: true, lastName: true, numeroId: true } },
-        user2: { select: { id: true, email: true, firstName: true, lastName: true, numeroId: true } },
-        messages: { take: 1, orderBy: { createdAt: 'desc' }, select: { content: true, createdAt: true } },
-      },
-      orderBy: { updatedAt: 'desc' },
-      skip,
-      take: Number(limit),
-    }),
-    prisma.conversation.count(),
-  ]);
+
+  const snap = await db()
+    .collection(COLLECTIONS.CONVERSATIONS)
+    .orderBy('updatedAt', 'desc')
+    .limit(Number(limit) + skip)
+    .get();
+
+  const total = snap.size;
+  const conversations = await Promise.all(
+    snap.docs.slice(skip).map(async (doc) => {
+      const c = doc.data();
+      const user1Doc = await db().collection(COLLECTIONS.USERS).doc(c.user1Id).get();
+      const user2Doc = await db().collection(COLLECTIONS.USERS).doc(c.user2Id).get();
+      const lastMsgSnap = await db()
+        .collection(COLLECTIONS.MESSAGES)
+        .where('conversationId', '==', doc.id)
+        .orderBy('createdAt', 'desc')
+        .limit(1)
+        .get();
+      return {
+        id: doc.id,
+        ...c,
+        user1: user1Doc.exists ? { id: c.user1Id, ...user1Doc.data() } : null,
+        user2: user2Doc.exists ? { id: c.user2Id, ...user2Doc.data() } : null,
+        messages: lastMsgSnap.empty ? [] : [lastMsgSnap.docs[0].data()],
+        updatedAt: c.updatedAt?.toDate?.() ?? c.updatedAt,
+      };
+    })
+  );
   res.json({ conversations, total });
 });
 
-/** Ver mensajes de una conversación (monitoreo admin) */
 router.get('/conversations/:id/messages', async (req: AuthRequest, res) => {
   const { id } = req.params;
-  const conv = await prisma.conversation.findUnique({
-    where: { id },
-    include: {
-      user1: { select: { id: true, email: true, firstName: true, lastName: true } },
-      user2: { select: { id: true, email: true, firstName: true, lastName: true } },
-      messages: {
-        include: { sender: { select: { id: true, email: true, firstName: true, lastName: true } } },
-        orderBy: { createdAt: 'asc' },
-      },
-    },
+  const convDoc = await db().collection(COLLECTIONS.CONVERSATIONS).doc(id).get();
+  if (!convDoc.exists) return res.status(404).json({ error: 'Conversación no encontrada' });
+
+  const conv = convDoc.data()!;
+  const user1Doc = await db().collection(COLLECTIONS.USERS).doc(conv.user1Id).get();
+  const user2Doc = await db().collection(COLLECTIONS.USERS).doc(conv.user2Id).get();
+  const messagesSnap = await db()
+    .collection(COLLECTIONS.MESSAGES)
+    .where('conversationId', '==', id)
+    .orderBy('createdAt', 'asc')
+    .get();
+
+  const messages = await Promise.all(
+    messagesSnap.docs.map(async (m) => {
+      const md = m.data();
+      const senderDoc = await db().collection(COLLECTIONS.USERS).doc(md.senderId).get();
+      return {
+        id: m.id,
+        ...md,
+        sender: senderDoc.exists ? { id: md.senderId, ...senderDoc.data() } : null,
+        createdAt: md.createdAt?.toDate?.() ?? md.createdAt,
+      };
+    })
+  );
+
+  res.json({
+    id: convDoc.id,
+    user1: user1Doc.exists ? { id: conv.user1Id, ...user1Doc.data() } : null,
+    user2: user2Doc.exists ? { id: conv.user2Id, ...user2Doc.data() } : null,
+    messages,
   });
-  if (!conv) return res.status(404).json({ error: 'Conversación no encontrada' });
-  res.json(conv);
 });
 
-/** Listar órdenes (admin) */
 router.get('/orders', async (req: AuthRequest, res) => {
   const { page = '1', limit = '20', status } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
-  const where = typeof status === 'string' && status ? { status: status as never } : {};
-  const [orders, total] = await Promise.all([
-    prisma.order.findMany({
-      where,
-      include: {
-        ticketListing: { select: { eventName: true, price: true } },
-        buyer: { select: { email: true } },
-        seller: { select: { email: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: Number(limit),
-    }),
-    prisma.order.count({ where }),
-  ]);
-  res.json({ orders, total });
+
+  let query = db().collection(COLLECTIONS.ORDERS).orderBy('createdAt', 'desc');
+  if (typeof status === 'string' && status) {
+    query = query.where('status', '==', status) as FirebaseFirestore.Query;
+  }
+  const snap = await query.limit(skip + Number(limit)).get();
+
+  const orders = await Promise.all(
+    snap.docs.slice(skip).map(async (doc) => {
+      const d = doc.data();
+      const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
+      const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(d.buyerId).get();
+      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+      return {
+        id: doc.id,
+        ...d,
+        ticketListing: listingDoc.exists ? { id: listingDoc.id, ...listingDoc.data() } : null,
+        buyer: buyerDoc.exists ? { email: buyerDoc.data()?.email } : null,
+        seller: sellerDoc.exists ? { email: sellerDoc.data()?.email } : null,
+        createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+        updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+      };
+    })
+  );
+  res.json({ orders, total: snap.size });
 });
 
 export const adminRouter = router;

@@ -26,10 +26,17 @@ const API_BASE =
   (Platform.OS === 'android' ? 'http://10.0.2.2:3001' : 'http://localhost:3001');
 */
 
+/** Asegura que la URL de imagen tenga protocolo (https://) para que Image pueda cargarla */
+export function ensureImageUrl(url: string | null): string | null {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `https://${url}`;
+}
 
-let getToken: () => string | null = () => null;
+type TokenGetter = () => string | null | Promise<string | null>;
+let getToken: TokenGetter = () => null;
 
-export function setTokenGetter(fn: () => string | null) {
+export function setTokenGetter(fn: TokenGetter) {
   getToken = fn;
 }
 
@@ -42,7 +49,8 @@ export async function api<T>(
   path: string,
   options: RequestInit & { token?: string | null } = {}
 ): Promise<T> {
-  const token = options.token !== undefined ? options.token : getToken();
+  const tokenRes = options.token !== undefined ? options.token : getToken();
+  const token = tokenRes instanceof Promise ? await tokenRes : tokenRes;
   const { token: _t, ...rest } = options;
   const body = rest.body;
   const isFormData = body instanceof FormData;
@@ -79,6 +87,13 @@ export async function api<T>(
   }
 }
 
+export async function checkUsername(username: string): Promise<{ available: boolean; suggestions?: string[] }> {
+  return api<{ available: boolean; suggestions?: string[] }>(
+    `/api/auth/username/check?q=${encodeURIComponent(username)}`,
+    { token: null }
+  );
+}
+
 export async function login(email: string, password: string) {
   return api<{ user: unknown; accessToken: string; refreshToken: string }>('/api/auth/login', {
     method: 'POST',
@@ -110,6 +125,7 @@ export type Profile = {
   country: string | null;
   tipoDocumento: string | null;
   phone: string | null;
+  phoneVerified?: boolean;
   dateOfBirth: string | null;
   city: string | null;
   province: string | null;
@@ -127,6 +143,7 @@ export type ProfileUpdate = {
   city?: string;
   province?: string;
   postalCode?: string;
+  fcmToken?: string;
 };
 
 export async function getProfile(): Promise<Profile> {
@@ -135,6 +152,22 @@ export async function getProfile(): Promise<Profile> {
 
 export async function updateProfile(data: ProfileUpdate): Promise<Profile> {
   return api<Profile>('/api/users/profile', { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+/** Solicitar código de verificación de teléfono */
+export async function requestPhoneVerification(phone: string): Promise<{ ok: boolean }> {
+  return api<{ ok: boolean }>('/api/users/phone/verify-request', {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
+  });
+}
+
+/** Confirmar código de verificación de teléfono */
+export async function confirmPhoneVerification(code: string): Promise<{ ok: boolean; phoneVerified: boolean }> {
+  return api<{ ok: boolean; phoneVerified: boolean }>('/api/users/phone/verify-confirm', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
 }
 
 /** Subir imagen de perfil (avatar) */
@@ -216,7 +249,8 @@ export type ConversationItem = {
     username?: string | null;
     numeroId?: string | null;
   };
-  lastMessage: { content: string; createdAt: string; isFromMe: boolean } | null;
+  lastMessage: { content: string; createdAt: string; isFromMe: boolean; readAt?: string | null } | null;
+  hasUnread?: boolean;
   updatedAt: string;
 };
 

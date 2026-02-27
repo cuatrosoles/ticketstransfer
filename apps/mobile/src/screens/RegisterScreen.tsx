@@ -22,6 +22,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { useAuth } from '../context/AuthContext';
+import { checkUsername } from '../lib/api';
 import { registerSchema, SEXO_OPCIONES, TIPO_DOCUMENTO, PREFIJO_TELEFONO_DEFAULT } from '../lib/registerConstants';
 import { PROVINCIAS_ARGENTINA, CIUDADES_POR_PROVINCIA } from '../data/provinciasArgentina';
 import { AuthBackground } from '../components/AuthBackground';
@@ -80,6 +81,8 @@ export function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [pickerModal, setPickerModal] = useState<'province' | 'city' | 'date' | null>(null);
   const [tempDate, setTempDate] = useState({ day: '', month: '', year: '' });
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
   const { register } = useAuth();
   const navigation = useNavigation<Nav>();
 
@@ -87,6 +90,26 @@ export function RegisterScreen() {
   useEffect(() => {
     if (!province) setCity('');
   }, [province]);
+
+  useEffect(() => {
+    if (!username.trim() || username.length < 2) {
+      setUsernameStatus('idle');
+      setUsernameSuggestions([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      setUsernameStatus('checking');
+      try {
+        const res = await checkUsername(username.trim());
+        setUsernameStatus(res.available ? 'available' : 'taken');
+        setUsernameSuggestions(res.suggestions ?? []);
+      } catch {
+        setUsernameStatus('idle');
+        setUsernameSuggestions([]);
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [username]);
 
   const handleNextStep = () => {
     const err = validateStep1(email, repeatEmail, password, confirmPassword, agreeTerms);
@@ -98,7 +121,7 @@ export function RegisterScreen() {
     setStep(2);
   };
 
-  const step2RequiredOk = !!firstName.trim() && !!lastName.trim() && !!username.trim();
+  const step2RequiredOk = !!firstName.trim() && !!lastName.trim() && !!username.trim() && (username.length < 2 || usernameStatus === 'available');
 
   const handleRegister = async () => {
     setError('');
@@ -214,12 +237,26 @@ export function RegisterScreen() {
 
   const renderStep2 = () => (
     <>
-      <Text style={styles.label}>Nombre</Text>
+      <Text style={styles.label}>Nombre/s</Text>
       <TextInput style={styles.input} placeholder="Nombre" placeholderTextColor={colors.textMuted} value={firstName} onChangeText={setFirstName} />
-      <Text style={styles.label}>Apellido</Text>
+      <Text style={styles.label}>Apellido/s</Text>
       <TextInput style={styles.input} placeholder="Apellido" placeholderTextColor={colors.textMuted} value={lastName} onChangeText={setLastName} />
-      <Text style={styles.label}>Nombre de Usuario</Text>
-      <TextInput style={styles.input} placeholder="Valentin02" placeholderTextColor={colors.textMuted} value={username} onChangeText={setUsername} />
+      <Text style={styles.label}>Usuario</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Usuario"
+        placeholderTextColor={colors.textMuted}
+        value={username}
+        onChangeText={(t) => { setUsername(t); setError(''); }}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+      {usernameStatus === 'checking' && <Text style={styles.hint}>Verificando...</Text>}
+      {usernameStatus === 'taken' && <Text style={styles.usernameError}>Usuario en uso</Text>}
+      {usernameStatus === 'taken' && usernameSuggestions.length > 0 && (
+        <Text style={styles.hint}>Usuarios recomendados: {usernameSuggestions.join(', ')}</Text>
+      )}
+      {usernameStatus === 'available' && <Text style={styles.usernameOk}>✓ Usuario disponible</Text>}
       <Text style={styles.label}>Tipo de DNI</Text>
       <View style={styles.pickerRow}>
         {TIPO_DOCUMENTO.map((t) => (
@@ -485,6 +522,8 @@ const styles = StyleSheet.create({
   checkLabel: { flex: 1, fontSize: 13, color: '#94a3b8' },
   hint: { fontSize: 12, color: '#94a3b8', marginTop: 8 },
   error: { color: '#ef4444', marginTop: 8, marginBottom: 8 },
+  usernameError: { color: '#ef4444', fontSize: 13, marginTop: -4, marginBottom: 4 },
+  usernameOk: { color: '#22c55e', fontSize: 13, marginTop: -4, marginBottom: 4 },
   actions: { flexDirection: 'row', gap: 12, marginTop: 24 },
   actionBtn: { flex: 1 },
   actionBtnDisabled: { opacity: 0.6 },

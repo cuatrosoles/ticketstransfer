@@ -1,19 +1,28 @@
 /**
  * Cliente API para Tickets Transfer.
- * Ubicación: apps/web/src/lib/api.ts
+ * Usa Firebase ID token para autenticación.
  */
+
+import { auth } from './firebase';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-function getToken(): string | null {
-  return localStorage.getItem('accessToken');
+async function getToken(): Promise<string | null> {
+  const user = auth.currentUser;
+  if (!user) return null;
+  try {
+    return await user.getIdToken(true);
+  } catch {
+    return null;
+  }
 }
 
 export async function api<T>(
   path: string,
   options: RequestInit & { token?: string | null } = {}
 ): Promise<T> {
-  const { token = getToken(), ...rest } = options;
+  const token = options.token !== undefined ? options.token : await getToken();
+  const { token: _t, ...rest } = options;
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...(rest.headers as HeadersInit),
@@ -29,17 +38,13 @@ export async function api<T>(
   return data as T;
 }
 
-export async function login(email: string, password: string) {
-  const data = await api<{ user: unknown; accessToken: string; refreshToken: string }>('/api/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-    token: null,
-  });
-  return data;
+/** Login se hace con Firebase Auth en el cliente. */
+export async function login(_email: string, _password: string) {
+  throw new Error('Usá Firebase Auth: signInWithEmailAndPassword en AuthContext');
 }
 
 export async function register(body: Record<string, unknown>) {
-  const data = await api<{ user: unknown; accessToken: string; refreshToken: string }>('/api/auth/register', {
+  const data = await api<{ user: unknown; customToken: string }>('/api/auth/register', {
     method: 'POST',
     body: JSON.stringify(body),
     token: null,
@@ -49,7 +54,7 @@ export async function register(body: Record<string, unknown>) {
 
 /** Subida de archivos (FormData). */
 export async function apiUpload<T = unknown>(path: string, formData: FormData, method = 'POST'): Promise<T> {
-  const token = getToken();
+  const token = await getToken();
   const headers: HeadersInit = {};
   if (token) (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${path}`, { method, headers, body: formData });
@@ -105,12 +110,4 @@ export async function createKycSession(platform: 'web' | 'mobile') {
 
 export async function getKyc() {
   return api<{ status: string; rejectionReason?: string | null }>('/api/users/kyc');
-}
-
-export async function refreshToken(refreshToken: string) {
-  return api<{ accessToken: string; refreshToken: string }>('/api/auth/refresh', {
-    method: 'POST',
-    body: JSON.stringify({ refreshToken }),
-    token: null,
-  });
 }

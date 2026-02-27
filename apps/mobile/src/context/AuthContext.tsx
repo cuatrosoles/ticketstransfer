@@ -1,26 +1,21 @@
 /**
- * Contexto de autenticación – app móvil
- * Usa Keychain/Keystore para almacenamiento seguro (nunca AsyncStorage para tokens).
- * Soporta autenticación biométrica (FaceID, TouchID, huella).
- * Ubicación: apps/mobile/src/context/AuthContext.tsx
+ * Contexto de autenticación – Firebase Auth + API.
+ * Login: Firebase signInWithEmailAndPassword.
+ * Register: API crea usuario + customToken -> signInWithCustomToken.
+ * Token: Firebase ID token para las requests a la API.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth } from '../lib/firebase';
 import { api, setTokenGetter } from '../lib/api';
 import {
-  getSecureToken,
   setSecureToken,
   removeSecureToken,
-  getBiometricsEnabled,
   setBiometricsEnabled,
   isBiometricAvailable,
   promptBiometric,
   disableBiometrics as disableBiometricsStorage,
 } from '../lib/secureStorage';
-
-/** Clave legacy para migrar de AsyncStorage a Keychain (una sola vez) */
-const TOKEN_KEY_LEGACY = '@tt_accessToken';
 
 type User = { id: string; email: string; firstName?: string | null; lastName?: string | null; role: string };
 
@@ -30,19 +25,13 @@ type AuthContextType = {
   login: (email: string, password: string) => Promise<void>;
   register: (data: Record<string, unknown>) => Promise<void>;
   logout: () => void;
-  /** Si es true, la pantalla principal debe redirigir a Kyc (igual que web tras registro). */
   getPostRegisterRedirectToKyc: () => boolean;
   clearPostRegisterRedirectToKyc: () => void;
-  /** Activar biométricos tras login exitoso. Obtiene el token de Keychain y lo re-guarda con protección biométrica. */
   enableBiometrics: () => Promise<boolean>;
-  /** Desactivar biométricos: re-guarda el token sin protección biométrica. */
   disableBiometrics: () => Promise<boolean>;
-  /** Estado de disponibilidad biométrica (para UI) */
   biometricAvailability: { available: boolean; type: 'FaceID' | 'TouchID' | 'Biometrics' | null } | null;
-  /** Si es true, HomeScreen debe mostrar el modal de activación biométrica (tras login/register) */
   getPendingBiometricPrompt: () => boolean;
   clearPendingBiometricPrompt: () => void;
-  /** Recarga el usuario desde la API (ej. tras actualizar perfil) */
   fetchUser: () => Promise<void>;
 };
 
@@ -58,34 +47,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const postRegisterRedirectToKycRef = useRef(false);
   const pendingBiometricPromptRef = useRef(false);
 
+  const setFirebaseTokenGetter = useCallback(() => {
+    setTokenGetter(async () => {
+      const currentUser = auth().currentUser;
+      if (!currentUser) return null;
+      try {
+        return await currentUser.getIdToken(true);
+      } catch {
+        return null;
+      }
+    });
+  }, []);
+
   const loadUser = useCallback(async () => {
     setLoading(true);
 
-    // Migración: si hay token en AsyncStorage (legacy), migrar a Keychain
-    const legacyToken = await AsyncStorage.getItem(TOKEN_KEY_LEGACY);
-    if (legacyToken) {
-      await setSecureToken(legacyToken, false);
-      await AsyncStorage.removeItem(TOKEN_KEY_LEGACY);
-    }
-
-    const biometricsEnabled = await getBiometricsEnabled();
-
-    // Si biométricos activados: getSecureToken disparará el prompt del sistema
-    let token: string | null = null;
-    try {
-      token = await getSecureToken();
-    } catch {
-      token = null;
-    }
-
-    if (!token) {
+    const currentUser = auth().currentUser;
+    if (!currentUser) {
+      await removeSecureToken();
+      setTokenGetter(() => null);
       setUser(null);
       setLoading(false);
       return;
     }
 
-    setTokenGetter(() => token);
+    setFirebaseTokenGetter();
     try {
+      const token = await currentUser.getIdToken();
+      await setSecureToken(token, false);
       const data = await api<Record<string, unknown>>('/api/auth/me');
       setUser({
         id: data.id as string,
@@ -95,15 +84,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: data.role as string,
       });
     } catch {
+      await auth().signOut();
       await removeSecureToken();
+      setTokenGetter(() => null);
       setUser(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setFirebaseTokenGetter]);
 
   useEffect(() => {
-    loadUser();
+    const unsub = auth().onAuthStateChanged((firebaseUser) => {
+      if (firebaseUser) {
+        loadUser();
+      } else {
+        setUser(null);
+        setLoading(false);
+      }
+    });
+    return () => unsub();
   }, [loadUser]);
 
   useEffect(() => {
@@ -113,15 +112,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const data = await api<{ user: User; accessToken: string }>('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-      token: null,
-    });
-    await setSecureToken(data.accessToken, false);
-    setTokenGetter(() => data.accessToken);
+    const credential = await auth().signInWithEmailAndPassword(email, password);
+    const userData = credential.user;
+    setFirebaseTokenGetter();
+    postRegisterRedirectToKycRef.current = false;
     pendingBiometricPromptRef.current = true;
-    setUser(data.user);
+    const token = await userData.getIdToken();
+    await setSecureToken(token, false);
+    const data = await api<Record<string, unknown>>('/api/auth/me');
+    setUser({
+      id: data.id as string,
+      email: data.email as string,
+      firstName: data.firstName as string | null,
+      lastName: data.lastName as string | null,
+      role: data.role as string,
+    });
   };
 
   const register = async (payload: Record<string, unknown>) => {
@@ -129,24 +134,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void confirmPassword;
     void agreeTerms;
     void repeatEmail;
-    const data = await api<{ user: User; accessToken: string }>('/api/auth/register', {
+
+    const res = await api<{ user: User; customToken: string }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(body),
       token: null,
     });
-    await setSecureToken(data.accessToken, false);
-    setTokenGetter(() => data.accessToken);
+
+    await auth().signInWithCustomToken(res.customToken);
+    const userData = auth().currentUser!;
+    setFirebaseTokenGetter();
     postRegisterRedirectToKycRef.current = true;
     pendingBiometricPromptRef.current = true;
-    setUser(data.user);
+    const token = await userData.getIdToken();
+    await setSecureToken(token, false);
+    setUser(res.user);
   };
 
   const enableBiometrics = useCallback(async (): Promise<boolean> => {
-    const token = await getSecureToken();
-    if (!token) return false;
+    const currentUser = auth().currentUser;
+    if (!currentUser) return false;
     const passed = await promptBiometric('Autenticarse para activar inicio de sesión biométrico');
     if (!passed) return false;
     try {
+      const token = await currentUser.getIdToken(true);
       await setSecureToken(token, true);
       await setBiometricsEnabled(true);
       return true;
@@ -179,12 +190,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: data.role as string,
       });
     } catch {
+      await auth().signOut();
       await removeSecureToken();
       setUser(null);
     }
   }, []);
 
   const logout = useCallback(async () => {
+    await auth().signOut();
     await removeSecureToken();
     setTokenGetter(() => null);
     setUser(null);

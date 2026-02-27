@@ -1,5 +1,9 @@
 node_modules
 
+# Firebase (credenciales - NUNCA subir)
+firebase-service-account.json
+**/firebase-service-account*.json
+
 # Build outputs (no subir a Git)
 *.apk
 *.aab

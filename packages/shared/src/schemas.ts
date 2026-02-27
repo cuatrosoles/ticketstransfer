@@ -42,8 +42,8 @@ export const onboardingSchema = z.object({
   appsBoletos: z.array(z.string()).min(1, 'Elige al menos una app de boletos'),
 });
 
-const ticketeraEnum = z.enum(['TICKETEK', 'ALLACCESS', 'TICKETERA', 'TICKET_PLUS', 'OTRA']);
-const appBoletosEnum = z.enum(['QUENTRO', 'ENIGMA', 'TICKET360', 'TICKETMAKER', 'OTRA']);
+const ticketeraEnum = z.enum(['TICKETEK', 'ALLACCESS', 'TICKET_PLUS', 'OTRA']);
+const appBoletosEnum = z.enum(['QUENTRO', 'ENIGMA', 'OTRA']);
 const tipoEntradaEnum = z.enum(['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO']);
 const categoriaEventoEnum = z.enum(['MUSICA', 'DEPORTES', 'TEATRO', 'FESTIVALES', 'OTRO']);
 
@@ -54,6 +54,7 @@ export const createTicketListingSchema = z.object({
   sector: z.string().optional(),
   row: z.string().optional(),
   seat: z.string().optional(),
+  quantityEntries: z.union([z.string(), z.number()]).optional(),
   tipoEntrada: tipoEntradaEnum,
   price: z.number().positive('Precio debe ser positivo'),
   currency: z.string().length(3).default('ARS'),

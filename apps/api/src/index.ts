@@ -1,17 +1,17 @@
 /**
  * Punto de entrada de la API Tickets Transfer v2.
- * Ubicación: apps/api/src/index.ts
+ * Firebase: Auth, Firestore, Storage, Cloud Messaging.
  */
 
 import 'dotenv/config';
 import express, { type Request } from 'express';
+import { getFirebaseAdmin } from './lib/firebase-admin.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
-import { uploadsDir, ensureUploadsDir } from './lib/uploads.js';
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { ticketsRouter } from './routes/tickets.js';
@@ -50,9 +50,6 @@ app.use(
   })
 );
 
-ensureUploadsDir();
-app.use('/uploads', express.static(uploadsDir));
-
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -60,6 +57,14 @@ app.use(
     message: { error: 'Demasiadas solicitudes' },
   })
 );
+
+// Inicializar Firebase al arrancar (para validar credenciales temprano)
+try {
+  getFirebaseAdmin();
+  console.log('Firebase inicializado');
+} catch (e) {
+  console.warn('Firebase no configurado. Definí GOOGLE_APPLICATION_CREDENTIALS o FIREBASE_SERVICE_ACCOUNT_JSON.');
+}
 
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);

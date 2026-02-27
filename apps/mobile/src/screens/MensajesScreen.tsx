@@ -28,9 +28,11 @@ import {
   getConversations,
   searchUsers,
   createOrGetConversation,
+  updateProfile,
   type ConversationItem,
   type UserSearchItem,
 } from '../lib/api';
+import { requestNotificationPermission, getFcmToken } from '../lib/pushNotifications';
 import { colors, spacing, radius, glassCard } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Mensajes'>;
@@ -76,6 +78,22 @@ export function MensajesScreen() {
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
+
+  useEffect(() => {
+    (async () => {
+      const granted = await requestNotificationPermission();
+      if (granted) {
+        const token = await getFcmToken();
+        if (token) {
+          try {
+            await updateProfile({ fcmToken: token });
+          } catch (e) {
+            console.warn('No se pudo registrar FCM token:', e);
+          }
+        }
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.length < 2) {
@@ -145,7 +163,10 @@ export function MensajesScreen() {
           </Text>
         )}
       </View>
-      <Text style={styles.convTime}>{formatTime(item.updatedAt)}</Text>
+      <View style={styles.convRight}>
+        {item.hasUnread ? <View style={styles.unreadDot} /> : null}
+        <Text style={styles.convTime}>{formatTime(item.updatedAt)}</Text>
+      </View>
     </TouchableOpacity>
   );
 
@@ -310,6 +331,8 @@ const styles = StyleSheet.create({
   convName: { fontSize: 16, fontWeight: '600', color: colors.text },
   convMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   convPreview: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
+  convRight: { alignItems: 'flex-end', gap: 4 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primaryLight },
   convTime: { fontSize: 12, color: colors.textMuted },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   empty: {
