@@ -31,6 +31,7 @@ const external = [
   'dotenv',
   'express',
   'express-rate-limit',
+  'firebase-admin',
   'helmet',
   'jsonwebtoken',
   'multer',

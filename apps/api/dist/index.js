@@ -7,36 +7,83 @@ var __export = (target, all) => {
 // src/index.ts
 import "dotenv/config";
 import express from "express";
-import path2 from "path";
-import { fileURLToPath as fileURLToPath2 } from "url";
+
+// src/lib/firebase-admin.ts
+import admin from "firebase-admin";
+var app;
+function initFirebase() {
+  if (admin.apps.length > 0) {
+    app = admin.app();
+    return app;
+  }
+  const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  const jsonCred = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (jsonCred) {
+    try {
+      const cred = JSON.parse(jsonCred);
+      const bucket = process.env.FIREBASE_STORAGE_BUCKET;
+      app = admin.initializeApp({
+        credential: admin.credential.cert(cred),
+        ...bucket && { storageBucket: bucket }
+      });
+    } catch (e) {
+      console.error("FIREBASE_SERVICE_ACCOUNT_JSON inv\xE1lido:", e);
+      throw new Error("Configuraci\xF3n de Firebase inv\xE1lida");
+    }
+  } else if (credPath) {
+    const bucket = process.env.FIREBASE_STORAGE_BUCKET;
+    app = admin.initializeApp({
+      credential: admin.credential.applicationDefault(),
+      ...bucket && { storageBucket: bucket }
+    });
+  } else {
+    throw new Error(
+      "Firebase no configurado. Defin\xED GOOGLE_APPLICATION_CREDENTIALS (ruta al JSON) o FIREBASE_SERVICE_ACCOUNT_JSON (contenido JSON)."
+    );
+  }
+  return app;
+}
+function getFirebaseAdmin() {
+  if (!app) initFirebase();
+  return admin;
+}
+function getAuth() {
+  return getFirebaseAdmin().auth();
+}
+function getFirestore() {
+  return getFirebaseAdmin().firestore();
+}
+function getStorage() {
+  return getFirebaseAdmin().storage();
+}
+function getMessaging() {
+  return getFirebaseAdmin().messaging();
+}
+
+// src/index.ts
+import path from "path";
+import { fileURLToPath } from "url";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 
-// src/lib/uploads.ts
-import path from "path";
-import { fileURLToPath } from "url";
-import { mkdirSync, existsSync } from "fs";
-var __dirname = path.dirname(fileURLToPath(import.meta.url));
-var uploadsDir = process.env.UPLOADS_PATH || process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(__dirname, "..", "uploads");
-function ensureUploadsDir() {
-  if (!existsSync(uploadsDir)) {
-    mkdirSync(uploadsDir, { recursive: true });
-  }
-}
-
 // src/routes/auth.ts
 import { Router } from "express";
-import bcrypt from "bcryptjs";
-import jwt2 from "jsonwebtoken";
 
-// src/lib/prisma.ts
-import { PrismaClient } from "@prisma/client";
-var globalForPrisma = globalThis;
-var prisma = globalForPrisma.prisma ?? new PrismaClient({
-  log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"]
-});
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+// src/lib/firestore.ts
+var db = () => getFirestore();
+var COLLECTIONS = {
+  USERS: "users",
+  USER_ONBOARDING: "userOnboarding",
+  KYC_VERIFICATIONS: "kycVerifications",
+  TICKET_LISTINGS: "ticketListings",
+  ORDERS: "orders",
+  ORDER_RATINGS: "orderRatings",
+  DISPUTES: "disputes",
+  DISPUTE_MESSAGES: "disputeMessages",
+  CONVERSATIONS: "conversations",
+  MESSAGES: "messages"
+};
 
 // ../../packages/shared/src/constants.ts
 var HORAS_MAX_TRANSFERENCIA_VENDEDOR = 72;
@@ -519,8 +566,8 @@ function getErrorMap() {
 
 // ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path3, errorMaps, issueData } = params;
-  const fullPath = [...path3, ...issueData.path || []];
+  const { data, path: path2, errorMaps, issueData } = params;
+  const fullPath = [...path2, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -636,11 +683,11 @@ var errorUtil;
 
 // ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path3, key) {
+  constructor(parent, value, path2, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path3;
+    this._path = path2;
     this._key = key;
   }
   get path() {
@@ -1028,11 +1075,11 @@ function isValidIP(ip, version) {
   }
   return false;
 }
-function isValidJWT(jwt3, alg) {
-  if (!jwtRegex.test(jwt3))
+function isValidJWT(jwt, alg) {
+  if (!jwtRegex.test(jwt))
     return false;
   try {
-    const [header] = jwt3.split(".");
+    const [header] = jwt.split(".");
     if (!header)
       return false;
     const base64 = header.replace(/-/g, "+").replace(/_/g, "/").padEnd(header.length + (4 - header.length % 4) % 4, "=");
@@ -4114,8 +4161,8 @@ var onboardingSchema = external_exports.object({
   ticketeras: external_exports.array(external_exports.string()).min(1, "Elige al menos una ticketera"),
   appsBoletos: external_exports.array(external_exports.string()).min(1, "Elige al menos una app de boletos")
 });
-var ticketeraEnum = external_exports.enum(["TICKETEK", "ALLACCESS", "TICKETERA", "TICKET_PLUS", "OTRA"]);
-var appBoletosEnum = external_exports.enum(["QUENTRO", "ENIGMA", "TICKET360", "TICKETMAKER", "OTRA"]);
+var ticketeraEnum = external_exports.enum(["TICKETEK", "ALLACCESS", "TICKET_PLUS", "OTRA"]);
+var appBoletosEnum = external_exports.enum(["QUENTRO", "ENIGMA", "OTRA"]);
 var tipoEntradaEnum = external_exports.enum(["GENERAL", "CAMPO", "PLATEA", "VIP", "OTRO"]);
 var categoriaEventoEnum = external_exports.enum(["MUSICA", "DEPORTES", "TEATRO", "FESTIVALES", "OTRO"]);
 var createTicketListingSchema = external_exports.object({
@@ -4125,6 +4172,7 @@ var createTicketListingSchema = external_exports.object({
   sector: external_exports.string().optional(),
   row: external_exports.string().optional(),
   seat: external_exports.string().optional(),
+  quantityEntries: external_exports.union([external_exports.string(), external_exports.number()]).optional(),
   tipoEntrada: tipoEntradaEnum,
   price: external_exports.number().positive("Precio debe ser positivo"),
   currency: external_exports.string().length(3).default("ARS"),
@@ -4147,8 +4195,6 @@ var openDisputeSchema = external_exports.object({
 });
 
 // src/middleware/auth.ts
-import jwt from "jsonwebtoken";
-var JWT_SECRET = process.env.JWT_SECRET || "";
 async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -4157,16 +4203,19 @@ async function requireAuth(req, res, next) {
     return;
   }
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: { id: true, email: true, role: true }
-    });
-    if (!user) {
+    const auth = getAuth();
+    const decoded = await auth.verifyIdToken(token);
+    const userDoc = await db().collection(COLLECTIONS.USERS).doc(decoded.uid).get();
+    if (!userDoc.exists) {
       res.status(401).json({ error: "Usuario no encontrado" });
       return;
     }
-    req.user = { id: user.id, email: user.email, role: user.role };
+    const data = userDoc.data();
+    req.user = {
+      id: decoded.uid,
+      email: decoded.email || data.email || "",
+      role: data.role || "user"
+    };
     next();
   } catch {
     res.status(401).json({ error: "Token inv\xE1lido o expirado" });
@@ -4182,23 +4231,6 @@ function requireAdmin(req, res, next) {
 
 // src/routes/auth.ts
 var router = Router();
-var JWT_SECRET2 = process.env.JWT_SECRET || "";
-var JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET2;
-var ACCESS_EXP = "15m";
-var REFRESH_EXP = "7d";
-function signTokens(userId, email, role) {
-  const access = jwt2.sign(
-    { userId, email, role },
-    JWT_SECRET2,
-    { expiresIn: ACCESS_EXP }
-  );
-  const refresh = jwt2.sign(
-    { userId },
-    JWT_REFRESH_SECRET,
-    { expiresIn: REFRESH_EXP }
-  );
-  return { access, refresh };
-}
 router.post("/register", async (req, res) => {
   const parsed = registerBodySchema.safeParse(req.body);
   if (!parsed.success) {
@@ -4223,135 +4255,156 @@ router.post("/register", async (req, res) => {
     province,
     postalCode
   } = parsed.data;
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
+  const auth = getAuth();
+  const usersRef = db().collection(COLLECTIONS.USERS);
+  const existingByEmail = await usersRef.where("email", "==", email).limit(1).get();
+  if (!existingByEmail.empty) {
     res.status(409).json({ error: "Ya existe una cuenta con ese email" });
     return;
   }
   if (username) {
-    const existingUsername = await prisma.user.findUnique({ where: { username } });
-    if (existingUsername) {
+    const existingByUsername = await usersRef.where("username", "==", username).limit(1).get();
+    if (!existingByUsername.empty) {
       res.status(409).json({ error: "Ya existe un usuario con ese nombre de usuario" });
       return;
     }
   }
-  const passwordHash = await bcrypt.hash(password, 12);
   const fullPhone = phone ? [phonePrefix || "+549", phoneAreaCode || "", phone].filter(Boolean).join(" ").trim() : null;
   const numeroId = `TT${Math.random().toString(36).slice(2, 10).toUpperCase()}${Date.now().toString(36).slice(-4).toUpperCase()}`;
-  const user = await prisma.user.create({
-    data: {
-      email,
-      username: username || null,
-      numeroId,
-      passwordHash,
-      firstName: firstName || null,
-      lastName: lastName || null,
-      country: country || null,
-      tipoDocumento: tipoDocumento || null,
-      documentNumber: documentNumber || null,
-      sexo,
-      phone: fullPhone || phone || null,
-      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-      city: city || null,
-      province: province || null,
-      postalCode: postalCode || null
-    },
-    select: { id: true, email: true, firstName: true, lastName: true, role: true }
-  });
-  await prisma.kycVerification.create({
-    data: { userId: user.id }
-  });
-  const { access, refresh } = signTokens(user.id, user.email, user.role);
-  res.status(201).json({
-    user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role },
-    accessToken: access,
-    refreshToken: refresh
-  });
-});
-router.post("/login", async (req, res) => {
-  const parsed = loginSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Email/usuario y contrase\xF1a requeridos" });
-    return;
-  }
-  const { email, password } = parsed.data;
-  const user = await prisma.user.findFirst({
-    where: {
-      OR: [{ email }, { username: email }]
-    }
-  });
-  if (!user || !await bcrypt.compare(password, user.passwordHash)) {
-    res.status(401).json({ error: "Credenciales incorrectas" });
-    return;
-  }
-  const { access, refresh } = signTokens(user.id, user.email, user.role);
-  res.json({
-    user: {
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role
-    },
-    accessToken: access,
-    refreshToken: refresh
-  });
-});
-router.post("/refresh", async (req, res) => {
-  const refreshToken = req.body.refreshToken;
-  if (!refreshToken) {
-    res.status(401).json({ error: "Refresh token requerido" });
-    return;
-  }
+  let firebaseUser;
   try {
-    const decoded = jwt2.verify(refreshToken, JWT_REFRESH_SECRET);
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: { id: true, email: true, role: true }
+    firebaseUser = await auth.createUser({
+      email,
+      password,
+      displayName: [firstName, lastName].filter(Boolean).join(" ").trim() || void 0
     });
-    if (!user) {
-      res.status(401).json({ error: "Usuario no encontrado" });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error al crear usuario";
+    if (msg.includes("email-already-exists")) {
+      res.status(409).json({ error: "Ya existe una cuenta con ese email" });
       return;
     }
-    const { access, refresh } = signTokens(user.id, user.email, user.role);
-    res.json({ accessToken: access, refreshToken: refresh });
-  } catch {
-    res.status(401).json({ error: "Refresh token inv\xE1lido" });
+    res.status(500).json({ error: msg });
+    return;
   }
+  const uid = firebaseUser.uid;
+  const userData = {
+    email,
+    username: username || null,
+    numeroId,
+    firstName: firstName || null,
+    lastName: lastName || null,
+    country: country || null,
+    tipoDocumento: tipoDocumento || null,
+    documentNumber: documentNumber || null,
+    sexo: sexo || null,
+    phone: fullPhone || phone || null,
+    phoneVerified: false,
+    role: "user",
+    emailVerified: false,
+    reputationScore: 0,
+    profileImageUrl: null,
+    createdAt: /* @__PURE__ */ new Date(),
+    updatedAt: /* @__PURE__ */ new Date()
+  };
+  await db().collection(COLLECTIONS.USERS).doc(uid).set(userData);
+  await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(uid).set({
+    userId: uid,
+    status: "PENDIENTE",
+    createdAt: /* @__PURE__ */ new Date(),
+    updatedAt: /* @__PURE__ */ new Date()
+  });
+  const customToken = await auth.createCustomToken(uid);
+  res.status(201).json({
+    user: {
+      id: uid,
+      email,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      role: userData.role
+    },
+    customToken,
+    accessToken: customToken
+    // Alias para compatibilidad - cliente debe usar signInWithCustomToken
+  });
+});
+router.get("/username/check", async (req, res) => {
+  const q = req.query.q?.trim();
+  if (!q || q.length < 2) {
+    res.status(400).json({ error: "M\xEDnimo 2 caracteres" });
+    return;
+  }
+  const existing = await db().collection(COLLECTIONS.USERS).where("username", "==", q).limit(1).get();
+  if (existing.empty) {
+    return res.json({ available: true });
+  }
+  const base = q.replace(/\d+$/, "") || q;
+  const suggestions = [];
+  for (let i = 1; i <= 999 && suggestions.length < 3; i++) {
+    const candidate = `${base}${i}`;
+    if (candidate !== q) {
+      const taken = await db().collection(COLLECTIONS.USERS).where("username", "==", candidate).limit(1).get();
+      if (taken.empty) suggestions.push(candidate);
+    }
+  }
+  res.json({ available: false, suggestions });
+});
+router.post("/login", async (_req, res) => {
+  res.status(400).json({
+    error: "Us\xE1 Firebase Auth en el cliente: signInWithEmailAndPassword(email, password). Luego envi\xE1 el idToken en Authorization."
+  });
 });
 router.get("/me", requireAuth, async (req, res) => {
-  const user = await prisma.user.findUnique({
-    where: { id: req.user.id },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      country: true,
-      tipoDocumento: true,
-      sexo: true,
-      phone: true,
-      dateOfBirth: true,
-      city: true,
-      province: true,
-      postalCode: true,
-      role: true,
-      reputationScore: true,
-      createdAt: true,
-      kyc: { select: { status: true } }
-    }
-  });
-  if (!user) {
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
+  if (!userDoc.exists) {
     res.status(404).json({ error: "Usuario no encontrado" });
     return;
   }
-  res.json(user);
+  const data = userDoc.data();
+  const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(req.user.id).get();
+  const kyc = kycDoc.exists ? kycDoc.data() : null;
+  res.json({
+    id: req.user.id,
+    email: data.email,
+    firstName: data.firstName,
+    lastName: data.lastName,
+    country: data.country,
+    tipoDocumento: data.tipoDocumento,
+    sexo: data.sexo,
+    phone: data.phone,
+    dateOfBirth: data.dateOfBirth,
+    city: data.city,
+    province: data.province,
+    postalCode: data.postalCode,
+    role: data.role,
+    reputationScore: data.reputationScore ?? 0,
+    createdAt: data.createdAt,
+    kyc: kyc ? { status: kyc.status } : { status: "PENDIENTE" }
+  });
 });
 var authRouter = router;
 
 // src/routes/users.ts
 import { Router as Router2 } from "express";
 import multer from "multer";
+
+// src/lib/firebase-storage.ts
+var BUCKET_NAME = process.env.FIREBASE_STORAGE_BUCKET || "";
+function getStorageBucket() {
+  const storage = getStorage();
+  const bucketName = BUCKET_NAME || storage.app.options.storageBucket;
+  if (!bucketName) {
+    throw new Error("FIREBASE_STORAGE_BUCKET no configurado. Definilo en .env");
+  }
+  return storage.bucket(bucketName);
+}
+async function uploadFile(path2, buffer, contentType) {
+  const bucket = getStorageBucket();
+  const file = bucket.file(path2);
+  await file.save(buffer, { metadata: { contentType } });
+  await file.makePublic();
+  return `https://storage.googleapis.com/${bucket.name}/${path2}`;
+}
 
 // src/lib/didit.ts
 var DIDIT_BASE = "https://verification.didit.me";
@@ -4413,60 +4466,91 @@ async function verifyDiditWebhookSignature(rawBody, signature, timestamp, secret
 // src/routes/users.ts
 var router2 = Router2();
 var upload = multer({
-  dest: uploadsDir,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 router2.use(requireAuth);
 router2.get("/profile", async (req, res) => {
-  let user = await prisma.user.findUnique({
-    where: { id: req.user.id },
-    select: {
-      id: true,
-      email: true,
-      username: true,
-      numeroId: true,
-      firstName: true,
-      lastName: true,
-      country: true,
-      tipoDocumento: true,
-      phone: true,
-      dateOfBirth: true,
-      city: true,
-      province: true,
-      postalCode: true,
-      reputationScore: true,
-      profileImageUrl: true,
-      kyc: { select: { status: true, rejectionReason: true } }
-    }
-  });
-  if (!user) return res.status(404).json({ error: "No encontrado" });
-  if (!user.numeroId) {
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
+  if (!userDoc.exists) return res.status(404).json({ error: "No encontrado" });
+  let data = userDoc.data();
+  if (!data.numeroId) {
     const numeroId = `TT${Math.random().toString(36).slice(2, 10).toUpperCase()}${Date.now().toString(36).slice(-4).toUpperCase()}`;
-    user = await prisma.user.update({
-      where: { id: req.user.id },
-      data: { numeroId },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        numeroId: true,
-        firstName: true,
-        lastName: true,
-        country: true,
-        tipoDocumento: true,
-        phone: true,
-        dateOfBirth: true,
-        city: true,
-        province: true,
-        postalCode: true,
-        reputationScore: true,
-        profileImageUrl: true,
-        kyc: { select: { status: true, rejectionReason: true } }
-      }
-    });
+    await db().collection(COLLECTIONS.USERS).doc(req.user.id).update({ numeroId, updatedAt: /* @__PURE__ */ new Date() });
+    data = { ...data, numeroId };
   }
-  const phone = user.phone?.replace(/\+549\s*\+549/, "+549") ?? user.phone;
-  res.json({ ...user, phone });
+  const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(req.user.id).get();
+  const kyc = kycDoc.exists ? kycDoc.data() : null;
+  const phone = data.phone?.replace(/\+549\s*\+549/, "+549") ?? data.phone;
+  res.json({
+    id: req.user.id,
+    email: data.email,
+    username: data.username ?? null,
+    numeroId: data.numeroId ?? null,
+    firstName: data.firstName ?? null,
+    lastName: data.lastName ?? null,
+    country: data.country ?? null,
+    tipoDocumento: data.tipoDocumento ?? null,
+    phone,
+    phoneVerified: data.phoneVerified ?? false,
+    dateOfBirth: data.dateOfBirth ?? null,
+    city: data.city ?? null,
+    province: data.province ?? null,
+    postalCode: data.postalCode ?? null,
+    reputationScore: data.reputationScore ?? null,
+    profileImageUrl: data.profileImageUrl ?? null,
+    kyc: kyc ? { status: kyc.status, rejectionReason: kyc.rejectionReason ?? null } : { status: "PENDIENTE", rejectionReason: null }
+  });
+});
+router2.post("/phone/verify-request", async (req, res) => {
+  const phone = typeof req.body?.phone === "string" ? req.body.phone.trim() : null;
+  if (!phone || phone.length < 8) {
+    res.status(400).json({ error: "N\xFAmero de tel\xE9fono requerido" });
+    return;
+  }
+  const code = String(Math.floor(1e5 + Math.random() * 9e5));
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1e3);
+  await db().collection(COLLECTIONS.USERS).doc(req.user.id).update({
+    phone,
+    phoneVerified: false,
+    phoneVerificationCode: code,
+    phoneVerificationExpires: expiresAt,
+    updatedAt: /* @__PURE__ */ new Date()
+  });
+  if (process.env.SMS_PROVIDER === "twilio" && process.env.TWILIO_ACCOUNT_SID) {
+    console.log("[SMS] C\xF3digo para", phone, ":", code);
+  } else {
+    console.log("[DEV] C\xF3digo de verificaci\xF3n para", phone, ":", code);
+  }
+  res.json({ ok: true, message: "C\xF3digo enviado" });
+});
+router2.post("/phone/verify-confirm", async (req, res) => {
+  const code = typeof req.body?.code === "string" ? req.body.code.trim() : null;
+  if (!code || code.length !== 6) {
+    res.status(400).json({ error: "C\xF3digo de 6 d\xEDgitos requerido" });
+    return;
+  }
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
+  const data = userDoc.data();
+  if (!data?.phoneVerificationCode || !data?.phoneVerificationExpires) {
+    res.status(400).json({ error: "Solicit\xE1 primero un c\xF3digo de verificaci\xF3n" });
+    return;
+  }
+  if (/* @__PURE__ */ new Date() > data.phoneVerificationExpires.toDate()) {
+    res.status(400).json({ error: "El c\xF3digo expir\xF3. Solicit\xE1 uno nuevo." });
+    return;
+  }
+  if (data.phoneVerificationCode !== code) {
+    res.status(400).json({ error: "C\xF3digo incorrecto" });
+    return;
+  }
+  await db().collection(COLLECTIONS.USERS).doc(req.user.id).update({
+    phoneVerified: true,
+    phoneVerificationCode: null,
+    phoneVerificationExpires: null,
+    updatedAt: /* @__PURE__ */ new Date()
+  });
+  res.json({ ok: true, phoneVerified: true });
 });
 router2.post("/profile/avatar", upload.single("avatar"), async (req, res) => {
   const file = req.file;
@@ -4474,43 +4558,48 @@ router2.post("/profile/avatar", upload.single("avatar"), async (req, res) => {
     res.status(400).json({ error: "No se envi\xF3 ninguna imagen" });
     return;
   }
-  const baseUrl = process.env.APP_URL || "http://localhost:3001";
-  const profileImageUrl = `${baseUrl}/uploads/${file.filename}`;
-  await prisma.user.update({
-    where: { id: req.user.id },
-    data: { profileImageUrl }
+  const ext = file.originalname.split(".").pop() || "jpg";
+  const path2 = `avatars/${req.user.id}/${Date.now()}.${ext}`;
+  const profileImageUrl = await uploadFile(path2, file.buffer, file.mimetype || "image/jpeg");
+  await db().collection(COLLECTIONS.USERS).doc(req.user.id).update({
+    profileImageUrl,
+    updatedAt: /* @__PURE__ */ new Date()
   });
   res.json({ profileImageUrl });
 });
 router2.patch("/profile", async (req, res) => {
   const body = req.body || {};
-  const { username, firstName, lastName, phone, city, province, postalCode } = body;
-  const updateData = {};
+  const { username, firstName, lastName, phone, city, province, postalCode, fcmToken } = body;
+  const updateData = { updatedAt: /* @__PURE__ */ new Date() };
   if (firstName !== void 0) updateData.firstName = firstName;
   if (lastName !== void 0) updateData.lastName = lastName;
   if (phone !== void 0) updateData.phone = phone;
   if (city !== void 0) updateData.city = city;
   if (province !== void 0) updateData.province = province;
   if (postalCode !== void 0) updateData.postalCode = postalCode;
+  if (fcmToken !== void 0) updateData.fcmToken = fcmToken;
   if (username !== void 0) {
     const usernameVal = typeof username === "string" ? username.trim() : "";
     if (usernameVal) {
-      const existing = await prisma.user.findFirst({
-        where: { username: usernameVal, NOT: { id: req.user.id } }
-      });
-      if (existing) {
+      const existing = await db().collection(COLLECTIONS.USERS).where("username", "==", usernameVal).get();
+      const takenByOther = existing.docs.some((d) => d.id !== req.user.id);
+      if (takenByOther) {
         res.status(409).json({ error: "Ya existe un usuario con ese nombre de usuario" });
         return;
       }
     }
     updateData.username = usernameVal || null;
   }
-  const user = await prisma.user.update({
-    where: { id: req.user.id },
-    data: updateData,
-    select: { id: true, email: true, username: true, firstName: true, lastName: true }
+  await db().collection(COLLECTIONS.USERS).doc(req.user.id).update(updateData);
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
+  const data = userDoc.data();
+  res.json({
+    id: req.user.id,
+    email: data.email,
+    username: data.username,
+    firstName: data.firstName,
+    lastName: data.lastName
   });
-  res.json(user);
 });
 router2.post("/onboarding", async (req, res) => {
   const parsed = onboardingSchema.safeParse(req.body);
@@ -4519,55 +4608,67 @@ router2.post("/onboarding", async (req, res) => {
     return;
   }
   const { accion, ticketeras, appsBoletos } = parsed.data;
-  await prisma.userOnboarding.upsert({
-    where: { userId: req.user.id },
-    create: {
+  const ref = db().collection(COLLECTIONS.USER_ONBOARDING).doc(req.user.id);
+  const existing = await ref.get();
+  await ref.set(
+    {
       userId: req.user.id,
       accion,
       ticketeras,
-      appsBoletos
+      appsBoletos,
+      ...existing.exists ? {} : { createdAt: /* @__PURE__ */ new Date() },
+      updatedAt: /* @__PURE__ */ new Date()
     },
-    update: {
-      accion,
-      ticketeras,
-      appsBoletos
-    }
-  });
+    { merge: true }
+  );
   res.json({ ok: true });
 });
 router2.get("/onboarding", async (req, res) => {
-  const onboarding = await prisma.userOnboarding.findUnique({
-    where: { userId: req.user.id }
+  const doc = await db().collection(COLLECTIONS.USER_ONBOARDING).doc(req.user.id).get();
+  if (!doc.exists) return res.json(null);
+  const data = doc.data();
+  res.json({
+    id: doc.id,
+    userId: data.userId,
+    accion: data.accion || [],
+    ticketeras: data.ticketeras || [],
+    appsBoletos: data.appsBoletos || [],
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt
   });
-  res.json(onboarding || null);
 });
-router2.post("/kyc/upload", upload.fields([
-  { name: "dniFront", maxCount: 1 },
-  { name: "dniBack", maxCount: 1 },
-  { name: "selfie", maxCount: 1 }
-]), async (req, res) => {
-  const files = req.files;
-  const baseUrl = process.env.APP_URL || "http://localhost:3001";
-  const dniFrontUrl = files.dniFront?.[0] ? `${baseUrl}/uploads/${files.dniFront[0].filename}` : void 0;
-  const dniBackUrl = files.dniBack?.[0] ? `${baseUrl}/uploads/${files.dniBack[0].filename}` : void 0;
-  const selfieUrl = files.selfie?.[0] ? `${baseUrl}/uploads/${files.selfie[0].filename}` : void 0;
-  await prisma.kycVerification.update({
-    where: { userId: req.user.id },
-    data: {
-      ...dniFrontUrl && { dniFrontUrl },
-      ...dniBackUrl && { dniBackUrl },
-      ...selfieUrl && { selfieUrl },
-      status: "EN_REVISION"
+router2.post(
+  "/kyc/upload",
+  upload.fields([
+    { name: "dniFront", maxCount: 1 },
+    { name: "dniBack", maxCount: 1 },
+    { name: "selfie", maxCount: 1 }
+  ]),
+  async (req, res) => {
+    const files = req.files;
+    const uid = req.user.id;
+    const updates = { status: "EN_REVISION", updatedAt: /* @__PURE__ */ new Date() };
+    if (files.dniFront?.[0]) {
+      const path2 = `kyc/${uid}/dni_front_${Date.now()}.jpg`;
+      updates.dniFrontUrl = await uploadFile(path2, files.dniFront[0].buffer, files.dniFront[0].mimetype || "image/jpeg");
     }
-  });
-  res.json({ ok: true, status: "EN_REVISION" });
-});
+    if (files.dniBack?.[0]) {
+      const path2 = `kyc/${uid}/dni_back_${Date.now()}.jpg`;
+      updates.dniBackUrl = await uploadFile(path2, files.dniBack[0].buffer, files.dniBack[0].mimetype || "image/jpeg");
+    }
+    if (files.selfie?.[0]) {
+      const path2 = `kyc/${uid}/selfie_${Date.now()}.jpg`;
+      updates.selfieUrl = await uploadFile(path2, files.selfie[0].buffer, files.selfie[0].mimetype || "image/jpeg");
+    }
+    await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(uid).set(updates, { merge: true });
+    res.json({ ok: true, status: "EN_REVISION" });
+  }
+);
 router2.get("/kyc", async (req, res) => {
-  const kyc = await prisma.kycVerification.findUnique({
-    where: { userId: req.user.id },
-    select: { status: true, rejectionReason: true }
-  });
-  res.json(kyc || { status: "PENDIENTE" });
+  const doc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(req.user.id).get();
+  if (!doc.exists) return res.json({ status: "PENDIENTE" });
+  const data = doc.data();
+  res.json({ status: data.status || "PENDIENTE", rejectionReason: data.rejectionReason ?? null });
 });
 router2.post("/kyc/session", async (req, res) => {
   const userId = req.user.id;
@@ -4580,10 +4681,10 @@ router2.post("/kyc/session", async (req, res) => {
       vendor_data: userId,
       features: "OCR + FACE"
     });
-    await prisma.kycVerification.update({
-      where: { userId },
-      data: { diditSessionId: session.session_id }
-    });
+    await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).set(
+      { diditSessionId: session.session_id, updatedAt: /* @__PURE__ */ new Date() },
+      { merge: true }
+    );
     res.json({ url: session.url, sessionId: session.session_id });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error al crear sesi\xF3n Didit";
@@ -4597,84 +4698,140 @@ import { Router as Router3 } from "express";
 import multer2 from "multer";
 var router3 = Router3();
 var upload2 = multer2({
-  dest: uploadsDir,
+  storage: multer2.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 router3.get("/", async (_req, res) => {
-  const listings = await prisma.ticketListing.findMany({
-    where: { status: "DISPONIBLE" },
-    include: {
-      seller: {
-        select: { id: true, reputationScore: true, kyc: { select: { status: true } } }
-      }
-    },
-    orderBy: { createdAt: "desc" },
-    take: 50
-  });
+  const snap = await db().collection(COLLECTIONS.TICKET_LISTINGS).where("status", "==", "DISPONIBLE").orderBy("createdAt", "desc").limit(50).get();
+  const listings = await Promise.all(
+    snap.docs.map(async (doc) => {
+      const d = doc.data();
+      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+      const sellerData = sellerDoc.data();
+      const kycDoc = sellerDoc.exists ? await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(d.sellerId).get() : null;
+      return {
+        id: doc.id,
+        ...d,
+        seller: sellerData ? {
+          id: d.sellerId,
+          reputationScore: sellerData.reputationScore ?? 0,
+          kyc: kycDoc?.exists ? { status: kycDoc.data()?.status } : { status: "PENDIENTE" }
+        } : null,
+        createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+        updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+        eventDate: d.eventDate?.toDate?.() ?? d.eventDate
+      };
+    })
+  );
   res.json(listings);
 });
 router3.get("/eventos", async (req, res) => {
   const { q, categoria, fecha } = req.query;
-  const where = { status: "DISPONIBLE" };
+  const snap = await db().collection(COLLECTIONS.TICKET_LISTINGS).where("status", "==", "DISPONIBLE").orderBy("eventDate", "asc").limit(200).get();
+  let eventos = snap.docs.map((doc) => {
+    const d = doc.data();
+    return {
+      id: doc.id,
+      eventName: d.eventName,
+      eventDate: d.eventDate?.toDate?.() ?? d.eventDate,
+      eventPlace: d.eventPlace,
+      sector: d.sector,
+      tipoEntrada: d.tipoEntrada,
+      price: d.price,
+      currency: d.currency,
+      category: d.category
+    };
+  });
   if (typeof q === "string" && q) {
-    where.eventName = { contains: q, mode: "insensitive" };
+    const ql = q.toLowerCase();
+    eventos = eventos.filter((e) => (e.eventName || "").toLowerCase().includes(ql));
   }
   if (typeof categoria === "string" && categoria) {
-    where.category = categoria;
+    eventos = eventos.filter((e) => e.category === categoria);
   }
   if (typeof fecha === "string" && fecha) {
-    where.eventDate = { gte: new Date(fecha) };
+    const fd = new Date(fecha).getTime();
+    eventos = eventos.filter((e) => {
+      const ed = e.eventDate instanceof Date ? e.eventDate.getTime() : new Date(e.eventDate).getTime();
+      return ed >= fd;
+    });
   }
-  const eventos = await prisma.ticketListing.findMany({
-    where,
-    select: {
-      id: true,
-      eventName: true,
-      eventDate: true,
-      eventPlace: true,
-      sector: true,
-      tipoEntrada: true,
-      price: true,
-      currency: true,
-      category: true
-    },
-    orderBy: { eventDate: "asc" },
-    take: 100
-  });
-  res.json(eventos);
+  res.json(eventos.slice(0, 100));
 });
 router3.get("/:id", async (req, res) => {
-  const listing = await prisma.ticketListing.findFirst({
-    where: { id: req.params.id, status: "DISPONIBLE" },
-    include: {
-      seller: {
-        select: { id: true, reputationScore: true, kyc: { select: { status: true } } }
-      }
-    }
-  });
-  if (!listing) return res.status(404).json({ error: "No encontrado" });
-  res.json(listing);
-});
-router3.post("/", requireAuth, upload2.fields([
-  { name: "captureTicket", maxCount: 1 },
-  { name: "captureOwnership", maxCount: 1 }
-]), async (req, res) => {
-  const body = { ...req.body, price: req.body.price != null ? Number(req.body.price) : void 0 };
-  const parsed = createTicketListingSchema.safeParse(body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Datos inv\xE1lidos", details: parsed.error.flatten() });
-    return;
+  const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
+  const d = doc.data();
+  if (d.status !== "DISPONIBLE") return res.status(404).json({ error: "No encontrado" });
+  const password = req.query.password;
+  const pubPassword = d.publicationPassword;
+  const showFull = !pubPassword || password && password === pubPassword;
+  const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+  const sellerData = sellerDoc.data();
+  const kycDoc = sellerDoc.exists ? await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(d.sellerId).get() : null;
+  const out = {
+    id: doc.id,
+    ...d,
+    seller: sellerData ? {
+      id: d.sellerId,
+      firstName: sellerData.firstName,
+      lastName: sellerData.lastName,
+      username: sellerData.username,
+      reputationScore: sellerData.reputationScore ?? 0,
+      phoneVerified: sellerData.phoneVerified ?? false,
+      emailVerified: sellerData.emailVerified ?? false,
+      kyc: kycDoc?.exists ? { status: kycDoc.data()?.status } : { status: "PENDIENTE" }
+    } : null,
+    showFull,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+    eventDate: d.eventDate?.toDate?.() ?? d.eventDate
+  };
+  if (!showFull) {
+    delete out.captureTicketUrl;
+    delete out.captureOwnershipUrl;
+    delete out.orderRef;
   }
-  const files = req.files;
-  const baseUrl = process.env.APP_URL || "http://localhost:3001";
-  const captureTicketUrl = files.captureTicket?.[0] ? `${baseUrl}/uploads/${files.captureTicket[0].filename}` : void 0;
-  const captureOwnershipUrl = files.captureOwnership?.[0] ? `${baseUrl}/uploads/${files.captureOwnership[0].filename}` : void 0;
-  const publicationPassword = req.body.publicationPassword || void 0;
-  const ticketeraOtra = req.body.ticketeraOtra || void 0;
-  const appBoletosOtra = req.body.appBoletosOtra || void 0;
-  const tipoEntradaOtro = req.body.tipoEntradaOtro || void 0;
-  const listing = await prisma.ticketListing.create({
-    data: {
+  res.json(out);
+});
+router3.post(
+  "/",
+  requireAuth,
+  upload2.fields([
+    { name: "captureTicket", maxCount: 1 },
+    { name: "captureOwnership", maxCount: 1 }
+  ]),
+  async (req, res) => {
+    const body = { ...req.body, price: req.body.price != null ? Number(req.body.price) : void 0 };
+    const parsed = createTicketListingSchema.safeParse(body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Datos inv\xE1lidos", details: parsed.error.flatten() });
+      return;
+    }
+    const files = req.files;
+    const listingId = db().collection(COLLECTIONS.TICKET_LISTINGS).doc().id;
+    let captureTicketUrl;
+    let captureOwnershipUrl;
+    if (files.captureTicket?.[0]) {
+      captureTicketUrl = await uploadFile(
+        `tickets/${listingId}/capture_${Date.now()}.jpg`,
+        files.captureTicket[0].buffer,
+        files.captureTicket[0].mimetype || "image/jpeg"
+      );
+    }
+    if (files.captureOwnership?.[0]) {
+      captureOwnershipUrl = await uploadFile(
+        `tickets/${listingId}/ownership_${Date.now()}.jpg`,
+        files.captureOwnership[0].buffer,
+        files.captureOwnership[0].mimetype || "image/jpeg"
+      );
+    }
+    const publicationPassword = req.body.publicationPassword || void 0;
+    const ticketeraOtra = req.body.ticketeraOtra || void 0;
+    const appBoletosOtra = req.body.appBoletosOtra || void 0;
+    const tipoEntradaOtro = req.body.tipoEntradaOtro || void 0;
+    const quantityEntries = parsed.data.quantityEntries != null ? String(parsed.data.quantityEntries) : void 0;
+    const listingData = {
       sellerId: req.user.id,
       eventName: parsed.data.eventName,
       eventDate: new Date(parsed.data.eventDate),
@@ -4682,9 +4839,10 @@ router3.post("/", requireAuth, upload2.fields([
       sector: parsed.data.sector,
       row: parsed.data.row,
       seat: parsed.data.seat,
+      quantityEntries: quantityEntries ?? null,
       tipoEntrada: parsed.data.tipoEntrada,
       price: parsed.data.price,
-      currency: parsed.data.currency,
+      currency: parsed.data.currency ?? "ARS",
       ticketera: parsed.data.ticketera,
       appBoletos: parsed.data.appBoletos,
       orderRef: parsed.data.orderRef,
@@ -4695,32 +4853,39 @@ router3.post("/", requireAuth, upload2.fields([
       publicationPassword,
       ticketeraOtra,
       appBoletosOtra,
-      tipoEntradaOtro
-    }
-  });
-  res.status(201).json(listing);
-});
+      tipoEntradaOtro,
+      createdAt: /* @__PURE__ */ new Date(),
+      updatedAt: /* @__PURE__ */ new Date()
+    };
+    await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(listingId).set(listingData);
+    const listing = { id: listingId, ...listingData };
+    res.status(201).json(listing);
+  }
+);
 router3.get("/my/listings", requireAuth, async (req, res) => {
-  const listings = await prisma.ticketListing.findMany({
-    where: { sellerId: req.user.id },
-    orderBy: { createdAt: "desc" }
+  const snap = await db().collection(COLLECTIONS.TICKET_LISTINGS).where("sellerId", "==", req.user.id).orderBy("createdAt", "desc").get();
+  const listings = snap.docs.map((doc) => {
+    const d = doc.data();
+    return {
+      id: doc.id,
+      ...d,
+      createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+      updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+      eventDate: d.eventDate?.toDate?.() ?? d.eventDate
+    };
   });
   res.json(listings);
 });
 router3.patch("/:id/pause", requireAuth, async (req, res) => {
-  const updated = await prisma.ticketListing.updateMany({
-    where: { id: req.params.id, sellerId: req.user.id },
-    data: { status: "PAUSADO" }
-  });
-  if (updated.count === 0) return res.status(404).json({ error: "No encontrado" });
+  const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).get();
+  if (!doc.exists || doc.data()?.sellerId !== req.user.id) return res.status(404).json({ error: "No encontrado" });
+  await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).update({ status: "PAUSADO", updatedAt: /* @__PURE__ */ new Date() });
   res.json({ ok: true });
 });
 router3.patch("/:id/activate", requireAuth, async (req, res) => {
-  const updated = await prisma.ticketListing.updateMany({
-    where: { id: req.params.id, sellerId: req.user.id },
-    data: { status: "DISPONIBLE" }
-  });
-  if (updated.count === 0) return res.status(404).json({ error: "No encontrado" });
+  const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).get();
+  if (!doc.exists || doc.data()?.sellerId !== req.user.id) return res.status(404).json({ error: "No encontrado" });
+  await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).update({ status: "DISPONIBLE", updatedAt: /* @__PURE__ */ new Date() });
   res.json({ ok: true });
 });
 var ticketsRouter = router3;
@@ -4730,7 +4895,7 @@ import { Router as Router4 } from "express";
 import multer3 from "multer";
 var router4 = Router4();
 var upload3 = multer3({
-  dest: uploadsDir,
+  storage: multer3.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 router4.use(requireAuth);
@@ -4741,10 +4906,13 @@ router4.post("/", async (req, res) => {
     return;
   }
   const { ticketListingId, paymentMethod } = parsed.data;
-  const listing = await prisma.ticketListing.findFirst({
-    where: { id: ticketListingId, status: "DISPONIBLE" }
-  });
-  if (!listing) {
+  const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(ticketListingId).get();
+  if (!listingDoc.exists) {
+    res.status(404).json({ error: "Ticket no disponible" });
+    return;
+  }
+  const listing = listingDoc.data();
+  if (listing.status !== "DISPONIBLE") {
     res.status(404).json({ error: "Ticket no disponible" });
     return;
   }
@@ -4756,23 +4924,28 @@ router4.post("/", async (req, res) => {
   const totalAmount = listing.price + commissionAmount;
   const transferDeadline = /* @__PURE__ */ new Date();
   transferDeadline.setHours(transferDeadline.getHours() + HORAS_MAX_TRANSFERENCIA_VENDEDOR);
-  const order = await prisma.order.create({
-    data: {
-      ticketListingId,
-      buyerId: req.user.id,
-      sellerId: listing.sellerId,
-      status: "PENDIENTE_PAGO",
-      totalAmount,
-      commissionAmount,
-      currency: listing.currency,
-      paymentMethod,
-      transferDeadline
-    },
-    include: {
-      ticketListing: true,
-      seller: { select: { id: true, email: true } }
-    }
-  });
+  const orderId = db().collection(COLLECTIONS.ORDERS).doc().id;
+  const orderData = {
+    ticketListingId,
+    buyerId: req.user.id,
+    sellerId: listing.sellerId,
+    status: "PENDIENTE_PAGO",
+    totalAmount,
+    commissionAmount,
+    currency: listing.currency || "ARS",
+    paymentMethod,
+    transferDeadline,
+    createdAt: /* @__PURE__ */ new Date(),
+    updatedAt: /* @__PURE__ */ new Date()
+  };
+  await db().collection(COLLECTIONS.ORDERS).doc(orderId).set(orderData);
+  const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(listing.sellerId).get();
+  const order = {
+    id: orderId,
+    ...orderData,
+    ticketListing: { id: listingDoc.id, ...listing },
+    seller: { id: listing.sellerId, email: sellerDoc.data()?.email }
+  };
   res.status(201).json({
     order,
     paymentNeeded: true,
@@ -4780,59 +4953,83 @@ router4.post("/", async (req, res) => {
   });
 });
 router4.get("/my/purchases", async (req, res) => {
-  const orders = await prisma.order.findMany({
-    where: { buyerId: req.user.id },
-    include: { ticketListing: true, seller: { select: { id: true, reputationScore: true } } },
-    orderBy: { createdAt: "desc" }
-  });
+  const snap = await db().collection(COLLECTIONS.ORDERS).where("buyerId", "==", req.user.id).orderBy("createdAt", "desc").get();
+  const orders = await Promise.all(
+    snap.docs.map(async (doc) => {
+      const d = doc.data();
+      const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
+      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+      return {
+        id: doc.id,
+        ...d,
+        ticketListing: listingDoc.exists ? { id: listingDoc.id, ...listingDoc.data() } : null,
+        seller: sellerDoc.exists ? { id: d.sellerId, reputationScore: sellerDoc.data()?.reputationScore } : null,
+        createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+        updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+        transferDeadline: d.transferDeadline?.toDate?.() ?? d.transferDeadline
+      };
+    })
+  );
   res.json(orders);
 });
 router4.get("/my/sales", async (req, res) => {
-  const orders = await prisma.order.findMany({
-    where: { sellerId: req.user.id },
-    include: { ticketListing: true, buyer: { select: { id: true, email: true } } },
-    orderBy: { createdAt: "desc" }
-  });
+  const snap = await db().collection(COLLECTIONS.ORDERS).where("sellerId", "==", req.user.id).orderBy("createdAt", "desc").get();
+  const orders = await Promise.all(
+    snap.docs.map(async (doc) => {
+      const d = doc.data();
+      const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
+      const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(d.buyerId).get();
+      return {
+        id: doc.id,
+        ...d,
+        ticketListing: listingDoc.exists ? { id: listingDoc.id, ...listingDoc.data() } : null,
+        buyer: buyerDoc.exists ? { id: d.buyerId, email: buyerDoc.data()?.email } : null,
+        createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+        updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+        transferDeadline: d.transferDeadline?.toDate?.() ?? d.transferDeadline
+      };
+    })
+  );
   res.json(orders);
 });
 router4.get("/:id", async (req, res) => {
-  const order = await prisma.order.findFirst({
-    where: {
-      id: req.params.id,
-      OR: [{ buyerId: req.user.id }, { sellerId: req.user.id }]
-    },
-    include: {
-      ticketListing: true,
-      buyer: { select: { id: true, email: true } },
-      seller: { select: { id: true, email: true } }
-    }
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
+  const d = doc.data();
+  if (d.buyerId !== req.user.id && d.sellerId !== req.user.id) {
+    return res.status(404).json({ error: "No encontrado" });
+  }
+  const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
+  const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(d.buyerId).get();
+  const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+  res.json({
+    id: doc.id,
+    ...d,
+    ticketListing: listingDoc.exists ? { id: listingDoc.id, ...listingDoc.data() } : null,
+    buyer: buyerDoc.exists ? { id: d.buyerId, email: buyerDoc.data()?.email } : null,
+    seller: sellerDoc.exists ? { id: d.sellerId, email: sellerDoc.data()?.email } : null,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+    transferDeadline: d.transferDeadline?.toDate?.() ?? d.transferDeadline
   });
-  if (!order) return res.status(404).json({ error: "No encontrado" });
-  res.json(order);
 });
 router4.post("/:id/confirm-payment", async (req, res) => {
-  const order = await prisma.order.findFirst({
-    where: { id: req.params.id, buyerId: req.user.id, status: "PENDIENTE_PAGO" }
-  });
-  if (!order) return res.status(404).json({ error: "No encontrado" });
-  await prisma.order.update({
-    where: { id: order.id },
-    data: { status: "ESPERANDO_TRANSFERENCIA" }
-  });
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
+  const d = doc.data();
+  if (d.buyerId !== req.user.id || d.status !== "PENDIENTE_PAGO") return res.status(404).json({ error: "No encontrado" });
+  await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({ status: "ESPERANDO_TRANSFERENCIA", updatedAt: /* @__PURE__ */ new Date() });
   res.json({ ok: true, status: "ESPERANDO_TRANSFERENCIA" });
 });
 router4.post("/:id/transfer-done", async (req, res) => {
-  const order = await prisma.order.findFirst({
-    where: { id: req.params.id, sellerId: req.user.id }
-  });
-  if (!order) return res.status(404).json({ error: "No encontrado" });
-  if (order.status !== "ESPERANDO_TRANSFERENCIA") {
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
+  const d = doc.data();
+  if (d.sellerId !== req.user.id) return res.status(404).json({ error: "No encontrado" });
+  if (d.status !== "ESPERANDO_TRANSFERENCIA") {
     return res.status(400).json({ error: "Estado no permite marcar transferencia" });
   }
-  await prisma.order.update({
-    where: { id: order.id },
-    data: { status: "TRANSFERIDO_VENDEDOR" }
-  });
+  await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({ status: "TRANSFERIDO_VENDEDOR", updatedAt: /* @__PURE__ */ new Date() });
   res.json({ ok: true });
 });
 router4.post("/:id/confirm-received", async (req, res) => {
@@ -4844,35 +5041,73 @@ router4.post("/:id/confirm-received", async (req, res) => {
     res.status(400).json({ error: "Datos inv\xE1lidos" });
     return;
   }
-  const order = await prisma.order.findFirst({
-    where: { id: req.params.id, buyerId: req.user.id }
-  });
-  if (!order) return res.status(404).json({ error: "No encontrado" });
-  await prisma.order.update({
-    where: { id: order.id },
-    data: {
-      status: parsed.data.received ? "ESPERANDO_CONFIRMACION_COMPRADOR" : order.status,
-      buyerConfirmedAt: parsed.data.received ? /* @__PURE__ */ new Date() : null
-    }
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
+  const d = doc.data();
+  if (d.buyerId !== req.user.id) return res.status(404).json({ error: "No encontrado" });
+  await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({
+    status: parsed.data.received ? "ESPERANDO_CONFIRMACION_COMPRADOR" : d.status,
+    buyerConfirmedAt: parsed.data.received ? /* @__PURE__ */ new Date() : null,
+    updatedAt: /* @__PURE__ */ new Date()
   });
   res.json({ ok: true });
 });
 router4.post("/:id/evidence", upload3.single("evidence"), async (req, res) => {
-  const order = await prisma.order.findFirst({
-    where: { id: req.params.id, buyerId: req.user.id }
-  });
-  if (!order) return res.status(404).json({ error: "No encontrado" });
-  const baseUrl = process.env.APP_URL || "http://localhost:3001";
-  const evidenceUrl = req.file ? `${baseUrl}/uploads/${req.file.filename}` : void 0;
-  if (!evidenceUrl) {
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
+  const d = doc.data();
+  if (d.buyerId !== req.user.id) return res.status(404).json({ error: "No encontrado" });
+  const file = req.file;
+  if (!file) {
     res.status(400).json({ error: "Archivo requerido" });
     return;
   }
-  await prisma.order.update({
-    where: { id: order.id },
-    data: { evidenceUrl, status: "EVIDENCIA_SUBIDA" }
+  const evidenceUrl = await uploadFile(
+    `evidence/${req.params.id}/${Date.now()}.jpg`,
+    file.buffer,
+    file.mimetype || "image/jpeg"
+  );
+  await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({
+    evidenceUrl,
+    status: "EVIDENCIA_SUBIDA",
+    updatedAt: /* @__PURE__ */ new Date()
   });
   res.json({ ok: true, status: "EVIDENCIA_SUBIDA" });
+});
+var PUNTOS_POR_RATING_POSITIVO = 5;
+router4.post("/:id/rate", async (req, res) => {
+  const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
+  if (!orderDoc.exists) return res.status(404).json({ error: "No encontrado" });
+  const order = orderDoc.data();
+  if (order.status !== "COMPLETADA") return res.status(404).json({ error: "No encontrado" });
+  if (order.buyerId !== req.user.id && order.sellerId !== req.user.id) {
+    return res.status(404).json({ error: "No encontrado" });
+  }
+  const positive = req.body?.positive === true;
+  const isBuyer = order.buyerId === req.user.id;
+  const ratedUserId = isBuyer ? order.sellerId : order.buyerId;
+  const existingRating = await db().collection(COLLECTIONS.ORDER_RATINGS).where("orderId", "==", req.params.id).where("raterId", "==", req.user.id).limit(1).get();
+  if (!existingRating.empty) {
+    return res.status(400).json({ error: "Ya puntuaste esta orden" });
+  }
+  const ratingId = db().collection(COLLECTIONS.ORDER_RATINGS).doc().id;
+  await db().collection(COLLECTIONS.ORDER_RATINGS).doc(ratingId).set({
+    orderId: req.params.id,
+    raterId: req.user.id,
+    ratedUserId,
+    positive,
+    points: positive ? PUNTOS_POR_RATING_POSITIVO : 0,
+    createdAt: /* @__PURE__ */ new Date()
+  });
+  if (positive) {
+    const ratedUserDoc = await db().collection(COLLECTIONS.USERS).doc(ratedUserId).get();
+    const currentScore = ratedUserDoc.data()?.reputationScore ?? 0;
+    await db().collection(COLLECTIONS.USERS).doc(ratedUserId).update({
+      reputationScore: currentScore + PUNTOS_POR_RATING_POSITIVO,
+      updatedAt: /* @__PURE__ */ new Date()
+    });
+  }
+  res.json({ ok: true, points: positive ? PUNTOS_POR_RATING_POSITIVO : 0 });
 });
 var ordersRouter = router4;
 
@@ -4887,87 +5122,150 @@ router5.post("/", async (req, res) => {
     return;
   }
   const { orderId, reason } = parsed.data;
-  const order = await prisma.order.findFirst({
-    where: {
-      id: orderId,
-      OR: [{ buyerId: req.user.id }, { sellerId: req.user.id }]
-    }
+  const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
+  if (!orderDoc.exists) return res.status(404).json({ error: "Orden no encontrada" });
+  const order = orderDoc.data();
+  if (order.buyerId !== req.user.id && order.sellerId !== req.user.id) {
+    return res.status(404).json({ error: "Orden no encontrada" });
+  }
+  const existingDispute = await db().collection(COLLECTIONS.DISPUTES).where("orderId", "==", orderId).limit(1).get();
+  if (!existingDispute.empty) return res.status(409).json({ error: "Ya existe una disputa para esta orden" });
+  const disputeId = db().collection(COLLECTIONS.DISPUTES).doc().id;
+  const disputeData = {
+    orderId,
+    reason,
+    status: "ABIERTA",
+    createdAt: /* @__PURE__ */ new Date(),
+    updatedAt: /* @__PURE__ */ new Date()
+  };
+  await db().collection(COLLECTIONS.DISPUTES).doc(disputeId).set(disputeData);
+  await db().collection(COLLECTIONS.ORDERS).doc(orderId).update({ status: "EN_DISPUTA", updatedAt: /* @__PURE__ */ new Date() });
+  const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(order.ticketListingId).get();
+  res.status(201).json({
+    id: disputeId,
+    ...disputeData,
+    order: { id: orderId, ...order, ticketListing: listingDoc.exists ? listingDoc.data() : null }
   });
-  if (!order) return res.status(404).json({ error: "Orden no encontrada" });
-  const existing = await prisma.dispute.findUnique({ where: { orderId } });
-  if (existing) return res.status(409).json({ error: "Ya existe una disputa para esta orden" });
-  const dispute = await prisma.dispute.create({
-    data: { orderId, reason, status: "ABIERTA" },
-    include: { order: true }
-  });
-  await prisma.order.update({
-    where: { id: orderId },
-    data: { status: "EN_DISPUTA" }
-  });
-  res.status(201).json(dispute);
 });
 router5.get("/my", async (req, res) => {
-  const orders = await prisma.order.findMany({
-    where: {
-      OR: [{ buyerId: req.user.id }, { sellerId: req.user.id }],
-      status: "EN_DISPUTA"
-    },
-    select: { id: true }
-  });
-  const disputeIds = orders.map((o) => o.id);
-  const disputes = await prisma.dispute.findMany({
-    where: { orderId: { in: disputeIds } },
-    include: { order: { include: { ticketListing: true } } }
-  });
+  const ordersSnap = await db().collection(COLLECTIONS.ORDERS).where("status", "==", "EN_DISPUTA").get();
+  const orderIds = ordersSnap.docs.filter((d) => {
+    const o = d.data();
+    return o.buyerId === req.user.id || o.sellerId === req.user.id;
+  }).map((d) => d.id);
+  if (orderIds.length === 0) return res.json([]);
+  const disputesSnap = await db().collection(COLLECTIONS.DISPUTES).where("orderId", "in", orderIds.slice(0, 10)).get();
+  const disputes = await Promise.all(
+    disputesSnap.docs.map(async (doc) => {
+      const d = doc.data();
+      const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(d.orderId).get();
+      const order = orderDoc.data();
+      const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(order.ticketListingId).get();
+      return {
+        id: doc.id,
+        ...d,
+        order: { id: orderDoc.id, ...order, ticketListing: listingDoc.exists ? listingDoc.data() : null },
+        createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+        updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt
+      };
+    })
+  );
   res.json(disputes);
 });
 router5.get("/:id", async (req, res) => {
-  const dispute = await prisma.dispute.findFirst({
-    where: { id: req.params.id },
-    include: {
-      order: {
-        include: {
-          ticketListing: true,
-          buyer: { select: { id: true, email: true } },
-          seller: { select: { id: true, email: true } }
-        }
-      },
-      messages: { include: { user: { select: { id: true, email: true } } }, orderBy: { createdAt: "asc" } }
-    }
-  });
-  if (!dispute) return res.status(404).json({ error: "No encontrado" });
-  const isParty = dispute.order.buyerId === req.user.id || dispute.order.sellerId === req.user.id;
+  const doc = await db().collection(COLLECTIONS.DISPUTES).doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
+  const d = doc.data();
+  const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(d.orderId).get();
+  const order = orderDoc.data();
+  const isParty = order.buyerId === req.user.id || order.sellerId === req.user.id;
   if (!isParty && req.user.role !== "admin") {
     return res.status(403).json({ error: "Acceso denegado" });
   }
-  res.json(dispute);
+  const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(order.ticketListingId).get();
+  const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(order.buyerId).get();
+  const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(order.sellerId).get();
+  const messagesSnap = await db().collection(COLLECTIONS.DISPUTE_MESSAGES).where("disputeId", "==", req.params.id).orderBy("createdAt", "asc").get();
+  const messages = await Promise.all(
+    messagesSnap.docs.map(async (m) => {
+      const md = m.data();
+      const userDoc = await db().collection(COLLECTIONS.USERS).doc(md.userId).get();
+      return {
+        id: m.id,
+        ...md,
+        user: userDoc.exists ? { id: md.userId, email: userDoc.data()?.email } : null,
+        createdAt: md.createdAt?.toDate?.() ?? md.createdAt
+      };
+    })
+  );
+  res.json({
+    id: doc.id,
+    ...d,
+    order: {
+      id: orderDoc.id,
+      ...order,
+      ticketListing: listingDoc.exists ? listingDoc.data() : null,
+      buyer: buyerDoc.exists ? { id: order.buyerId, email: buyerDoc.data()?.email } : null,
+      seller: sellerDoc.exists ? { id: order.sellerId, email: sellerDoc.data()?.email } : null
+    },
+    messages,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt
+  });
 });
 router5.post("/:id/messages", async (req, res) => {
   const { content } = req.body;
-  const dispute = await prisma.dispute.findFirst({
-    where: { id: req.params.id },
-    include: { order: true }
-  });
-  if (!dispute) return res.status(404).json({ error: "No encontrado" });
-  const isParty = dispute.order.buyerId === req.user.id || dispute.order.sellerId === req.user.id;
+  const disputeDoc = await db().collection(COLLECTIONS.DISPUTES).doc(req.params.id).get();
+  if (!disputeDoc.exists) return res.status(404).json({ error: "No encontrado" });
+  const dispute = disputeDoc.data();
+  const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(dispute.orderId).get();
+  const order = orderDoc.data();
+  const isParty = order.buyerId === req.user.id || order.sellerId === req.user.id;
   if (!isParty && req.user.role !== "admin") {
     return res.status(403).json({ error: "Acceso denegado" });
   }
-  const message = await prisma.disputeMessage.create({
-    data: {
-      disputeId: dispute.id,
-      userId: req.user.id,
-      content: String(content || "").slice(0, 2e3),
-      isModerator: req.user.role === "admin"
-    },
-    include: { user: { select: { id: true, email: true } } }
+  const messageId = db().collection(COLLECTIONS.DISPUTE_MESSAGES).doc().id;
+  const messageData = {
+    disputeId: req.params.id,
+    userId: req.user.id,
+    content: String(content || "").slice(0, 2e3),
+    isModerator: req.user.role === "admin",
+    createdAt: /* @__PURE__ */ new Date()
+  };
+  await db().collection(COLLECTIONS.DISPUTE_MESSAGES).doc(messageId).set(messageData);
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
+  res.status(201).json({
+    id: messageId,
+    ...messageData,
+    user: { id: req.user.id, email: userDoc.data()?.email }
   });
-  res.status(201).json(message);
 });
 var disputesRouter = router5;
 
 // src/routes/messages.ts
 import { Router as Router6 } from "express";
+
+// src/lib/firebase-messaging.ts
+async function sendPushNotification(fcmToken, title, body, data) {
+  if (!fcmToken || fcmToken.length < 10) return false;
+  try {
+    const messaging = getMessaging();
+    const message = {
+      token: fcmToken,
+      notification: { title, body },
+      data: data || {},
+      android: { priority: "high" },
+      apns: { payload: { aps: { sound: "default" } } }
+    };
+    await messaging.send(message);
+    return true;
+  } catch (e) {
+    console.error("Error enviando push:", e);
+    return false;
+  }
+}
+
+// src/routes/messages.ts
 var router6 = Router6();
 router6.use(requireAuth);
 function normalizeUserIds(id1, id2) {
@@ -4975,36 +5273,51 @@ function normalizeUserIds(id1, id2) {
 }
 router6.get("/conversations", async (req, res) => {
   const userId = req.user.id;
-  const conversations = await prisma.conversation.findMany({
-    where: { OR: [{ user1Id: userId }, { user2Id: userId }] },
-    include: {
-      user1: { select: { id: true, email: true, firstName: true, lastName: true, username: true, numeroId: true } },
-      user2: { select: { id: true, email: true, firstName: true, lastName: true, username: true, numeroId: true } },
-      messages: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { content: true, createdAt: true, senderId: true }
-      }
-    },
-    orderBy: { updatedAt: "desc" }
+  const conv1 = await db().collection(COLLECTIONS.CONVERSATIONS).where("user1Id", "==", userId).orderBy("updatedAt", "desc").get();
+  const conv2 = await db().collection(COLLECTIONS.CONVERSATIONS).where("user2Id", "==", userId).orderBy("updatedAt", "desc").get();
+  const allConvs = [...conv1.docs, ...conv2.docs];
+  const seen = /* @__PURE__ */ new Set();
+  const uniqueConvs = allConvs.filter((d) => {
+    if (seen.has(d.id)) return false;
+    seen.add(d.id);
+    return true;
   });
-  const list = conversations.map((c) => {
-    const other = c.user1Id === userId ? c.user2 : c.user1;
-    const lastMsg = c.messages[0];
-    return {
-      id: c.id,
-      otherUser: {
-        id: other.id,
-        email: other.email,
-        firstName: other.firstName,
-        lastName: other.lastName,
-        username: other.username,
-        numeroId: other.numeroId
-      },
-      lastMessage: lastMsg ? { content: lastMsg.content, createdAt: lastMsg.createdAt, isFromMe: lastMsg.senderId === userId } : null,
-      updatedAt: c.updatedAt
-    };
+  uniqueConvs.sort((a, b) => {
+    const aTime = a.data().updatedAt?.toDate?.()?.getTime() ?? 0;
+    const bTime = b.data().updatedAt?.toDate?.()?.getTime() ?? 0;
+    return bTime - aTime;
   });
+  const list = await Promise.all(
+    uniqueConvs.slice(0, 50).map(async (doc) => {
+      const c = doc.data();
+      const otherId = c.user1Id === userId ? c.user2Id : c.user1Id;
+      const otherDoc = await db().collection(COLLECTIONS.USERS).doc(otherId).get();
+      const other = otherDoc.data();
+      const lastMsgSnap = await db().collection(COLLECTIONS.MESSAGES).where("conversationId", "==", doc.id).orderBy("createdAt", "desc").limit(1).get();
+      const lastMsg = lastMsgSnap.empty ? null : lastMsgSnap.docs[0].data();
+      const isFromMe = lastMsg?.senderId === userId;
+      const hasUnread = lastMsg && !isFromMe && !lastMsg.readAt;
+      return {
+        id: doc.id,
+        otherUser: {
+          id: otherId,
+          email: other?.email,
+          firstName: other?.firstName,
+          lastName: other?.lastName,
+          username: other?.username,
+          numeroId: other?.numeroId
+        },
+        lastMessage: lastMsg ? {
+          content: lastMsg.content,
+          createdAt: lastMsg.createdAt?.toDate?.() ?? lastMsg.createdAt,
+          isFromMe,
+          readAt: lastMsg.readAt?.toDate?.() ?? lastMsg.readAt
+        } : null,
+        hasUnread: !!hasUnread,
+        updatedAt: c.updatedAt?.toDate?.() ?? c.updatedAt
+      };
+    })
+  );
   res.json(list);
 });
 router6.get("/users/search", async (req, res) => {
@@ -5014,19 +5327,32 @@ router6.get("/users/search", async (req, res) => {
     return;
   }
   const userId = req.user.id;
-  const users = await prisma.user.findMany({
-    where: {
-      id: { not: userId },
-      OR: [
-        { email: { contains: q, mode: "insensitive" } },
-        { username: { contains: q, mode: "insensitive" } },
-        { numeroId: { contains: q, mode: "insensitive" } }
-      ]
-    },
-    select: { id: true, email: true, firstName: true, lastName: true, username: true, numeroId: true },
-    take: 10
-  });
-  res.json(users);
+  const byEmail = await db().collection(COLLECTIONS.USERS).where("email", ">=", q).where("email", "<=", q + "\uF8FF").limit(10).get();
+  const byUsername = await db().collection(COLLECTIONS.USERS).where("username", ">=", q).where("username", "<=", q + "\uF8FF").limit(10).get();
+  const byNumeroId = await db().collection(COLLECTIONS.USERS).where("numeroId", ">=", q).where("numeroId", "<=", q + "\uF8FF").limit(10).get();
+  const seen = /* @__PURE__ */ new Set();
+  const users = [];
+  for (const snap of [byEmail, byUsername, byNumeroId]) {
+    for (const doc of snap.docs) {
+      if (doc.id === userId || seen.has(doc.id)) continue;
+      const d = doc.data();
+      const match = (d.email || "").toLowerCase().includes(q.toLowerCase()) || (d.username || "").toLowerCase().includes(q.toLowerCase()) || (d.numeroId || "").toUpperCase().includes(q.toUpperCase());
+      if (match) {
+        seen.add(doc.id);
+        users.push({
+          id: doc.id,
+          email: d.email,
+          firstName: d.firstName,
+          lastName: d.lastName,
+          username: d.username,
+          numeroId: d.numeroId
+        });
+      }
+      if (users.length >= 10) break;
+    }
+    if (users.length >= 10) break;
+  }
+  res.json(users.slice(0, 10));
 });
 router6.post("/conversations", async (req, res) => {
   const { otherUserId } = req.body;
@@ -5039,67 +5365,82 @@ router6.post("/conversations", async (req, res) => {
     res.status(400).json({ error: "No pod\xE9s iniciar conversaci\xF3n con vos mismo" });
     return;
   }
-  const other = await prisma.user.findUnique({
-    where: { id: otherUserId },
-    select: { id: true, email: true, firstName: true, lastName: true, username: true, numeroId: true }
-  });
-  if (!other) {
+  const otherDoc = await db().collection(COLLECTIONS.USERS).doc(otherUserId).get();
+  if (!otherDoc.exists) {
     res.status(404).json({ error: "Usuario no encontrado" });
     return;
   }
+  const other = otherDoc.data();
   const [u1, u2] = normalizeUserIds(userId, otherUserId);
-  let conv = await prisma.conversation.findUnique({
-    where: { user1Id_user2Id: { user1Id: u1, user2Id: u2 } },
-    include: {
-      user1: { select: { id: true, email: true, firstName: true, lastName: true, username: true, numeroId: true } },
-      user2: { select: { id: true, email: true, firstName: true, lastName: true, username: true, numeroId: true } }
-    }
-  });
-  if (!conv) {
-    conv = await prisma.conversation.create({
-      data: { user1Id: u1, user2Id: u2 },
-      include: {
-        user1: { select: { id: true, email: true, firstName: true, lastName: true, username: true, numeroId: true } },
-        user2: { select: { id: true, email: true, firstName: true, lastName: true, username: true, numeroId: true } }
-      }
-    });
+  const existing = await db().collection(COLLECTIONS.CONVERSATIONS).where("user1Id", "==", u1).where("user2Id", "==", u2).limit(1).get();
+  let convId;
+  let convData;
+  if (!existing.empty) {
+    convId = existing.docs[0].id;
+    convData = existing.docs[0].data();
+  } else {
+    convId = db().collection(COLLECTIONS.CONVERSATIONS).doc().id;
+    convData = {
+      user1Id: u1,
+      user2Id: u2,
+      createdAt: /* @__PURE__ */ new Date(),
+      updatedAt: /* @__PURE__ */ new Date()
+    };
+    await db().collection(COLLECTIONS.CONVERSATIONS).doc(convId).set(convData);
   }
-  const otherUser = conv.user1Id === userId ? conv.user2 : conv.user1;
+  const otherId = convData.user1Id === userId ? u2 : u1;
+  const otherUserData = other;
   res.json({
-    id: conv.id,
-    otherUser,
-    createdAt: conv.createdAt
+    id: convId,
+    otherUser: {
+      id: otherId,
+      email: otherUserData.email,
+      firstName: otherUserData.firstName,
+      lastName: otherUserData.lastName,
+      username: otherUserData.username,
+      numeroId: otherUserData.numeroId
+    },
+    createdAt: convData.createdAt?.toDate?.() ?? convData.createdAt
   });
 });
 router6.get("/conversations/:id/messages", async (req, res) => {
   const convId = req.params.id;
   const userId = req.user.id;
-  const conv = await prisma.conversation.findUnique({
-    where: { id: convId }
-  });
-  if (!conv) {
+  const convDoc = await db().collection(COLLECTIONS.CONVERSATIONS).doc(convId).get();
+  if (!convDoc.exists) {
     res.status(404).json({ error: "Conversaci\xF3n no encontrada" });
     return;
   }
+  const conv = convDoc.data();
   if (conv.user1Id !== userId && conv.user2Id !== userId) {
     res.status(403).json({ error: "No ten\xE9s acceso a esta conversaci\xF3n" });
     return;
   }
-  const messages = await prisma.message.findMany({
-    where: { conversationId: convId },
-    include: { sender: { select: { id: true, email: true, firstName: true, lastName: true } } },
-    orderBy: { createdAt: "asc" }
+  const messagesSnap = await db().collection(COLLECTIONS.MESSAGES).where("conversationId", "==", convId).orderBy("createdAt", "asc").get();
+  await db().collection(COLLECTIONS.MESSAGES).where("conversationId", "==", convId).where("senderId", "!=", userId).get().then((snap) => {
+    const batch = db().batch();
+    snap.docs.forEach((d) => {
+      if (!d.data().readAt) batch.update(d.ref, { readAt: /* @__PURE__ */ new Date() });
+    });
+    return batch.commit();
+  }).catch(() => {
   });
-  res.json(
-    messages.map((m) => ({
-      id: m.id,
-      content: m.content,
-      senderId: m.senderId,
-      sender: m.sender,
-      isFromMe: m.senderId === userId,
-      createdAt: m.createdAt
-    }))
+  const messages = await Promise.all(
+    messagesSnap.docs.map(async (doc) => {
+      const m = doc.data();
+      const senderDoc = await db().collection(COLLECTIONS.USERS).doc(m.senderId).get();
+      const sender = senderDoc.data();
+      return {
+        id: doc.id,
+        content: m.content,
+        senderId: m.senderId,
+        sender: sender ? { id: m.senderId, email: sender.email, firstName: sender.firstName, lastName: sender.lastName } : null,
+        isFromMe: m.senderId === userId,
+        createdAt: m.createdAt?.toDate?.() ?? m.createdAt
+      };
+    })
   );
+  res.json(messages);
 });
 router6.post("/conversations/:id/messages", async (req, res) => {
   const convId = req.params.id;
@@ -5113,36 +5454,44 @@ router6.post("/conversations/:id/messages", async (req, res) => {
     res.status(400).json({ error: "Mensaje demasiado largo" });
     return;
   }
-  const conv = await prisma.conversation.findUnique({
-    where: { id: convId }
-  });
-  if (!conv) {
+  const convDoc = await db().collection(COLLECTIONS.CONVERSATIONS).doc(convId).get();
+  if (!convDoc.exists) {
     res.status(404).json({ error: "Conversaci\xF3n no encontrada" });
     return;
   }
+  const conv = convDoc.data();
   if (conv.user1Id !== userId && conv.user2Id !== userId) {
     res.status(403).json({ error: "No ten\xE9s acceso a esta conversaci\xF3n" });
     return;
   }
-  const message = await prisma.message.create({
-    data: {
-      conversationId: convId,
-      senderId: userId,
-      content: content.trim()
-    },
-    include: { sender: { select: { id: true, email: true, firstName: true, lastName: true } } }
-  });
-  await prisma.conversation.update({
-    where: { id: convId },
-    data: { updatedAt: /* @__PURE__ */ new Date() }
-  });
+  const recipientId = conv.user1Id === userId ? conv.user2Id : conv.user1Id;
+  const messageId = db().collection(COLLECTIONS.MESSAGES).doc().id;
+  const messageData = {
+    conversationId: convId,
+    senderId: userId,
+    content: content.trim(),
+    createdAt: /* @__PURE__ */ new Date()
+  };
+  await db().collection(COLLECTIONS.MESSAGES).doc(messageId).set(messageData);
+  await db().collection(COLLECTIONS.CONVERSATIONS).doc(convId).update({ updatedAt: /* @__PURE__ */ new Date() });
+  const senderDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+  const sender = senderDoc.data();
+  const recipientDoc = await db().collection(COLLECTIONS.USERS).doc(recipientId).get();
+  const fcmToken = recipientDoc.data()?.fcmToken;
+  if (fcmToken) {
+    const senderName = [sender?.firstName, sender?.lastName].filter(Boolean).join(" ") || sender?.email || "Alguien";
+    await sendPushNotification(fcmToken, "Nuevo mensaje", `${senderName}: ${content.trim().slice(0, 50)}`, {
+      type: "new_message",
+      conversationId: convId
+    });
+  }
   res.status(201).json({
-    id: message.id,
-    content: message.content,
-    senderId: message.senderId,
-    sender: message.sender,
+    id: messageId,
+    content: messageData.content,
+    senderId: userId,
+    sender: sender ? { id: userId, email: sender.email, firstName: sender.firstName, lastName: sender.lastName } : null,
     isFromMe: true,
-    createdAt: message.createdAt
+    createdAt: messageData.createdAt
   });
 });
 var messagesRouter = router6;
@@ -5153,68 +5502,73 @@ var router7 = Router7();
 router7.use(requireAuth);
 router7.use(requireAdmin);
 router7.get("/stats", async (_req, res) => {
-  const [usersCount, ordersCount, disputesOpen, kycPending, listingsCount] = await Promise.all([
-    prisma.user.count(),
-    prisma.order.count(),
-    prisma.dispute.count({ where: { status: { in: ["ABIERTA", "EN_REVISION", "ESPERANDO_INFO"] } } }),
-    prisma.kycVerification.count({ where: { status: "EN_REVISION" } }),
-    prisma.ticketListing.count({ where: { status: "DISPONIBLE" } })
+  const [usersSnap, ordersSnap, disputesSnap, kycSnap, listingsSnap, ordersCompletedSnap] = await Promise.all([
+    db().collection(COLLECTIONS.USERS).get(),
+    db().collection(COLLECTIONS.ORDERS).get(),
+    db().collection(COLLECTIONS.DISPUTES).where("status", "in", ["ABIERTA", "EN_REVISION", "ESPERANDO_INFO"]).get(),
+    db().collection(COLLECTIONS.KYC_VERIFICATIONS).where("status", "==", "EN_REVISION").get(),
+    db().collection(COLLECTIONS.TICKET_LISTINGS).where("status", "==", "DISPONIBLE").get(),
+    db().collection(COLLECTIONS.ORDERS).where("status", "==", "COMPLETADA").get()
   ]);
-  const ordersCompleted = await prisma.order.count({ where: { status: "COMPLETADA" } });
   res.json({
-    usersCount,
-    ordersCount,
-    ordersCompleted,
-    disputesOpen,
-    kycPending,
-    listingsCount
+    usersCount: usersSnap.size,
+    ordersCount: ordersSnap.size,
+    ordersCompleted: ordersCompletedSnap.size,
+    disputesOpen: disputesSnap.size,
+    kycPending: kycSnap.size,
+    listingsCount: listingsSnap.size
   });
 });
 router7.get("/users", async (req, res) => {
   const { q, page = "1", limit = "20", role, kycStatus } = req.query;
-  const skip = (Number(page) - 1) * Number(limit);
-  const where = {};
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+  let query = db().collection(COLLECTIONS.USERS).orderBy("createdAt", "desc");
+  if (typeof role === "string" && role) {
+    query = query.where("role", "==", role);
+  }
+  const snap = await query.limit(limitNum * 3).get();
+  let users = snap.docs.map((doc) => {
+    const d = doc.data();
+    return { id: doc.id, ...d, createdAt: d.createdAt?.toDate?.() ?? d.createdAt };
+  });
   if (typeof q === "string" && q) {
-    where.OR = [
-      { email: { contains: q, mode: "insensitive" } },
-      { firstName: { contains: q, mode: "insensitive" } },
-      { lastName: { contains: q, mode: "insensitive" } }
-    ];
+    const ql = q.toLowerCase();
+    users = users.filter(
+      (u) => (u.email || "").toLowerCase().includes(ql) || (u.firstName || "").toLowerCase().includes(ql) || (u.lastName || "").toLowerCase().includes(ql)
+    );
   }
-  if (typeof role === "string" && role) where.role = role;
   if (typeof kycStatus === "string" && kycStatus) {
-    where.kyc = { status: kycStatus };
+    const kycIds = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).where("status", "==", kycStatus).get();
+    const kycUserIds = new Set(kycIds.docs.map((d) => d.data().userId || d.id));
+    users = users.filter((u) => kycUserIds.has(u.id));
   }
-  const [users, total] = await Promise.all([
-    prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        createdAt: true,
-        kyc: { select: { status: true } }
-      },
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: Number(limit)
-    }),
-    prisma.user.count({ where })
-  ]);
-  res.json({ users, total });
+  const total = users.length;
+  const skip = (pageNum - 1) * limitNum;
+  const paginated = users.slice(skip, skip + limitNum);
+  const withKyc = await Promise.all(
+    paginated.map(async (u) => {
+      const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(u.id).get();
+      return { ...u, kyc: kycDoc.exists ? { status: kycDoc.data()?.status } : { status: "PENDIENTE" } };
+    })
+  );
+  res.json({ users: withKyc, total });
 });
 router7.get("/kyc/pending", async (_req, res) => {
-  const list = await prisma.kycVerification.findMany({
-    where: { status: "EN_REVISION" },
-    include: {
-      user: {
-        select: { id: true, email: true, firstName: true, lastName: true }
-      }
-    },
-    orderBy: { updatedAt: "desc" }
-  });
+  const snap = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).where("status", "==", "EN_REVISION").get();
+  const list = await Promise.all(
+    snap.docs.map(async (doc) => {
+      const d = doc.data();
+      const userDoc = await db().collection(COLLECTIONS.USERS).doc(d.userId || doc.id).get();
+      const user = userDoc.data();
+      return {
+        id: doc.id,
+        ...d,
+        user: user ? { id: userDoc.id, email: user.email, firstName: user.firstName, lastName: user.lastName } : null,
+        updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt
+      };
+    })
+  );
   res.json(list);
 });
 router7.patch("/kyc/:userId", async (req, res) => {
@@ -5224,35 +5578,53 @@ router7.patch("/kyc/:userId", async (req, res) => {
     res.status(400).json({ error: "status debe ser APROBADO o RECHAZADO" });
     return;
   }
-  const kyc = await prisma.kycVerification.update({
-    where: { userId },
-    data: {
+  await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).set(
+    {
       status,
       rejectionReason: status === "RECHAZADO" ? rejectionReason || "Rechazado por el administrador" : null,
       reviewedAt: /* @__PURE__ */ new Date(),
-      reviewedBy: req.user.id
+      reviewedBy: req.user.id,
+      updatedAt: /* @__PURE__ */ new Date()
     },
-    include: { user: { select: { id: true, email: true } } }
+    { merge: true }
+  );
+  const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+  res.json({
+    ...kycDoc.data(),
+    user: userDoc.exists ? { id: userId, email: userDoc.data()?.email } : null
   });
-  res.json(kyc);
 });
 router7.get("/disputes", async (req, res) => {
-  const { status } = req.query;
-  const where = typeof status === "string" && status ? { status } : {};
-  const disputes = await prisma.dispute.findMany({
-    where,
-    include: {
-      order: {
-        include: {
-          ticketListing: { select: { eventName: true, eventDate: true } },
-          buyer: { select: { id: true, email: true } },
-          seller: { select: { id: true, email: true } }
-        }
-      },
-      messages: { take: 1, orderBy: { createdAt: "desc" } }
-    },
-    orderBy: { createdAt: "desc" }
-  });
+  let query = db().collection(COLLECTIONS.DISPUTES).orderBy("createdAt", "desc");
+  if (typeof req.query.status === "string" && req.query.status) {
+    query = query.where("status", "==", req.query.status);
+  }
+  const snap = await query.limit(100).get();
+  const disputes = await Promise.all(
+    snap.docs.map(async (doc) => {
+      const d = doc.data();
+      const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(d.orderId).get();
+      const order = orderDoc.data();
+      const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(order.ticketListingId).get();
+      const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(order.buyerId).get();
+      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(order.sellerId).get();
+      const messagesSnap = await db().collection(COLLECTIONS.DISPUTE_MESSAGES).where("disputeId", "==", doc.id).orderBy("createdAt", "desc").limit(1).get();
+      return {
+        id: doc.id,
+        ...d,
+        order: {
+          ...order,
+          ticketListing: listingDoc.exists ? listingDoc.data() : null,
+          buyer: buyerDoc.exists ? { id: order.buyerId, email: buyerDoc.data()?.email } : null,
+          seller: sellerDoc.exists ? { id: order.sellerId, email: sellerDoc.data()?.email } : null
+        },
+        messages: messagesSnap.empty ? [] : [messagesSnap.docs[0].data()],
+        createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+        updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt
+      };
+    })
+  );
   res.json(disputes);
 });
 router7.patch("/disputes/:id/resolve", async (req, res) => {
@@ -5262,78 +5634,100 @@ router7.patch("/disputes/:id/resolve", async (req, res) => {
     res.status(400).json({ error: "resolution debe ser RESUELTA_FAVOR_COMPRADOR o RESUELTA_FAVOR_VENDEDOR" });
     return;
   }
-  const dispute = await prisma.dispute.findUnique({ where: { id }, include: { order: true } });
-  if (!dispute) return res.status(404).json({ error: "Disputa no encontrada" });
+  const disputeDoc = await db().collection(COLLECTIONS.DISPUTES).doc(id).get();
+  if (!disputeDoc.exists) return res.status(404).json({ error: "Disputa no encontrada" });
+  const dispute = disputeDoc.data();
   const orderStatus = resolution === "RESUELTA_FAVOR_COMPRADOR" ? "DISPUTA_RESUELTA_COMPRADOR" : "DISPUTA_RESUELTA_VENDEDOR";
-  await prisma.$transaction([
-    prisma.dispute.update({
-      where: { id },
-      data: { status: resolution, resolvedAt: /* @__PURE__ */ new Date(), resolvedBy: req.user.id }
-    }),
-    prisma.order.update({
-      where: { id: dispute.orderId },
-      data: { status: orderStatus }
-    })
-  ]);
-  const updated = await prisma.dispute.findUnique({
-    where: { id },
-    include: { order: true }
+  await db().collection(COLLECTIONS.DISPUTES).doc(id).update({
+    status: resolution,
+    resolvedAt: /* @__PURE__ */ new Date(),
+    resolvedBy: req.user.id,
+    updatedAt: /* @__PURE__ */ new Date()
   });
-  res.json(updated);
+  await db().collection(COLLECTIONS.ORDERS).doc(dispute.orderId).update({ status: orderStatus, updatedAt: /* @__PURE__ */ new Date() });
+  const updatedDoc = await db().collection(COLLECTIONS.DISPUTES).doc(id).get();
+  const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(dispute.orderId).get();
+  res.json({
+    ...updatedDoc.data(),
+    order: orderDoc.exists ? orderDoc.data() : null
+  });
 });
 router7.get("/conversations", async (req, res) => {
   const { page = "1", limit = "30" } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
-  const [conversations, total] = await Promise.all([
-    prisma.conversation.findMany({
-      include: {
-        user1: { select: { id: true, email: true, firstName: true, lastName: true, numeroId: true } },
-        user2: { select: { id: true, email: true, firstName: true, lastName: true, numeroId: true } },
-        messages: { take: 1, orderBy: { createdAt: "desc" }, select: { content: true, createdAt: true } }
-      },
-      orderBy: { updatedAt: "desc" },
-      skip,
-      take: Number(limit)
-    }),
-    prisma.conversation.count()
-  ]);
+  const snap = await db().collection(COLLECTIONS.CONVERSATIONS).orderBy("updatedAt", "desc").limit(Number(limit) + skip).get();
+  const total = snap.size;
+  const conversations = await Promise.all(
+    snap.docs.slice(skip).map(async (doc) => {
+      const c = doc.data();
+      const user1Doc = await db().collection(COLLECTIONS.USERS).doc(c.user1Id).get();
+      const user2Doc = await db().collection(COLLECTIONS.USERS).doc(c.user2Id).get();
+      const lastMsgSnap = await db().collection(COLLECTIONS.MESSAGES).where("conversationId", "==", doc.id).orderBy("createdAt", "desc").limit(1).get();
+      return {
+        id: doc.id,
+        ...c,
+        user1: user1Doc.exists ? { id: c.user1Id, ...user1Doc.data() } : null,
+        user2: user2Doc.exists ? { id: c.user2Id, ...user2Doc.data() } : null,
+        messages: lastMsgSnap.empty ? [] : [lastMsgSnap.docs[0].data()],
+        updatedAt: c.updatedAt?.toDate?.() ?? c.updatedAt
+      };
+    })
+  );
   res.json({ conversations, total });
 });
 router7.get("/conversations/:id/messages", async (req, res) => {
   const { id } = req.params;
-  const conv = await prisma.conversation.findUnique({
-    where: { id },
-    include: {
-      user1: { select: { id: true, email: true, firstName: true, lastName: true } },
-      user2: { select: { id: true, email: true, firstName: true, lastName: true } },
-      messages: {
-        include: { sender: { select: { id: true, email: true, firstName: true, lastName: true } } },
-        orderBy: { createdAt: "asc" }
-      }
-    }
+  const convDoc = await db().collection(COLLECTIONS.CONVERSATIONS).doc(id).get();
+  if (!convDoc.exists) return res.status(404).json({ error: "Conversaci\xF3n no encontrada" });
+  const conv = convDoc.data();
+  const user1Doc = await db().collection(COLLECTIONS.USERS).doc(conv.user1Id).get();
+  const user2Doc = await db().collection(COLLECTIONS.USERS).doc(conv.user2Id).get();
+  const messagesSnap = await db().collection(COLLECTIONS.MESSAGES).where("conversationId", "==", id).orderBy("createdAt", "asc").get();
+  const messages = await Promise.all(
+    messagesSnap.docs.map(async (m) => {
+      const md = m.data();
+      const senderDoc = await db().collection(COLLECTIONS.USERS).doc(md.senderId).get();
+      return {
+        id: m.id,
+        ...md,
+        sender: senderDoc.exists ? { id: md.senderId, ...senderDoc.data() } : null,
+        createdAt: md.createdAt?.toDate?.() ?? md.createdAt
+      };
+    })
+  );
+  res.json({
+    id: convDoc.id,
+    user1: user1Doc.exists ? { id: conv.user1Id, ...user1Doc.data() } : null,
+    user2: user2Doc.exists ? { id: conv.user2Id, ...user2Doc.data() } : null,
+    messages
   });
-  if (!conv) return res.status(404).json({ error: "Conversaci\xF3n no encontrada" });
-  res.json(conv);
 });
 router7.get("/orders", async (req, res) => {
   const { page = "1", limit = "20", status } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
-  const where = typeof status === "string" && status ? { status } : {};
-  const [orders, total] = await Promise.all([
-    prisma.order.findMany({
-      where,
-      include: {
-        ticketListing: { select: { eventName: true, price: true } },
-        buyer: { select: { email: true } },
-        seller: { select: { email: true } }
-      },
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: Number(limit)
-    }),
-    prisma.order.count({ where })
-  ]);
-  res.json({ orders, total });
+  let query = db().collection(COLLECTIONS.ORDERS).orderBy("createdAt", "desc");
+  if (typeof status === "string" && status) {
+    query = query.where("status", "==", status);
+  }
+  const snap = await query.limit(skip + Number(limit)).get();
+  const orders = await Promise.all(
+    snap.docs.slice(skip).map(async (doc) => {
+      const d = doc.data();
+      const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
+      const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(d.buyerId).get();
+      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+      return {
+        id: doc.id,
+        ...d,
+        ticketListing: listingDoc.exists ? { id: listingDoc.id, ...listingDoc.data() } : null,
+        buyer: buyerDoc.exists ? { email: buyerDoc.data()?.email } : null,
+        seller: sellerDoc.exists ? { email: sellerDoc.data()?.email } : null,
+        createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+        updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt
+      };
+    })
+  );
+  res.json({ orders, total: snap.size });
 });
 var adminRouter = router7;
 
@@ -5342,8 +5736,8 @@ import { Router as Router8 } from "express";
 var healthRouter = Router8();
 healthRouter.get("/", async (_req, res) => {
   try {
-    await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: "ok", db: "connected" });
+    getFirebaseAdmin();
+    res.json({ status: "ok", db: "firestore" });
   } catch (e) {
     res.status(503).json({ status: "error", db: "disconnected" });
   }
@@ -5360,6 +5754,7 @@ function mapDiditStatus(status) {
     case "Declined":
       return "RECHAZADO";
     case "In Review":
+      return "EN_REVISION";
     case "Not Started":
     case "Kyc Expired":
     case "Abandoned":
@@ -5388,22 +5783,23 @@ router8.post("/didit", async (req, res) => {
   } catch {
     return res.status(400).json({ error: "JSON inv\xE1lido" });
   }
-  const { session_id, status, vendor_data, decision } = body;
+  const { status, vendor_data } = body;
   const userId = vendor_data;
   if (!userId) {
     return res.status(400).json({ error: "vendor_data requerido" });
   }
   const ourStatus = mapDiditStatus(status || "");
-  const rejectionReason = status === "Declined" && decision?.kyc ? "Verificaci\xF3n rechazada por Didit" : null;
+  const rejectionReason = status === "Declined" && body.decision?.kyc ? "Verificaci\xF3n rechazada por Didit" : null;
   try {
-    await prisma.kycVerification.update({
-      where: { userId },
-      data: {
+    await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).set(
+      {
         status: ourStatus,
         ...rejectionReason && { rejectionReason },
-        ...ourStatus === "APROBADO" || ourStatus === "RECHAZADO" ? { reviewedAt: /* @__PURE__ */ new Date() } : {}
-      }
-    });
+        ...ourStatus === "APROBADO" || ourStatus === "RECHAZADO" ? { reviewedAt: /* @__PURE__ */ new Date() } : {},
+        updatedAt: /* @__PURE__ */ new Date()
+      },
+      { merge: true }
+    );
     return res.json({ message: "Webhook procesado" });
   } catch (e) {
     console.error("Error actualizando KYC:", e);
@@ -5413,18 +5809,18 @@ router8.post("/didit", async (req, res) => {
 var webhooksRouter = router8;
 
 // src/index.ts
-var __dirname2 = path2.dirname(fileURLToPath2(import.meta.url));
-var app = express();
+var __dirname = path.dirname(fileURLToPath(import.meta.url));
+var app2 = express();
 var PORT = process.env.PORT ?? 3001;
-app.set("trust proxy", 1);
+app2.set("trust proxy", 1);
 var isProduction = process.env.NODE_ENV === "production";
 var corsOrigin = isProduction ? true : [
   process.env.CORS_ORIGIN_WEB || "http://localhost:5173",
   process.env.CORS_ORIGIN_ADMIN || "http://localhost:5174"
 ].filter(Boolean);
-app.use(helmet());
-app.use(cors({ origin: corsOrigin, credentials: true }));
-app.use(
+app2.use(helmet());
+app2.use(cors({ origin: corsOrigin, credentials: true }));
+app2.use(
   express.json({
     limit: "2mb",
     verify: (req, _res, buf) => {
@@ -5432,32 +5828,36 @@ app.use(
     }
   })
 );
-ensureUploadsDir();
-app.use("/uploads", express.static(uploadsDir));
-app.use(
+app2.use(
   rateLimit({
     windowMs: 15 * 60 * 1e3,
     max: 200,
     message: { error: "Demasiadas solicitudes" }
   })
 );
-app.use("/api/health", healthRouter);
-app.use("/api/auth", authRouter);
-app.use("/api/webhooks", webhooksRouter);
-app.use("/api/users", usersRouter);
-app.use("/api/tickets", ticketsRouter);
-app.use("/api/orders", ordersRouter);
-app.use("/api/disputes", disputesRouter);
-app.use("/api/messages", messagesRouter);
-app.use("/api/admin", adminRouter);
-app.use((_req, res) => {
+try {
+  getFirebaseAdmin();
+  console.log("Firebase inicializado");
+} catch (e) {
+  console.warn("Firebase no configurado. Defin\xED GOOGLE_APPLICATION_CREDENTIALS o FIREBASE_SERVICE_ACCOUNT_JSON.");
+}
+app2.use("/api/health", healthRouter);
+app2.use("/api/auth", authRouter);
+app2.use("/api/webhooks", webhooksRouter);
+app2.use("/api/users", usersRouter);
+app2.use("/api/tickets", ticketsRouter);
+app2.use("/api/orders", ordersRouter);
+app2.use("/api/disputes", disputesRouter);
+app2.use("/api/messages", messagesRouter);
+app2.use("/api/admin", adminRouter);
+app2.use((_req, res) => {
   res.status(404).json({ error: "No encontrado" });
 });
-app.use((err, _req, res) => {
+app2.use((err, _req, res) => {
   console.error(err);
   res.status(500).json({ error: "Error interno del servidor" });
 });
-app.listen(PORT, () => {
+app2.listen(PORT, () => {
   console.log(`API Tickets Transfer v2 en http://localhost:${PORT}`);
 });
 //# sourceMappingURL=index.js.map
