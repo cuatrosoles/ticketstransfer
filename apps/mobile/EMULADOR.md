@@ -36,7 +36,7 @@ adb install -r v2/apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
 
 # Debug en emulador
 
-Para desarrollar y depurar con live reload y herramientas de desarrollo:
+Paraaa desarrollar y depurar con live reload y herramientas de desarrollo:
 
 ## 1. Iniciar Metro (bundler)
 
