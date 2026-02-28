@@ -19,6 +19,7 @@ export const COLLECTIONS = {
   DISPUTE_MESSAGES: 'disputeMessages',
   CONVERSATIONS: 'conversations',
   MESSAGES: 'messages',
+  PLATFORM_SETTINGS: 'platformSettings',
 } as const;
 
 export type FirestoreFieldValue = FieldValue;

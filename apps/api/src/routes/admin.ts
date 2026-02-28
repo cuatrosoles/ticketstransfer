@@ -5,11 +5,72 @@
 import { Router } from 'express';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { requireAuth, requireAdmin, type AuthRequest } from '../middleware/auth.js';
+import { getPlatformSettings, invalidateSettingsCache } from '../lib/settings.js';
 
 const router = Router();
 
 router.use(requireAuth);
 router.use(requireAdmin);
+
+/** Configuración de la plataforma */
+router.get('/settings', async (_req, res) => {
+  const settings = await getPlatformSettings();
+  res.json({
+    ...settings,
+    mercadopago: {
+      ...settings.mercadopago,
+      accessToken: settings.mercadopago.accessToken ? '••••••••' + settings.mercadopago.accessToken.slice(-4) : '',
+      webhookSecret: settings.mercadopago.webhookSecret ? '••••••••' : '',
+    },
+  });
+});
+
+router.put('/settings', async (req: AuthRequest, res) => {
+  const body = req.body as Record<string, unknown>;
+  const docRef = db().collection(COLLECTIONS.PLATFORM_SETTINGS).doc('main');
+  const current = await getPlatformSettings();
+
+  const updates: Record<string, unknown> = {
+    updatedAt: new Date(),
+  };
+
+  if (typeof body.commissionPercentage === 'number' && body.commissionPercentage >= 0 && body.commissionPercentage <= 100) {
+    updates.commissionPercentage = body.commissionPercentage;
+  }
+
+  if (body.mercadopago && typeof body.mercadopago === 'object') {
+    const mp = body.mercadopago as Record<string, unknown>;
+    const useNew = (val: unknown, key: 'accessToken' | 'webhookSecret') =>
+      typeof val === 'string' && val.length > 0 && !val.startsWith('••••') ? val : (current.mercadopago[key] || '');
+    updates.mercadopago = {
+      enabled: typeof mp.enabled === 'boolean' ? mp.enabled : current.mercadopago.enabled,
+      accessToken: useNew(mp.accessToken, 'accessToken'),
+      webhookSecret: useNew(mp.webhookSecret, 'webhookSecret'),
+      sandboxMode: typeof mp.sandboxMode === 'boolean' ? mp.sandboxMode : current.mercadopago.sandboxMode,
+    };
+  }
+
+  if (body.users && typeof body.users === 'object') {
+    updates.users = { ...current.users, ...body.users };
+  }
+
+  if (body.visual && typeof body.visual === 'object') {
+    updates.visual = { ...current.visual, ...body.visual };
+  }
+
+  await docRef.set(updates, { merge: true });
+  invalidateSettingsCache();
+
+  const updated = await getPlatformSettings();
+  res.json({
+    ...updated,
+    mercadopago: {
+      ...updated.mercadopago,
+      accessToken: updated.mercadopago.accessToken ? '••••••••' + updated.mercadopago.accessToken.slice(-4) : '',
+      webhookSecret: updated.mercadopago.webhookSecret ? '••••••••' : '',
+    },
+  });
+});
 
 router.get('/stats', async (_req, res) => {
   const [usersSnap, ordersSnap, disputesSnap, kycSnap, listingsSnap, ordersCompletedSnap] = await Promise.all([

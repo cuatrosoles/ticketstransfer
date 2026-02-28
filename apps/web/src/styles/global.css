@@ -220,6 +220,7 @@ a:hover { text-decoration: underline; }
 
 .label-section { font-weight: 600; margin: 1rem 0 0.5rem; color: var(--text-muted); font-size: 0.95rem; }
 .text-muted { color: var(--text-muted); }
+.text-success { color: #22c55e; font-weight: 500; }
 .layout-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; position: sticky; top: 0; z-index: 10; }
 .header-btn { background: none; border: none; color: var(--text); padding: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .page-title { font-size: 1.35rem; margin-bottom: 1rem; }

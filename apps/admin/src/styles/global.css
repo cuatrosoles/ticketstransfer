@@ -53,3 +53,27 @@ tr:hover { background: rgba(255,255,255,0.03); }
 .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
 .stat-card .value { font-size: 1.75rem; font-weight: 700; }
 .stat-card .label { font-size: 0.875rem; color: var(--text-muted); }
+
+/* Configuración */
+.config-tabs { display: flex; gap: 0.25rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+.config-tab {
+  padding: 0.75rem 1rem; background: none; border: none; color: var(--text-muted); cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 500;
+}
+.config-tab:hover { color: var(--text); }
+.config-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.config-content { max-width: 600px; }
+.config-section h2 { font-size: 1.125rem; margin: 0 0 0.5rem; }
+.config-section .text-muted { font-size: 0.875rem; margin-bottom: 1rem; color: var(--text-muted); }
+.config-section .form-group { margin-bottom: 1.25rem; }
+.config-section .form-group label { display: block; margin-bottom: 0.35rem; font-size: 0.9rem; }
+.config-section .form-group input[type="text"],
+.config-section .form-group input[type="number"],
+.config-section .form-group input[type="password"] {
+  width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text); font-size: 0.95rem;
+}
+.config-section .form-group input[type="checkbox"] { margin-right: 0.5rem; }
+.config-section .form-group small { display: block; margin-top: 0.25rem; font-size: 0.8rem; color: var(--text-muted); }
+.config-actions { margin-top: 1.5rem; }
+.text-muted { color: var(--text-muted); }

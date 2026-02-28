@@ -112,11 +112,11 @@ export function ComprarTicketScreen() {
     setError('');
     setLoading(true);
     try {
-      const order = await api<{ id: string }>('/api/orders', {
+      const res = await api<{ order: { id: string }; checkoutUrl?: string }>('/api/orders', {
         method: 'POST',
         body: JSON.stringify({ ticketListingId: preview.id, paymentMethod: 'mercadopago' }),
       });
-      navigation.navigate('OrderPago', { orderId: order.id });
+      navigation.navigate('OrderPago', { orderId: res.order.id, checkoutUrl: res.checkoutUrl });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo iniciar la compra.');
     } finally {

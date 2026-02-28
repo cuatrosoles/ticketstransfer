@@ -1,0 +1,75 @@
+/**
+ * Configuración de la plataforma - Firestore.
+ * Valores por defecto y helpers para leer settings.
+ */
+
+import { db, COLLECTIONS } from './firestore.js';
+
+export type MercadoPagoSettings = {
+  enabled: boolean;
+  accessToken: string;
+  webhookSecret: string;
+  sandboxMode: boolean;
+};
+
+export type PlatformSettings = {
+  commissionPercentage: number;
+  mercadopago: MercadoPagoSettings;
+  users?: Record<string, unknown>;
+  visual?: Record<string, unknown>;
+  updatedAt?: Date;
+};
+
+const DEFAULTS: PlatformSettings = {
+  commissionPercentage: 6.5,
+  mercadopago: {
+    enabled: false,
+    accessToken: '',
+    webhookSecret: '',
+    sandboxMode: true,
+  },
+  users: {},
+  visual: {},
+};
+
+const SETTINGS_DOC_ID = 'main';
+
+let cachedSettings: PlatformSettings | null = null;
+let cacheExpiry = 0;
+const CACHE_TTL_MS = 60_000; // 1 minuto
+
+export async function getPlatformSettings(): Promise<PlatformSettings> {
+  if (cachedSettings && Date.now() < cacheExpiry) {
+    return cachedSettings;
+  }
+  const doc = await db().collection(COLLECTIONS.PLATFORM_SETTINGS).doc(SETTINGS_DOC_ID).get();
+  if (!doc.exists) {
+    cachedSettings = { ...DEFAULTS };
+    return cachedSettings;
+  }
+  const d = doc.data()!;
+  cachedSettings = {
+    commissionPercentage: d.commissionPercentage ?? DEFAULTS.commissionPercentage,
+    mercadopago: {
+      enabled: d.mercadopago?.enabled ?? DEFAULTS.mercadopago.enabled,
+      accessToken: d.mercadopago?.accessToken ?? '',
+      webhookSecret: d.mercadopago?.webhookSecret ?? '',
+      sandboxMode: d.mercadopago?.sandboxMode ?? true,
+    },
+    users: d.users ?? {},
+    visual: d.visual ?? {},
+    updatedAt: d.updatedAt?.toDate?.() ?? undefined,
+  };
+  cacheExpiry = Date.now() + CACHE_TTL_MS;
+  return cachedSettings;
+}
+
+export function invalidateSettingsCache(): void {
+  cachedSettings = null;
+  cacheExpiry = 0;
+}
+
+export async function getCommissionPercentage(): Promise<number> {
+  const s = await getPlatformSettings();
+  return s.commissionPercentage;
+}

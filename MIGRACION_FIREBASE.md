@@ -109,11 +109,43 @@ pnpm add firebase
 
 ## 6. Migración de datos (opcional)
 
-Si tenés datos en PostgreSQL, podés crear un script que:
-1. Lea usuarios, tickets, órdenes, etc. de PostgreSQL
-2. Cree usuarios en Firebase Auth con `admin.auth().importUsers()`
-3. Inserte documentos en Firestore
-4. Suba archivos a Storage desde las URLs actuales
+Si tenés datos en PostgreSQL, usá el script de migración incluido.
+
+### Requisitos previos
+
+1. **PostgreSQL accesible**: La variable `DATABASE_URL` debe apuntar a tu base actual.
+2. **Firebase configurado**: `FIREBASE_SERVICE_ACCOUNT_JSON` o `GOOGLE_APPLICATION_CREDENTIALS` y `FIREBASE_STORAGE_BUCKET`.
+3. **Prisma generado**: El cliente Prisma debe estar generado (`npx prisma generate`).
+
+### Ejecución
+
+```bash
+cd apps/api
+pnpm install
+npx prisma generate
+pnpm run migrate:postgres-to-firebase
+```
+
+O desde la raíz del monorepo:
+
+```bash
+pnpm --filter api exec npx prisma generate
+pnpm --filter api run migrate:postgres-to-firebase
+```
+
+### Qué hace el script
+
+1. **Usuarios** → Crea cada usuario en Firebase Auth (con UID = UUID de PostgreSQL) y documento en Firestore `users`. Contraseña temporal: `TempMigracion2024!`.
+2. **UserOnboarding** → Inserta en `userOnboarding`.
+3. **KYC** → Inserta en `kycVerifications` y migra imágenes (dniFront, dniBack, selfie) a Storage si son URLs HTTP.
+4. **TicketListings** → Inserta en `ticketListings` y migra capturas a Storage.
+5. **Orders** → Inserta en `orders` y migra evidencia a Storage.
+6. **OrderRatings**, **Disputes**, **DisputeMessages**, **Conversations**, **Messages** → Inserta en Firestore.
+
+### Después de migrar
+
+- Los usuarios deben usar **"Olvidé mi contraseña"** para establecer una contraseña nueva (la temporal es solo para la migración).
+- Si un usuario ya existe en Firebase Auth, el script lo omite y continúa.
 
 ## 7. Usuario admin
 

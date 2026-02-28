@@ -38,16 +38,16 @@ Acciones que debes realizar tú para dejar la plataforma lista y desplegada.
 
 ---
 
-## 2. Pagos (Mercado Pago / Stripe)
+## 2. Pagos (Mercado Pago)
 
-La API actualmente no procesa pagos reales. Para producción:
+La integración con **Mercado Pago Checkout Pro** está implementada. Para activarla:
 
-- **Mercado Pago** o **Stripe**: crear cuenta, obtener claves (test/producción) y guardarlas en variables de entorno de la API.
-- En `apps/api/src/routes/orders.ts` (y/o un servicio de pagos):
-  - Crear el payment intent / preferencia con la SDK correspondiente.
-  - Devolver al front el `client_secret` o `init_point` para que el usuario pague.
-  - Implementar el **webhook** que recibe la notificación de pago aprobado y actualiza la orden a `PAGADO` / `ESPERANDO_TRANSFERENCIA`.
-- En la web, en la pantalla de pago, integrar el checkout (botón de MP o elementos de Stripe) usando lo que devuelva la API.
+1. Seguir las instrucciones en **[docs/MERCADOPAGO.md](MERCADOPAGO.md)**.
+2. Configurar en `apps/api/.env`:
+   - `MERCADOPAGO_ACCESS_TOKEN`
+   - `MERCADOPAGO_WEBHOOK_SECRET`
+   - `WEB_URL` (URL pública de la app web)
+3. En [Tus integraciones](https://www.mercadopago.com.ar/developers/panel/app) → Webhooks → URL: `https://tu-api.com/api/webhooks/mercadopago`.
 
 ---
 

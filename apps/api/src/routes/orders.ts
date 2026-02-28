@@ -1,5 +1,5 @@
 /**
- * Rutas de órdenes - Firestore + Firebase Storage.
+ * Rutas de órdenes - Firestore + Firebase Storage + MercadoPago.
  */
 
 import { Router } from 'express';
@@ -9,6 +9,8 @@ import { uploadFile } from '../lib/firebase-storage.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { createOrderSchema, confirmReceivedSchema } from '@tickets-transfer/shared';
 import { HORAS_MAX_TRANSFERENCIA_VENDEDOR } from '@tickets-transfer/shared';
+import { isMercadoPagoConfigured, createCheckoutPreference } from '../lib/mercadopago.js';
+import { getCommissionPercentage } from '../lib/settings.js';
 
 const router = Router();
 const upload = multer({
@@ -41,7 +43,8 @@ router.post('/', async (req: AuthRequest, res) => {
     return;
   }
 
-  const commissionAmount = listing.price * 0.05;
+  const commissionRate = (await getCommissionPercentage()) / 100;
+  const commissionAmount = listing.price * commissionRate;
   const totalAmount = listing.price + commissionAmount;
   const transferDeadline = new Date();
   transferDeadline.setHours(transferDeadline.getHours() + HORAS_MAX_TRANSFERENCIA_VENDEDOR);
@@ -63,6 +66,38 @@ router.post('/', async (req: AuthRequest, res) => {
 
   await db().collection(COLLECTIONS.ORDERS).doc(orderId).set(orderData);
 
+  let checkoutUrl: string | undefined;
+
+  if (paymentMethod === 'mercadopago' && (await isMercadoPagoConfigured())) {
+    try {
+      const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
+      const { initPoint, preferenceId: prefId } = await createCheckoutPreference({
+        orderId,
+        title: listing.eventName || 'Ticket',
+        unitPrice: totalAmount,
+        quantity: 1,
+        currency: listing.currency || 'ARS',
+        payerEmail: buyerDoc.data()?.email,
+      });
+      checkoutUrl = initPoint;
+      await db().collection(COLLECTIONS.ORDERS).doc(orderId).update({
+        mercadopagoPreferenceId: prefId,
+        mercadopagoCheckoutUrl: initPoint,
+        updatedAt: new Date(),
+      });
+    } catch (e) {
+      console.error('Error creando preferencia MercadoPago:', e);
+      res.status(500).json({ error: 'No se pudo iniciar el checkout. Intentá de nuevo.' });
+      return;
+    }
+  } else if (paymentMethod === 'stripe') {
+    res.status(400).json({ error: 'Stripe aún no está disponible. Usá Mercado Pago.' });
+    return;
+  } else if (paymentMethod === 'mercadopago' && !(await isMercadoPagoConfigured())) {
+    res.status(503).json({ error: 'Mercado Pago no está configurado. Contactá al administrador.' });
+    return;
+  }
+
   const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(listing.sellerId).get();
   const order = {
     id: orderId,
@@ -73,8 +108,8 @@ router.post('/', async (req: AuthRequest, res) => {
 
   res.status(201).json({
     order,
-    paymentNeeded: true,
-    message: 'Integrar Mercado Pago o Stripe para completar el pago.',
+    paymentNeeded: !!checkoutUrl,
+    checkoutUrl: checkoutUrl ?? undefined,
   });
 });
 
@@ -130,6 +165,43 @@ router.get('/my/sales', async (req: AuthRequest, res) => {
   res.json(orders);
 });
 
+router.get('/:id/checkout-url', async (req: AuthRequest, res) => {
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
+  const d = doc.data()!;
+  if (d.buyerId !== req.user!.id) return res.status(404).json({ error: 'No encontrado' });
+  if (d.status !== 'PENDIENTE_PAGO') return res.status(400).json({ error: 'La orden ya no está pendiente de pago' });
+  if (d.paymentMethod !== 'mercadopago') return res.status(400).json({ error: 'Solo Mercado Pago soporta checkout URL' });
+
+  let checkoutUrl = d.mercadopagoCheckoutUrl;
+  if (!checkoutUrl && (await isMercadoPagoConfigured())) {
+    try {
+      const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
+      const listing = listingDoc.data()!;
+      const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(d.buyerId).get();
+      const { initPoint, preferenceId: prefId } = await createCheckoutPreference({
+        orderId: req.params.id,
+        title: listing.eventName || 'Ticket',
+        unitPrice: d.totalAmount,
+        quantity: 1,
+        currency: d.currency || 'ARS',
+        payerEmail: buyerDoc.data()?.email,
+      });
+      checkoutUrl = initPoint;
+      await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({
+        mercadopagoPreferenceId: prefId,
+        mercadopagoCheckoutUrl: initPoint,
+        updatedAt: new Date(),
+      });
+    } catch (e) {
+      console.error('Error creando preferencia MercadoPago:', e);
+      return res.status(500).json({ error: 'No se pudo generar el link de pago' });
+    }
+  }
+  if (!checkoutUrl) return res.status(503).json({ error: 'Mercado Pago no configurado' });
+  res.json({ checkoutUrl });
+});
+
 router.get('/:id', async (req: AuthRequest, res) => {
   const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
@@ -151,6 +223,7 @@ router.get('/:id', async (req: AuthRequest, res) => {
     createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
     updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
     transferDeadline: d.transferDeadline?.toDate?.() ?? d.transferDeadline,
+    checkoutUrl: d.mercadopagoCheckoutUrl ?? undefined,
   });
 });
 
@@ -159,6 +232,11 @@ router.post('/:id/confirm-payment', async (req: AuthRequest, res) => {
   if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
   const d = doc.data()!;
   if (d.buyerId !== req.user!.id || d.status !== 'PENDIENTE_PAGO') return res.status(404).json({ error: 'No encontrado' });
+  if (d.paymentMethod === 'mercadopago') {
+    return res.status(400).json({
+      error: 'El pago se confirma al completar el checkout de Mercado Pago. Usá el botón "Pagar con Mercado Pago".',
+    });
+  }
   await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({ status: 'ESPERANDO_TRANSFERENCIA', updatedAt: new Date() });
   res.json({ ok: true, status: 'ESPERANDO_TRANSFERENCIA' });
 });

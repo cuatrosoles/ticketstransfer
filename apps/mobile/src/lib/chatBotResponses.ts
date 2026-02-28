@@ -200,7 +200,7 @@ const RESPONSES: Record<ChatIntent, BotResponse> = {
     quickReplies: ['Mi ticket fue rechazado', '¿Cuánto tarda?', 'Otro tema'],
   },
   pago: {
-    text: 'Los **pagos** en Tickets Transfer se realizan de forma segura:\n\n• Aceptamos **MercadoPago** y otros métodos\n• El dinero queda en custodia hasta que el comprador confirme la recepción del ticket\n• Hay una **comisión del 5%** por transacción para mantener la plataforma\n\n¿Tenés dudas sobre algún pago?',
+    text: 'Los **pagos** en Tickets Transfer se realizan de forma segura:\n\n• Aceptamos **MercadoPago** y otros métodos\n• El dinero queda en custodia hasta que el comprador confirme la recepción del ticket\n• Hay un **cargo por servicio** (comisión configurable, por defecto 6.5%) por transacción\n\n¿Tenés dudas sobre algún pago?',
     quickReplies: ['Comisión', 'Problemas con un pago', 'Devolución'],
   },
   disputa: {
@@ -212,7 +212,7 @@ const RESPONSES: Record<ChatIntent, BotResponse> = {
     quickReplies: ['No recibí el ticket', '¿Cuánto tarda?', 'Ayuda'],
   },
   comision: {
-    text: 'La **comisión** de Tickets Transfer es del **5%** sobre el precio de venta:\n\n• Se deduce del monto que recibe el vendedor\n• Ejemplo: ticket a $15.000 → vos recibís $14.250\n• Sirve para mantener la plataforma, verificación y soporte\n\n¿Otra consulta?',
+    text: 'El **cargo por servicio** de Tickets Transfer es configurable (por defecto **6.5%**):\n\n• Se suma al precio del ticket para el comprador\n• Ejemplo: ticket $15.000 + 6.5% → total $15.975\n• Sirve para mantener la plataforma, verificación y soporte\n\n¿Otra consulta?',
     quickReplies: ['Entendido', 'Publicar ticket', 'Ayuda'],
   },
   contacto: {

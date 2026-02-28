@@ -13,7 +13,7 @@ export type RootStackParamList = {
   KycWebView: { sessionUrl: string };
   Publish: undefined;
   ComprarTicket: undefined;
-  OrderPago: { orderId: string };
+  OrderPago: { orderId: string; checkoutUrl?: string };
   MyPurchases: undefined;
   MySales: undefined;
   Profile: undefined;

@@ -1,10 +1,16 @@
 /**
- * Webhooks externos (Didit KYC) - Firestore.
+ * Webhooks externos (Didit KYC, MercadoPago) - Firestore.
  */
 
 import { Router, type Request, type Response } from 'express';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { verifyDiditWebhookSignature } from '../lib/didit.js';
+import {
+  isMercadoPagoConfigured,
+  getPaymentById,
+  verifyMercadoPagoWebhookSignature,
+  getMercadoPagoWebhookSecret,
+} from '../lib/mercadopago.js';
 
 const router = Router();
 
@@ -77,6 +83,76 @@ router.post('/didit', async (req: Request, res: Response) => {
     console.error('Error actualizando KYC:', e);
     return res.status(500).json({ error: 'Error interno' });
   }
+});
+
+/** Webhook MercadoPago: notificaciones de pago (topic: payment) */
+router.post('/mercadopago', async (req: Request, res: Response) => {
+  const rawBody = (req as Request & { rawBody?: string }).rawBody;
+  if (!rawBody) {
+    return res.status(400).json({ error: 'Raw body no disponible' });
+  }
+
+  let body: { type?: string; data?: { id?: string } };
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    return res.status(400).json({ error: 'JSON inválido' });
+  }
+
+  const { type, data } = body;
+  if (type !== 'payment' || !data?.id) {
+    return res.status(200).json({ received: true });
+  }
+
+  const paymentId = String(data.id);
+  const xSignature = req.get('x-signature') ?? req.get('X-Signature');
+  const xRequestId = req.get('x-request-id') ?? req.get('X-Request-Id') ?? '';
+
+  const webhookSecret = await getMercadoPagoWebhookSecret();
+  if (webhookSecret && xSignature) {
+    const parts = xSignature.split(',');
+    let ts = '';
+    let v1 = '';
+    for (const part of parts) {
+      const [key, val] = part.split('=').map((s) => s.trim());
+      if (key === 'ts') ts = val;
+      if (key === 'v1') v1 = val;
+    }
+    const dataId = paymentId.toLowerCase();
+    const isValid = verifyMercadoPagoWebhookSignature(dataId, xRequestId, ts, webhookSecret, v1);
+    if (!isValid) {
+      console.warn('Webhook MercadoPago: firma inválida');
+      return res.status(401).json({ error: 'Firma inválida' });
+    }
+  }
+
+  if (!isMercadoPagoConfigured()) {
+    return res.status(200).json({ received: true });
+  }
+
+  const payment = await getPaymentById(paymentId);
+  if (!payment) {
+    return res.status(200).json({ received: true });
+  }
+
+  const orderId = payment.external_reference;
+  if (!orderId) {
+    return res.status(200).json({ received: true });
+  }
+
+  if (payment.status === 'approved') {
+    const orderRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
+    const orderDoc = await orderRef.get();
+    if (orderDoc.exists && orderDoc.data()?.status === 'PENDIENTE_PAGO') {
+      await orderRef.update({
+        status: 'ESPERANDO_TRANSFERENCIA',
+        paymentIntentId: paymentId,
+        updatedAt: new Date(),
+      });
+    }
+  }
+
+  return res.status(200).json({ received: true });
 });
 
 export const webhooksRouter = router;

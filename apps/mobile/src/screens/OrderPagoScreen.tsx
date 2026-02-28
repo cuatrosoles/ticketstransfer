@@ -1,11 +1,11 @@
 /**
- * Pago de orden – Confirmar pago (escrow) tras Comprar Ticket.
+ * Pago de orden – Mercado Pago Checkout Pro (escrow) tras Comprar Ticket.
  * Ubicación: apps/mobile/src/screens/OrderPagoScreen.tsx
  */
 
 import * as React from 'react';
 import { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Linking } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../navigation/types';
 import { api } from '../lib/api';
@@ -20,6 +20,7 @@ type Order = {
   currency: string;
   status: string;
   ticketListing?: { eventName: string };
+  checkoutUrl?: string;
 };
 
 type Route = RouteProp<RootStackParamList, 'OrderPago'>;
@@ -29,7 +30,7 @@ export function OrderPagoScreen() {
   const navigation = useNavigation();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(params?.checkoutUrl ?? null);
 
   useEffect(() => {
     if (!params?.orderId) {
@@ -37,22 +38,23 @@ export function OrderPagoScreen() {
       return;
     }
     api<Order>(`/api/orders/${params.orderId}`)
-      .then(setOrder)
+      .then((o) => {
+        setOrder(o);
+        setCheckoutUrl((prev) => prev || o.checkoutUrl || null);
+      })
       .catch(() => setOrder(null))
       .finally(() => setLoading(false));
   }, [params?.orderId]);
 
-  const confirmPayment = async () => {
-    if (!params?.orderId) return;
-    setSubmitting(true);
-    try {
-      await api(`/api/orders/${params.orderId}/confirm-payment`, { method: 'POST' });
-      navigation.navigate('MyPurchases');
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error al confirmar pago');
-    } finally {
-      setSubmitting(false);
-    }
+  useEffect(() => {
+    if (!params?.orderId || !order || order.status !== 'PENDIENTE_PAGO' || checkoutUrl) return;
+    api<{ checkoutUrl: string }>(`/api/orders/${params.orderId}/checkout-url`)
+      .then((r) => setCheckoutUrl(r.checkoutUrl))
+      .catch(() => {});
+  }, [params?.orderId, order?.status, checkoutUrl]);
+
+  const payWithMercadoPago = () => {
+    if (checkoutUrl) Linking.openURL(checkoutUrl);
   };
 
   if (loading) {
@@ -90,17 +92,22 @@ export function OrderPagoScreen() {
         <Text style={styles.escrow}>
           Tu dinero será retenido hasta que el vendedor transfiera el ticket.
         </Text>
-        {order.status === 'PENDIENTE_PAGO' && (
-          <TouchableOpacity
-            style={[styles.btn, submitting && styles.btnDisabled]}
-            onPress={confirmPayment}
-            disabled={submitting}
-          >
-            {submitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.btnText}>Confirmar pago</Text>}
+        {order.status === 'PENDIENTE_PAGO' && checkoutUrl && (
+          <TouchableOpacity style={styles.btn} onPress={payWithMercadoPago}>
+            <Text style={styles.btnText}>Pagar con Mercado Pago</Text>
           </TouchableOpacity>
         )}
-        {order.status !== 'PENDIENTE_PAGO' && (
-          <Text style={styles.muted}>Esta orden ya fue procesada.</Text>
+        {order.status === 'PENDIENTE_PAGO' && !checkoutUrl && (
+          <Text style={styles.muted}>Generando link de pago…</Text>
+        )}
+        {['ESPERANDO_TRANSFERENCIA', 'TRANSFERIDO_VENDEDOR', 'ESPERANDO_CONFIRMACION_COMPRADOR', 'EVIDENCIA_SUBIDA', 'VERIFICANDO'].includes(order.status) && (
+          <Text style={styles.success}>Pago recibido. Esperando la transferencia del vendedor.</Text>
+        )}
+        {order.status === 'COMPLETADA' && (
+          <Text style={styles.success}>¡Orden completada!</Text>
+        )}
+        {!['PENDIENTE_PAGO', 'ESPERANDO_TRANSFERENCIA', 'TRANSFERIDO_VENDEDOR', 'ESPERANDO_CONFIRMACION_COMPRADOR', 'EVIDENCIA_SUBIDA', 'VERIFICANDO', 'COMPLETADA'].includes(order.status) && (
+          <Text style={styles.muted}>Estado: {order.status}</Text>
         )}
         </View>
       </ScrollView>
@@ -124,4 +131,5 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.7 },
   btnText: { color: colors.white, fontWeight: '600', fontSize: 16 },
   muted: { fontSize: 14, color: colors.textMuted },
+  success: { fontSize: 14, color: colors.primary, fontWeight: '600', marginTop: spacing.sm },
 });

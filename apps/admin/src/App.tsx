@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
+import { Configuracion } from './pages/Configuracion';
 import { Users } from './pages/Users';
 import { Kyc } from './pages/Kyc';
 import { Disputes } from './pages/Disputes';
@@ -30,6 +31,7 @@ export function App() {
         <Route path="conversations" element={<Conversations />} />
         <Route path="conversations/:id" element={<Conversations />} />
         <Route path="orders" element={<Orders />} />
+        <Route path="configuracion" element={<Configuracion />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
