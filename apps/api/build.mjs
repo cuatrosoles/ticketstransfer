@@ -34,6 +34,7 @@ const external = [
   'firebase-admin',
   'helmet',
   'jsonwebtoken',
+  'mercadopago',
   'multer',
 ];
 
