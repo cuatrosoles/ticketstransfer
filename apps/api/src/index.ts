@@ -21,6 +21,7 @@ import { messagesRouter } from './routes/messages.js';
 import { adminRouter } from './routes/admin.js';
 import { healthRouter } from './routes/health.js';
 import { webhooksRouter } from './routes/webhooks.js';
+import { mercadopagoRouter } from './routes/mercadopago.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -69,6 +70,7 @@ try {
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/webhooks', webhooksRouter);
+app.use('/api/mercadopago', mercadopagoRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/tickets', ticketsRouter);
 app.use('/api/orders', ordersRouter);

@@ -9,6 +9,7 @@ import { Settings, CreditCard, Users, Palette } from 'lucide-react';
 type MercadoPagoSettings = {
   enabled: boolean;
   accessToken: string;
+  publicKey: string;
   webhookSecret: string;
   sandboxMode: boolean;
   backUrlBase?: string;
@@ -30,7 +31,7 @@ export function Configuracion() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<PlatformSettings>({
     commissionPercentage: 6.5,
-    mercadopago: { enabled: false, accessToken: '', webhookSecret: '', sandboxMode: true },
+    mercadopago: { enabled: false, accessToken: '', publicKey: '', webhookSecret: '', sandboxMode: true },
   });
 
   useEffect(() => {
@@ -116,7 +117,7 @@ export function Configuracion() {
           <div className="config-section">
             <h2>Mercado Pago</h2>
             <p className="text-muted">
-              Configuración de la pasarela de pagos Mercado Pago (Checkout Pro).
+              Configuración de la pasarela de pagos Mercado Pago (Checkout Pro + Checkout API para tarjetas adheridas).
             </p>
             <div className="form-group">
               <label>
@@ -148,6 +149,23 @@ export function Configuracion() {
               />
               <small className="text-muted">
                 Credencial de producción o prueba. Si está configurado, se muestra como ••••••••
+              </small>
+            </div>
+            <div className="form-group">
+              <label>Public Key (Checkout API)</label>
+              <input
+                type="password"
+                placeholder={form.mercadopago?.publicKey ? '•••••••• (dejar vacío para mantener)' : 'APP_USR-xxx'}
+                value={form.mercadopago?.publicKey?.startsWith('••••') ? '' : (form.mercadopago?.publicKey || '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    mercadopago: { ...(f.mercadopago || {}), publicKey: e.target.value },
+                  }))
+                }
+              />
+              <small className="text-muted">
+                Necesaria para tokenizar tarjetas en la app (Tarjetas Adheridas). Si está configurado, se muestra como ••••••••
               </small>
             </div>
             <div className="form-group">

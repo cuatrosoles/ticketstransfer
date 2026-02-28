@@ -8,6 +8,8 @@ import { db, COLLECTIONS } from './firestore.js';
 export type MercadoPagoSettings = {
   enabled: boolean;
   accessToken: string;
+  /** Public Key para tokenización de tarjetas en cliente (Checkout API) */
+  publicKey: string;
   webhookSecret: string;
   sandboxMode: boolean;
   /** URL base para retorno tras pago: https://web.com o ticketTransfer:// (deep link app) */
@@ -27,6 +29,7 @@ const DEFAULTS: PlatformSettings = {
   mercadopago: {
     enabled: false,
     accessToken: '',
+    publicKey: '',
     webhookSecret: '',
     sandboxMode: true,
     backUrlBase: '',
@@ -56,6 +59,7 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
     mercadopago: {
       enabled: d.mercadopago?.enabled ?? DEFAULTS.mercadopago.enabled,
       accessToken: d.mercadopago?.accessToken ?? '',
+      publicKey: d.mercadopago?.publicKey ?? '',
       webhookSecret: d.mercadopago?.webhookSecret ?? '',
       sandboxMode: d.mercadopago?.sandboxMode ?? true,
       backUrlBase: d.mercadopago?.backUrlBase ?? '',

@@ -21,6 +21,7 @@ import { MyPurchasesScreen } from '../screens/MyPurchasesScreen';
 import { MySalesScreen } from '../screens/MySalesScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { TarjetasAdheridasScreen } from '../screens/TarjetasAdheridasScreen';
+import { CardFormWebViewScreen } from '../screens/CardFormWebViewScreen';
 import { ChatSoporteScreen } from '../screens/ChatSoporteScreen';
 import { MensajesScreen } from '../screens/MensajesScreen';
 import { MensajesConversationScreen } from '../screens/MensajesConversationScreen';
@@ -68,6 +69,7 @@ export function RootNavigator() {
           <Stack.Screen name="MySales" component={MySalesScreen} options={NO_HEADER} />
           <Stack.Screen name="Profile" component={ProfileScreen} options={NO_HEADER} />
           <Stack.Screen name="TarjetasAdheridas" component={TarjetasAdheridasScreen} options={NO_HEADER} />
+          <Stack.Screen name="CardFormWebView" component={CardFormWebViewScreen} options={NO_HEADER} />
           <Stack.Screen name="ChatSoporte" component={ChatSoporteScreen} options={NO_HEADER} />
           <Stack.Screen name="Mensajes" component={MensajesScreen} options={NO_HEADER} />
           <Stack.Screen name="MensajesConversation" component={MensajesConversationScreen} options={NO_HEADER} />

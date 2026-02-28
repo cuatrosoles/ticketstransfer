@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { downloadCsv } from '../utils/exportCsv';
+import { CreditCard } from 'lucide-react';
+
+type CardItem = {
+  id: string;
+  last_four_digits: string;
+  payment_method: { id: string; name: string };
+};
 
 type User = {
   id: string;
@@ -21,6 +28,11 @@ export function Users() {
   const [kycStatus, setKycStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [cardsModal, setCardsModal] = useState<{
+    user: User;
+    cards: CardItem[];
+    loading: boolean;
+  } | null>(null);
 
   const limit = 20;
   const queryParams = () => {
@@ -43,6 +55,16 @@ export function Users() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [page, q, role, kycStatus]);
+
+  const openCardsModal = async (user: User) => {
+    setCardsModal({ user, cards: [], loading: true });
+    try {
+      const data = await api<{ cards: CardItem[] }>(`/api/admin/users/${user.id}/cards`);
+      setCardsModal((m) => (m ? { ...m, cards: data.cards, loading: false } : null));
+    } catch {
+      setCardsModal((m) => (m ? { ...m, cards: [], loading: false } : null));
+    }
+  };
 
   const handleExport = async () => {
     setExporting(true);
@@ -117,6 +139,7 @@ export function Users() {
                   <th>Rol</th>
                   <th>KYC</th>
                   <th>Registro</th>
+                  <th>Tarjetas</th>
                 </tr>
               </thead>
               <tbody>
@@ -131,6 +154,17 @@ export function Users() {
                       </span>
                     </td>
                     <td>{new Date(u.createdAt).toLocaleDateString()}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={() => openCardsModal(u)}
+                        title="Ver tarjetas adheridas"
+                      >
+                        <CreditCard size={16} style={{ marginRight: 4 }} />
+                        Tarjetas
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -145,6 +179,33 @@ export function Users() {
           </div>
         )}
       </div>
+
+      {cardsModal && (
+        <div className="modal-overlay" onClick={() => setCardsModal(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Tarjetas adheridas – {cardsModal.user.email}</h2>
+            <p className="text-muted">
+              {[cardsModal.user.firstName, cardsModal.user.lastName].filter(Boolean).join(' ') || 'Sin nombre'}
+            </p>
+            {cardsModal.loading ? (
+              <p>Cargando…</p>
+            ) : cardsModal.cards.length === 0 ? (
+              <p>No tiene tarjetas guardadas.</p>
+            ) : (
+              <ul style={{ listStyle: 'none', padding: 0 }}>
+                {cardsModal.cards.map((c) => (
+                  <li key={c.id} style={{ padding: '8px 0', borderBottom: '1px solid #334155' }}>
+                    {c.payment_method?.name || c.payment_method?.id || 'Tarjeta'} •••• {c.last_four_digits}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button type="button" className="btn btn-primary" onClick={() => setCardsModal(null)}>
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

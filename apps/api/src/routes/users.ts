@@ -1,6 +1,6 @@
 /**
- * Rutas de usuarios: perfil, onboarding, KYC.
- * Firestore + Firebase Storage.
+ * Rutas de usuarios: perfil, onboarding, KYC, tarjetas adheridas.
+ * Firestore + Firebase Storage + Mercado Pago Customers API.
  */
 
 import { Router } from 'express';
@@ -10,6 +10,12 @@ import { uploadFile } from '../lib/firebase-storage.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { onboardingSchema } from '@tickets-transfer/shared';
 import { createDiditSession } from '../lib/didit.js';
+import {
+  getOrCreateCustomer,
+  addCardToCustomer,
+  listCustomerCards,
+  removeCustomerCard,
+} from '../lib/mercadopago.js';
 
 const router = Router();
 const upload = multer({
@@ -264,6 +270,74 @@ router.post('/kyc/session', async (req: AuthRequest, res) => {
     res.json({ url: session.url, sessionId: session.session_id });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Error al crear sesión Didit';
+    res.status(500).json({ error: msg });
+  }
+});
+
+/** Tarjetas adheridas (Checkout API - Mercado Pago Customers) */
+router.get('/cards', async (req: AuthRequest, res) => {
+  try {
+    const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
+    const userData = userDoc.data();
+    const email = userData?.email;
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Usuario sin email' });
+    }
+    const customerId = await getOrCreateCustomer(req.user!.id, email);
+    if (!userData?.mpCustomerId) {
+      await db().collection(COLLECTIONS.USERS).doc(req.user!.id).update({
+        mpCustomerId: customerId,
+        updatedAt: new Date(),
+      });
+    }
+    const cards = await listCustomerCards(customerId);
+    res.json({ cards });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Error al listar tarjetas';
+    res.status(500).json({ error: msg });
+  }
+});
+
+router.post('/cards', async (req: AuthRequest, res) => {
+  const token = typeof req.body?.token === 'string' ? req.body.token.trim() : null;
+  if (!token) {
+    return res.status(400).json({ error: 'Token de tarjeta requerido' });
+  }
+  try {
+    const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
+    const userData = userDoc.data();
+    const email = userData?.email;
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Usuario sin email' });
+    }
+    const customerId = await getOrCreateCustomer(req.user!.id, email);
+    if (!userData?.mpCustomerId) {
+      await db().collection(COLLECTIONS.USERS).doc(req.user!.id).update({
+        mpCustomerId: customerId,
+        updatedAt: new Date(),
+      });
+    }
+    const card = await addCardToCustomer(customerId, token);
+    res.status(201).json({ card });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Error al agregar tarjeta';
+    res.status(500).json({ error: msg });
+  }
+});
+
+router.delete('/cards/:cardId', async (req: AuthRequest, res) => {
+  const cardId = req.params.cardId;
+  if (!cardId) return res.status(400).json({ error: 'ID de tarjeta requerido' });
+  try {
+    const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
+    const mpCustomerId = userDoc.data()?.mpCustomerId;
+    if (!mpCustomerId) {
+      return res.status(404).json({ error: 'No tenés tarjetas guardadas' });
+    }
+    await removeCustomerCard(mpCustomerId, cardId);
+    res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Error al eliminar tarjeta';
     res.status(500).json({ error: msg });
   }
 });

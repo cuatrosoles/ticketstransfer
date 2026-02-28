@@ -18,6 +18,7 @@ export type RootStackParamList = {
   MySales: undefined;
   Profile: undefined;
   TarjetasAdheridas: undefined;
+  CardFormWebView: undefined;
   ChatSoporte: undefined;
   Mensajes: undefined;
   MensajesConversation: { conversationId: string; otherUser: { id: string; email: string; firstName?: string | null; lastName?: string | null; username?: string | null; numeroId?: string | null } };

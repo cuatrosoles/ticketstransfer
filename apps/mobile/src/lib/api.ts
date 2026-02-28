@@ -304,3 +304,41 @@ export async function sendMessageToConversation(
     body: JSON.stringify({ content }),
   });
 }
+
+/** Tarjetas adheridas (Checkout API) */
+export type CardItem = {
+  id: string;
+  last_four_digits: string;
+  payment_method: { id: string; name: string };
+};
+
+export async function getUserCards(): Promise<{ cards: CardItem[] }> {
+  return api<{ cards: CardItem[] }>('/api/users/cards');
+}
+
+export async function addUserCard(token: string): Promise<{ card: CardItem }> {
+  return api<{ card: CardItem }>('/api/users/cards', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function removeUserCard(cardId: string): Promise<{ ok: boolean }> {
+  return api<{ ok: boolean }>(`/api/users/cards/${cardId}`, { method: 'DELETE' });
+}
+
+/** URL del formulario de tarjeta para WebView */
+export function getCardFormUrl(): string {
+  return `${API_BASE}/api/mercadopago/card-form`;
+}
+
+/** Pago de orden con tarjeta (Checkout API) */
+export async function payOrderWithCard(
+  orderId: string,
+  params: { token: string; paymentMethodId: string; issuerId?: number }
+): Promise<{ paymentId: string; status: string; statusDetail?: string; orderStatus: string }> {
+  return api(`/api/orders/${orderId}/pay`, {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}

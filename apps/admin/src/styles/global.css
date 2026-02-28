@@ -77,3 +77,15 @@ tr:hover { background: rgba(255,255,255,0.03); }
 .config-section .form-group small { display: block; margin-top: 0.25rem; font-size: 0.8rem; color: var(--text-muted); }
 .config-actions { margin-top: 1.5rem; }
 .text-muted { color: var(--text-muted); }
+
+/* Modal */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center;
+  z-index: 1000; padding: 1rem;
+}
+.modal {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;
+  max-width: 420px; width: 100%;
+}
+.modal h2 { font-size: 1.125rem; margin: 0 0 0.5rem; }
+.modal .btn { margin-top: 1rem; }

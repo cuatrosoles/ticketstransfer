@@ -1,22 +1,28 @@
 /**
- * Cliente MercadoPago para Checkout Pro.
+ * Cliente MercadoPago – Checkout Pro + Checkout API (Customers, Cards, Payments).
  * Usa settings de plataforma (Admin) con fallback a variables de entorno.
  */
 
 import crypto from 'crypto';
-import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+import { MercadoPagoConfig, Preference, Payment, Customer } from 'mercadopago';
 import { getPlatformSettings } from './settings.js';
 
 let client: MercadoPagoConfig | null = null;
 let preferenceClient: Preference | null = null;
 let paymentClient: Payment | null = null;
+let customerClient: Customer | null = null;
 let lastToken = '';
 
 function getAccessToken(): string {
   return process.env.MERCADOPAGO_ACCESS_TOKEN || '';
 }
 
-export async function getMercadoPagoClient(): Promise<{ client: MercadoPagoConfig; preference: Preference; payment: Payment }> {
+export async function getMercadoPagoClient(): Promise<{
+  client: MercadoPagoConfig;
+  preference: Preference;
+  payment: Payment;
+  customer: Customer;
+}> {
   const settings = await getPlatformSettings();
   const token = settings.mercadopago.enabled && settings.mercadopago.accessToken
     ? settings.mercadopago.accessToken
@@ -34,9 +40,10 @@ export async function getMercadoPagoClient(): Promise<{ client: MercadoPagoConfi
     });
     preferenceClient = new Preference(client);
     paymentClient = new Payment(client);
+    customerClient = new Customer(client);
   }
-  if (!preferenceClient || !paymentClient) throw new Error('Preference/Payment no inicializado');
-  return { client, preference: preferenceClient, payment: paymentClient };
+  if (!preferenceClient || !paymentClient || !customerClient) throw new Error('MP clients no inicializados');
+  return { client, preference: preferenceClient, payment: paymentClient, customer: customerClient };
 }
 
 export async function isMercadoPagoConfigured(): Promise<boolean> {
@@ -133,4 +140,85 @@ export function verifyMercadoPagoWebhookSignature(
   const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
   const hash = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
   return hash === receivedHash;
+}
+
+/** Obtener Public Key para tokenización de tarjetas en el cliente */
+export async function getMercadoPagoPublicKey(): Promise<string> {
+  const settings = await getPlatformSettings();
+  const pk = settings.mercadopago.publicKey || process.env.MERCADOPAGO_PUBLIC_KEY || '';
+  if (!pk) throw new Error('Mercado Pago Public Key no configurado. Configurá en Admin → Pasarelas.');
+  return pk;
+}
+
+/** Customers API – crear o obtener customer para usuario */
+export async function getOrCreateCustomer(userId: string, email: string): Promise<string> {
+  const { customer } = await getMercadoPagoClient();
+  const search = await customer.search({ options: { email } });
+  const results = search.results as Array<{ id: string }> | undefined;
+  if (results && results.length > 0) return results[0].id;
+  const created = await customer.create({ body: { email } });
+  return (created as { id: string }).id;
+}
+
+/** Agregar tarjeta a customer (token generado en cliente) */
+export async function addCardToCustomer(customerId: string, token: string): Promise<{
+  id: string;
+  last_four_digits: string;
+  payment_method: { id: string; name: string };
+}> {
+  const { customer } = await getMercadoPagoClient();
+  const card = await customer.createCard({ customerId, body: { token } });
+  const c = card as { id: string; last_four_digits?: string; last4?: string; payment_method?: { id: string; name: string } };
+  return {
+    id: c.id,
+    last_four_digits: c.last_four_digits || c.last4 || '****',
+    payment_method: c.payment_method || { id: 'credit_card', name: 'Tarjeta' },
+  };
+}
+
+/** Listar tarjetas del customer */
+export async function listCustomerCards(customerId: string): Promise<Array<{
+  id: string;
+  last_four_digits: string;
+  payment_method: { id: string; name: string };
+}>> {
+  const { customer } = await getMercadoPagoClient();
+  const result = await customer.listCards({ customerId });
+  const cards = (result as { data?: Array<Record<string, unknown>> })?.data || [];
+  return cards.map((c: Record<string, unknown>) => ({
+    id: String(c.id),
+    last_four_digits: String(c.last_four_digits || c.last4 || '****'),
+    payment_method: (c.payment_method as { id: string; name: string }) || { id: 'credit_card', name: 'Tarjeta' },
+  }));
+}
+
+/** Eliminar tarjeta del customer */
+export async function removeCustomerCard(customerId: string, cardId: string): Promise<void> {
+  const { customer } = await getMercadoPagoClient();
+  await customer.removeCard({ customerId, cardId });
+}
+
+/** Crear pago con token de tarjeta (nueva tarjeta o tarjeta guardada + CVV) */
+export async function createPaymentWithToken(params: {
+  orderId: string;
+  title: string;
+  amount: number;
+  payerEmail: string;
+  token: string;
+  paymentMethodId: string;
+  issuerId?: number;
+}): Promise<{ id: string; status: string; status_detail?: string }> {
+  const { payment } = await getMercadoPagoClient();
+  const body: Record<string, unknown> = {
+    transaction_amount: params.amount,
+    token: params.token,
+    payment_method_id: params.paymentMethodId,
+    payer: { email: params.payerEmail },
+    external_reference: params.orderId,
+    description: params.title,
+    installments: 1,
+  };
+  if (params.issuerId) body.issuer_id = params.issuerId;
+  const result = await payment.create({ body });
+  return result as { id: string; status: string; status_detail?: string };
 }

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agregar tarjeta</title>
+  <script src="https://sdk.mercadopago.com/js/v2"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 16px; background: #f5f5f5; }
+    .container { max-width: 400px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    h1 { font-size: 18px; margin: 0 0 16px; color: #333; }
+    #cardPaymentBrick_container { min-height: 200px; }
+    .error { color: #c00; font-size: 14px; margin-top: 8px; }
+    .hint { font-size: 12px; color: #666; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Agregar tarjeta de crédito o débito</h1>
+    <div id="cardPaymentBrick_container"></div>
+    <p id="error" class="error" style="display:none"></p>
+    <p class="hint">Los datos de tu tarjeta están protegidos. Nunca los almacenamos.</p>
+  </div>
+  <script>
+    (async function() {
+      const apiBase = window.location.origin;
+      let publicKey;
+      try {
+        const res = await fetch(apiBase + '/api/mercadopago/public-key');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error al obtener configuración');
+        publicKey = data.publicKey;
+      } catch (e) {
+        document.getElementById('error').textContent = e.message || 'No se pudo cargar la configuración';
+        document.getElementById('error').style.display = 'block';
+        return;
+      }
+
+      const mp = new MercadoPago(publicKey, { locale: 'es-AR' });
+      const bricksBuilder = mp.bricks();
+
+      const cardPaymentBrick = await bricksBuilder.create('cardPayment', 'cardPaymentBrick_container', {
+        initialization: {
+          amount: 1,
+          payer: {
+            email: 'payer@test.com',
+          },
+        },
+        customization: {
+          visual: {
+            style: {
+              theme: 'default',
+            },
+          },
+        },
+        callbacks: {
+          onSubmit: (formData) => {
+            return new Promise((resolve, reject) => {
+              const token = formData.token || formData.paymentMethod?.token;
+              if (token) {
+                if (window.ReactNativeWebView) {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'CARD_TOKEN', token }));
+                } else if (window.parent !== window) {
+                  window.parent.postMessage({ type: 'CARD_TOKEN', token }, '*');
+                } else {
+                  console.log('Token:', token);
+                }
+                resolve();
+              } else {
+                reject(new Error('No se generó el token'));
+              }
+            });
+          },
+          onError: (err) => {
+            document.getElementById('error').textContent = err?.message || 'Error al procesar la tarjeta';
+            document.getElementById('error').style.display = 'block';
+          },
+        },
+      });
+    })();
+  </script>
+</body>
+</html>

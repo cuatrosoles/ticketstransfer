@@ -60,6 +60,17 @@ pnpm android
 
 Esto compila el APK debug, lo instala en el emulador y lo conecta a Metro. Los cambios en JS se recargan al guardar.
 
+**Si Gradle daemon crashea** (JVM crash, "daemon disappeared unexpectedly"):
+
+```bash
+cd v2/apps/mobile/android
+./gradlew --stop
+cd ..
+pnpm android
+```
+
+O compilar sin daemon: `cd android && ./gradlew assembleDebug --no-daemon && cd ..`
+
 ## 3. Menú de desarrollo (Dev Menu)
 
 En el emulador Android:

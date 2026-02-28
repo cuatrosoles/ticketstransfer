@@ -9,7 +9,12 @@ import { uploadFile } from '../lib/firebase-storage.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { createOrderSchema, confirmReceivedSchema } from '@tickets-transfer/shared';
 import { HORAS_MAX_TRANSFERENCIA_VENDEDOR } from '@tickets-transfer/shared';
-import { isMercadoPagoConfigured, createCheckoutPreference } from '../lib/mercadopago.js';
+import {
+  isMercadoPagoConfigured,
+  createCheckoutPreference,
+  createPaymentWithToken,
+  getPaymentById,
+} from '../lib/mercadopago.js';
 import { getCommissionPercentage } from '../lib/settings.js';
 
 const router = Router();
@@ -225,6 +230,64 @@ router.get('/:id', async (req: AuthRequest, res) => {
     transferDeadline: d.transferDeadline?.toDate?.() ?? d.transferDeadline,
     checkoutUrl: d.mercadopagoCheckoutUrl ?? undefined,
   });
+});
+
+/** Pago con Checkout API (tarjeta guardada o nueva) */
+router.post('/:id/pay', async (req: AuthRequest, res) => {
+  const orderId = req.params.id;
+  const { token, paymentMethodId, issuerId } = req.body || {};
+  if (!token || typeof token !== 'string' || !paymentMethodId || typeof paymentMethodId !== 'string') {
+    return res.status(400).json({ error: 'Se requieren token y paymentMethodId (ej: visa, master)' });
+  }
+
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
+  if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
+  const d = doc.data()!;
+  if (d.buyerId !== req.user!.id) return res.status(404).json({ error: 'No encontrado' });
+  if (d.status !== 'PENDIENTE_PAGO') {
+    return res.status(400).json({ error: 'La orden ya no está pendiente de pago' });
+  }
+  if (d.paymentMethod !== 'mercadopago') {
+    return res.status(400).json({ error: 'Solo Mercado Pago soporta pago con tarjeta' });
+  }
+
+  const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
+  const payerEmail = buyerDoc.data()?.email;
+  if (!payerEmail) return res.status(400).json({ error: 'Usuario sin email' });
+
+  let title = 'Orden';
+  if (d.ticketListingId) {
+    const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
+    title = listingDoc.data()?.eventName || 'Ticket';
+  }
+
+  try {
+    const payment = await createPaymentWithToken({
+      orderId,
+      title,
+      amount: d.totalAmount,
+      payerEmail,
+      token,
+      paymentMethodId,
+      issuerId: typeof issuerId === 'number' ? issuerId : undefined,
+    });
+
+    await db().collection(COLLECTIONS.ORDERS).doc(orderId).update({
+      mercadopagoPaymentId: payment.id,
+      status: payment.status === 'approved' ? 'ESPERANDO_TRANSFERENCIA' : d.status,
+      updatedAt: new Date(),
+    });
+
+    res.json({
+      paymentId: payment.id,
+      status: payment.status,
+      statusDetail: payment.status_detail,
+      orderStatus: payment.status === 'approved' ? 'ESPERANDO_TRANSFERENCIA' : d.status,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Error al procesar el pago';
+    res.status(500).json({ error: msg });
+  }
 });
 
 router.post('/:id/confirm-payment', async (req: AuthRequest, res) => {

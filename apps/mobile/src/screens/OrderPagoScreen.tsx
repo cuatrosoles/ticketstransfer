@@ -93,9 +93,14 @@ export function OrderPagoScreen() {
           Tu dinero será retenido hasta que el vendedor transfiera el ticket.
         </Text>
         {order.status === 'PENDIENTE_PAGO' && checkoutUrl && (
-          <TouchableOpacity style={styles.btn} onPress={payWithMercadoPago}>
-            <Text style={styles.btnText}>Pagar con Mercado Pago</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity style={styles.btn} onPress={payWithMercadoPago}>
+              <Text style={styles.btnText}>Pagar con Mercado Pago</Text>
+            </TouchableOpacity>
+            <Text style={styles.hint}>
+              Podés usar tarjeta, débito o cuenta de Mercado Pago. Agregá tarjetas en Perfil → Tarjetas adheridas para pagar más rápido.
+            </Text>
+          </>
         )}
         {order.status === 'PENDIENTE_PAGO' && !checkoutUrl && (
           <Text style={styles.muted}>Generando link de pago…</Text>
@@ -130,6 +135,7 @@ const styles = StyleSheet.create({
   btn: { backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radius, alignItems: 'center' },
   btnDisabled: { opacity: 0.7 },
   btnText: { color: colors.white, fontWeight: '600', fontSize: 16 },
+  hint: { fontSize: 12, color: colors.textMuted, marginTop: spacing.sm },
   muted: { fontSize: 14, color: colors.textMuted },
   success: { fontSize: 14, color: colors.primary, fontWeight: '600', marginTop: spacing.sm },
 });

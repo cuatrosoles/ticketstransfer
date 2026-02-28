@@ -6,7 +6,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const base = path.join(__dirname, '../node_modules/react-native-screens');
+// Con node-linker=hoisted, packages están en root del monorepo (scripts está en apps/mobile/scripts)
+const base = path.join(__dirname, '../../../node_modules/react-native-screens');
 const files = [
   {
     file: 'common/cpp/react/renderer/components/rnscreens/RNSScreenShadowNode.h',

@@ -61,8 +61,8 @@ function getMessaging() {
 }
 
 // src/index.ts
-import path from "path";
-import { fileURLToPath } from "url";
+import path2 from "path";
+import { fileURLToPath as fileURLToPath2 } from "url";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -82,13 +82,14 @@ var COLLECTIONS = {
   DISPUTES: "disputes",
   DISPUTE_MESSAGES: "disputeMessages",
   CONVERSATIONS: "conversations",
-  MESSAGES: "messages"
+  MESSAGES: "messages",
+  PLATFORM_SETTINGS: "platformSettings"
 };
 
 // ../../packages/shared/src/constants.ts
 var HORAS_MAX_TRANSFERENCIA_VENDEDOR = 72;
 
-// ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/external.js
+// ../../node_modules/zod/v3/external.js
 var external_exports = {};
 __export(external_exports, {
   BRAND: () => BRAND,
@@ -200,7 +201,7 @@ __export(external_exports, {
   void: () => voidType
 });
 
-// ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/helpers/util.js
+// ../../node_modules/zod/v3/helpers/util.js
 var util;
 (function(util2) {
   util2.assertEqual = (_) => {
@@ -334,7 +335,7 @@ var getParsedType = (data) => {
   }
 };
 
-// ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/ZodError.js
+// ../../node_modules/zod/v3/ZodError.js
 var ZodIssueCode = util.arrayToEnum([
   "invalid_type",
   "invalid_literal",
@@ -452,7 +453,7 @@ ZodError.create = (issues) => {
   return error;
 };
 
-// ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/locales/en.js
+// ../../node_modules/zod/v3/locales/en.js
 var errorMap = (issue, _ctx) => {
   let message;
   switch (issue.code) {
@@ -555,7 +556,7 @@ var errorMap = (issue, _ctx) => {
 };
 var en_default = errorMap;
 
-// ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/errors.js
+// ../../node_modules/zod/v3/errors.js
 var overrideErrorMap = en_default;
 function setErrorMap(map) {
   overrideErrorMap = map;
@@ -564,10 +565,10 @@ function getErrorMap() {
   return overrideErrorMap;
 }
 
-// ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/helpers/parseUtil.js
+// ../../node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path2, errorMaps, issueData } = params;
-  const fullPath = [...path2, ...issueData.path || []];
+  const { data, path: path3, errorMaps, issueData } = params;
+  const fullPath = [...path3, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -674,20 +675,20 @@ var isDirty = (x) => x.status === "dirty";
 var isValid = (x) => x.status === "valid";
 var isAsync = (x) => typeof Promise !== "undefined" && x instanceof Promise;
 
-// ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/helpers/errorUtil.js
+// ../../node_modules/zod/v3/helpers/errorUtil.js
 var errorUtil;
 (function(errorUtil2) {
   errorUtil2.errToObj = (message) => typeof message === "string" ? { message } : message || {};
   errorUtil2.toString = (message) => typeof message === "string" ? message : message?.message;
 })(errorUtil || (errorUtil = {}));
 
-// ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.js
+// ../../node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path2, key) {
+  constructor(parent, value, path3, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path2;
+    this._path = path3;
     this._key = key;
   }
   get path() {
@@ -4300,6 +4301,9 @@ router.post("/register", async (req, res) => {
     sexo: sexo || null,
     phone: fullPhone || phone || null,
     phoneVerified: false,
+    city: city || null,
+    province: province || null,
+    postalCode: postalCode || null,
     role: "user",
     emailVerified: false,
     reputationScore: 0,
@@ -4398,12 +4402,12 @@ function getStorageBucket() {
   }
   return storage.bucket(bucketName);
 }
-async function uploadFile(path2, buffer, contentType) {
+async function uploadFile(path3, buffer, contentType) {
   const bucket = getStorageBucket();
-  const file = bucket.file(path2);
+  const file = bucket.file(path3);
   await file.save(buffer, { metadata: { contentType } });
   await file.makePublic();
-  return `https://storage.googleapis.com/${bucket.name}/${path2}`;
+  return `https://storage.googleapis.com/${bucket.name}/${path3}`;
 }
 
 // src/lib/didit.ts
@@ -4451,16 +4455,217 @@ async function verifyDiditWebhookSignature(rawBody, signature, timestamp, secret
   const currentTime = Math.floor(Date.now() / 1e3);
   const incomingTime = parseInt(timestamp, 10);
   if (Math.abs(currentTime - incomingTime) > WEBHOOK_MAX_AGE_SEC) return false;
-  const crypto = await import("crypto");
-  const hmac = crypto.createHmac("sha256", secretKey);
+  const crypto2 = await import("crypto");
+  const hmac = crypto2.createHmac("sha256", secretKey);
   const expectedSignature = hmac.update(rawBody).digest("hex");
   try {
     const expectedBuf = Buffer.from(expectedSignature, "utf8");
     const providedBuf = Buffer.from(signature, "utf8");
-    return expectedBuf.length === providedBuf.length && crypto.timingSafeEqual(expectedBuf, providedBuf);
+    return expectedBuf.length === providedBuf.length && crypto2.timingSafeEqual(expectedBuf, providedBuf);
   } catch {
     return false;
   }
+}
+
+// src/lib/mercadopago.ts
+import crypto from "crypto";
+import { MercadoPagoConfig, Preference, Payment, Customer } from "mercadopago";
+
+// src/lib/settings.ts
+var DEFAULTS = {
+  commissionPercentage: 6.5,
+  mercadopago: {
+    enabled: false,
+    accessToken: "",
+    publicKey: "",
+    webhookSecret: "",
+    sandboxMode: true,
+    backUrlBase: ""
+  },
+  users: {},
+  visual: {}
+};
+var SETTINGS_DOC_ID = "main";
+var cachedSettings = null;
+var cacheExpiry = 0;
+var CACHE_TTL_MS = 6e4;
+async function getPlatformSettings() {
+  if (cachedSettings && Date.now() < cacheExpiry) {
+    return cachedSettings;
+  }
+  const doc = await db().collection(COLLECTIONS.PLATFORM_SETTINGS).doc(SETTINGS_DOC_ID).get();
+  if (!doc.exists) {
+    cachedSettings = { ...DEFAULTS };
+    return cachedSettings;
+  }
+  const d = doc.data();
+  cachedSettings = {
+    commissionPercentage: d.commissionPercentage ?? DEFAULTS.commissionPercentage,
+    mercadopago: {
+      enabled: d.mercadopago?.enabled ?? DEFAULTS.mercadopago.enabled,
+      accessToken: d.mercadopago?.accessToken ?? "",
+      publicKey: d.mercadopago?.publicKey ?? "",
+      webhookSecret: d.mercadopago?.webhookSecret ?? "",
+      sandboxMode: d.mercadopago?.sandboxMode ?? true,
+      backUrlBase: d.mercadopago?.backUrlBase ?? ""
+    },
+    users: d.users ?? {},
+    visual: d.visual ?? {},
+    updatedAt: d.updatedAt?.toDate?.() ?? void 0
+  };
+  cacheExpiry = Date.now() + CACHE_TTL_MS;
+  return cachedSettings;
+}
+function invalidateSettingsCache() {
+  cachedSettings = null;
+  cacheExpiry = 0;
+}
+async function getCommissionPercentage() {
+  const s = await getPlatformSettings();
+  return s.commissionPercentage;
+}
+
+// src/lib/mercadopago.ts
+var client = null;
+var preferenceClient = null;
+var paymentClient = null;
+var customerClient = null;
+var lastToken = "";
+function getAccessToken() {
+  return process.env.MERCADOPAGO_ACCESS_TOKEN || "";
+}
+async function getMercadoPagoClient() {
+  const settings = await getPlatformSettings();
+  const token = settings.mercadopago.enabled && settings.mercadopago.accessToken ? settings.mercadopago.accessToken : getAccessToken();
+  if (!token) {
+    throw new Error("Mercado Pago no configurado. Configur\xE1 el Access Token en Admin \u2192 Configuraci\xF3n \u2192 Pasarelas de Pago.");
+  }
+  if (!client || lastToken !== token) {
+    lastToken = token;
+    client = new MercadoPagoConfig({
+      accessToken: token,
+      options: { timeout: 5e3 }
+    });
+    preferenceClient = new Preference(client);
+    paymentClient = new Payment(client);
+    customerClient = new Customer(client);
+  }
+  if (!preferenceClient || !paymentClient || !customerClient) throw new Error("MP clients no inicializados");
+  return { client, preference: preferenceClient, payment: paymentClient, customer: customerClient };
+}
+async function isMercadoPagoConfigured() {
+  const settings = await getPlatformSettings();
+  if (settings.mercadopago.enabled && settings.mercadopago.accessToken) return true;
+  return !!getAccessToken();
+}
+async function getMercadoPagoWebhookSecret() {
+  const settings = await getPlatformSettings();
+  if (settings.mercadopago.webhookSecret) return settings.mercadopago.webhookSecret;
+  return process.env.MERCADOPAGO_WEBHOOK_SECRET || "";
+}
+async function createCheckoutPreference(params) {
+  const { preference } = await getMercadoPagoClient();
+  const settings = await getPlatformSettings();
+  const backBase = settings.mercadopago.backUrlBase || process.env.WEB_URL || process.env.APP_DEEP_LINK_SCHEME || "http://localhost:5173";
+  const basePath = backBase.replace(/\/$/, "");
+  const isDeepLink = basePath.includes("://") && !basePath.startsWith("http");
+  const success = isDeepLink ? `${basePath}orden/${params.orderId}/pago?status=success` : `${basePath}/orden/${params.orderId}/pago?status=success`;
+  const failure = isDeepLink ? `${basePath}orden/${params.orderId}/pago?status=failure` : `${basePath}/orden/${params.orderId}/pago?status=failure`;
+  const pending = isDeepLink ? `${basePath}orden/${params.orderId}/pago?status=pending` : `${basePath}/orden/${params.orderId}/pago?status=pending`;
+  const pref = await preference.create({
+    body: {
+      items: [
+        {
+          id: params.orderId,
+          title: params.title,
+          quantity: params.quantity ?? 1,
+          unit_price: params.unitPrice,
+          currency_id: params.currency === "ARS" ? "ARS" : "ARS"
+        }
+      ],
+      external_reference: params.orderId,
+      back_urls: {
+        success,
+        failure,
+        pending
+      },
+      auto_return: "approved",
+      payer: params.payerEmail ? { email: params.payerEmail } : void 0
+    }
+  });
+  const initPoint = pref.init_point;
+  const preferenceId = pref.id;
+  if (!initPoint || !preferenceId) {
+    throw new Error("MercadoPago no devolvi\xF3 init_point");
+  }
+  return { initPoint, preferenceId };
+}
+async function getPaymentById(paymentId) {
+  try {
+    const { payment } = await getMercadoPagoClient();
+    const result = await payment.get({ id: paymentId });
+    return result;
+  } catch {
+    return null;
+  }
+}
+function verifyMercadoPagoWebhookSignature(dataId, xRequestId, ts, secret, receivedHash) {
+  const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+  const hash = crypto.createHmac("sha256", secret).update(manifest).digest("hex");
+  return hash === receivedHash;
+}
+async function getMercadoPagoPublicKey() {
+  const settings = await getPlatformSettings();
+  const pk = settings.mercadopago.publicKey || process.env.MERCADOPAGO_PUBLIC_KEY || "";
+  if (!pk) throw new Error("Mercado Pago Public Key no configurado. Configur\xE1 en Admin \u2192 Pasarelas.");
+  return pk;
+}
+async function getOrCreateCustomer(userId, email) {
+  const { customer } = await getMercadoPagoClient();
+  const search = await customer.search({ options: { email } });
+  const results = search.results;
+  if (results && results.length > 0) return results[0].id;
+  const created = await customer.create({ body: { email } });
+  return created.id;
+}
+async function addCardToCustomer(customerId, token) {
+  const { customer } = await getMercadoPagoClient();
+  const card = await customer.createCard({ customerId, body: { token } });
+  const c = card;
+  return {
+    id: c.id,
+    last_four_digits: c.last_four_digits || c.last4 || "****",
+    payment_method: c.payment_method || { id: "credit_card", name: "Tarjeta" }
+  };
+}
+async function listCustomerCards(customerId) {
+  const { customer } = await getMercadoPagoClient();
+  const result = await customer.listCards({ customerId });
+  const cards = result?.data || [];
+  return cards.map((c) => ({
+    id: String(c.id),
+    last_four_digits: String(c.last_four_digits || c.last4 || "****"),
+    payment_method: c.payment_method || { id: "credit_card", name: "Tarjeta" }
+  }));
+}
+async function removeCustomerCard(customerId, cardId) {
+  const { customer } = await getMercadoPagoClient();
+  await customer.removeCard({ customerId, cardId });
+}
+async function createPaymentWithToken(params) {
+  const { payment } = await getMercadoPagoClient();
+  const body = {
+    transaction_amount: params.amount,
+    token: params.token,
+    payment_method_id: params.paymentMethodId,
+    payer: { email: params.payerEmail },
+    external_reference: params.orderId,
+    description: params.title,
+    installments: 1
+  };
+  if (params.issuerId) body.issuer_id = params.issuerId;
+  const result = await payment.create({ body });
+  return result;
 }
 
 // src/routes/users.ts
@@ -4559,8 +4764,8 @@ router2.post("/profile/avatar", upload.single("avatar"), async (req, res) => {
     return;
   }
   const ext = file.originalname.split(".").pop() || "jpg";
-  const path2 = `avatars/${req.user.id}/${Date.now()}.${ext}`;
-  const profileImageUrl = await uploadFile(path2, file.buffer, file.mimetype || "image/jpeg");
+  const path3 = `avatars/${req.user.id}/${Date.now()}.${ext}`;
+  const profileImageUrl = await uploadFile(path3, file.buffer, file.mimetype || "image/jpeg");
   await db().collection(COLLECTIONS.USERS).doc(req.user.id).update({
     profileImageUrl,
     updatedAt: /* @__PURE__ */ new Date()
@@ -4649,16 +4854,16 @@ router2.post(
     const uid = req.user.id;
     const updates = { status: "EN_REVISION", updatedAt: /* @__PURE__ */ new Date() };
     if (files.dniFront?.[0]) {
-      const path2 = `kyc/${uid}/dni_front_${Date.now()}.jpg`;
-      updates.dniFrontUrl = await uploadFile(path2, files.dniFront[0].buffer, files.dniFront[0].mimetype || "image/jpeg");
+      const path3 = `kyc/${uid}/dni_front_${Date.now()}.jpg`;
+      updates.dniFrontUrl = await uploadFile(path3, files.dniFront[0].buffer, files.dniFront[0].mimetype || "image/jpeg");
     }
     if (files.dniBack?.[0]) {
-      const path2 = `kyc/${uid}/dni_back_${Date.now()}.jpg`;
-      updates.dniBackUrl = await uploadFile(path2, files.dniBack[0].buffer, files.dniBack[0].mimetype || "image/jpeg");
+      const path3 = `kyc/${uid}/dni_back_${Date.now()}.jpg`;
+      updates.dniBackUrl = await uploadFile(path3, files.dniBack[0].buffer, files.dniBack[0].mimetype || "image/jpeg");
     }
     if (files.selfie?.[0]) {
-      const path2 = `kyc/${uid}/selfie_${Date.now()}.jpg`;
-      updates.selfieUrl = await uploadFile(path2, files.selfie[0].buffer, files.selfie[0].mimetype || "image/jpeg");
+      const path3 = `kyc/${uid}/selfie_${Date.now()}.jpg`;
+      updates.selfieUrl = await uploadFile(path3, files.selfie[0].buffer, files.selfie[0].mimetype || "image/jpeg");
     }
     await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(uid).set(updates, { merge: true });
     res.json({ ok: true, status: "EN_REVISION" });
@@ -4688,6 +4893,70 @@ router2.post("/kyc/session", async (req, res) => {
     res.json({ url: session.url, sessionId: session.session_id });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error al crear sesi\xF3n Didit";
+    res.status(500).json({ error: msg });
+  }
+});
+router2.get("/cards", async (req, res) => {
+  try {
+    const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
+    const userData = userDoc.data();
+    const email = userData?.email;
+    if (!email || typeof email !== "string") {
+      return res.status(400).json({ error: "Usuario sin email" });
+    }
+    const customerId = await getOrCreateCustomer(req.user.id, email);
+    if (!userData?.mpCustomerId) {
+      await db().collection(COLLECTIONS.USERS).doc(req.user.id).update({
+        mpCustomerId: customerId,
+        updatedAt: /* @__PURE__ */ new Date()
+      });
+    }
+    const cards = await listCustomerCards(customerId);
+    res.json({ cards });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error al listar tarjetas";
+    res.status(500).json({ error: msg });
+  }
+});
+router2.post("/cards", async (req, res) => {
+  const token = typeof req.body?.token === "string" ? req.body.token.trim() : null;
+  if (!token) {
+    return res.status(400).json({ error: "Token de tarjeta requerido" });
+  }
+  try {
+    const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
+    const userData = userDoc.data();
+    const email = userData?.email;
+    if (!email || typeof email !== "string") {
+      return res.status(400).json({ error: "Usuario sin email" });
+    }
+    const customerId = await getOrCreateCustomer(req.user.id, email);
+    if (!userData?.mpCustomerId) {
+      await db().collection(COLLECTIONS.USERS).doc(req.user.id).update({
+        mpCustomerId: customerId,
+        updatedAt: /* @__PURE__ */ new Date()
+      });
+    }
+    const card = await addCardToCustomer(customerId, token);
+    res.status(201).json({ card });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error al agregar tarjeta";
+    res.status(500).json({ error: msg });
+  }
+});
+router2.delete("/cards/:cardId", async (req, res) => {
+  const cardId = req.params.cardId;
+  if (!cardId) return res.status(400).json({ error: "ID de tarjeta requerido" });
+  try {
+    const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
+    const mpCustomerId = userDoc.data()?.mpCustomerId;
+    if (!mpCustomerId) {
+      return res.status(404).json({ error: "No ten\xE9s tarjetas guardadas" });
+    }
+    await removeCustomerCard(mpCustomerId, cardId);
+    res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error al eliminar tarjeta";
     res.status(500).json({ error: msg });
   }
 });
@@ -4920,7 +5189,8 @@ router4.post("/", async (req, res) => {
     res.status(400).json({ error: "No puedes comprar tu propio ticket" });
     return;
   }
-  const commissionAmount = listing.price * 0.05;
+  const commissionRate = await getCommissionPercentage() / 100;
+  const commissionAmount = listing.price * commissionRate;
   const totalAmount = listing.price + commissionAmount;
   const transferDeadline = /* @__PURE__ */ new Date();
   transferDeadline.setHours(transferDeadline.getHours() + HORAS_MAX_TRANSFERENCIA_VENDEDOR);
@@ -4939,6 +5209,36 @@ router4.post("/", async (req, res) => {
     updatedAt: /* @__PURE__ */ new Date()
   };
   await db().collection(COLLECTIONS.ORDERS).doc(orderId).set(orderData);
+  let checkoutUrl;
+  if (paymentMethod === "mercadopago" && await isMercadoPagoConfigured()) {
+    try {
+      const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
+      const { initPoint, preferenceId: prefId } = await createCheckoutPreference({
+        orderId,
+        title: listing.eventName || "Ticket",
+        unitPrice: totalAmount,
+        quantity: 1,
+        currency: listing.currency || "ARS",
+        payerEmail: buyerDoc.data()?.email
+      });
+      checkoutUrl = initPoint;
+      await db().collection(COLLECTIONS.ORDERS).doc(orderId).update({
+        mercadopagoPreferenceId: prefId,
+        mercadopagoCheckoutUrl: initPoint,
+        updatedAt: /* @__PURE__ */ new Date()
+      });
+    } catch (e) {
+      console.error("Error creando preferencia MercadoPago:", e);
+      res.status(500).json({ error: "No se pudo iniciar el checkout. Intent\xE1 de nuevo." });
+      return;
+    }
+  } else if (paymentMethod === "stripe") {
+    res.status(400).json({ error: "Stripe a\xFAn no est\xE1 disponible. Us\xE1 Mercado Pago." });
+    return;
+  } else if (paymentMethod === "mercadopago" && !await isMercadoPagoConfigured()) {
+    res.status(503).json({ error: "Mercado Pago no est\xE1 configurado. Contact\xE1 al administrador." });
+    return;
+  }
   const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(listing.sellerId).get();
   const order = {
     id: orderId,
@@ -4948,8 +5248,8 @@ router4.post("/", async (req, res) => {
   };
   res.status(201).json({
     order,
-    paymentNeeded: true,
-    message: "Integrar Mercado Pago o Stripe para completar el pago."
+    paymentNeeded: !!checkoutUrl,
+    checkoutUrl: checkoutUrl ?? void 0
   });
 });
 router4.get("/my/purchases", async (req, res) => {
@@ -4992,6 +5292,41 @@ router4.get("/my/sales", async (req, res) => {
   );
   res.json(orders);
 });
+router4.get("/:id/checkout-url", async (req, res) => {
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
+  const d = doc.data();
+  if (d.buyerId !== req.user.id) return res.status(404).json({ error: "No encontrado" });
+  if (d.status !== "PENDIENTE_PAGO") return res.status(400).json({ error: "La orden ya no est\xE1 pendiente de pago" });
+  if (d.paymentMethod !== "mercadopago") return res.status(400).json({ error: "Solo Mercado Pago soporta checkout URL" });
+  let checkoutUrl = d.mercadopagoCheckoutUrl;
+  if (!checkoutUrl && await isMercadoPagoConfigured()) {
+    try {
+      const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
+      const listing = listingDoc.data();
+      const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(d.buyerId).get();
+      const { initPoint, preferenceId: prefId } = await createCheckoutPreference({
+        orderId: req.params.id,
+        title: listing.eventName || "Ticket",
+        unitPrice: d.totalAmount,
+        quantity: 1,
+        currency: d.currency || "ARS",
+        payerEmail: buyerDoc.data()?.email
+      });
+      checkoutUrl = initPoint;
+      await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({
+        mercadopagoPreferenceId: prefId,
+        mercadopagoCheckoutUrl: initPoint,
+        updatedAt: /* @__PURE__ */ new Date()
+      });
+    } catch (e) {
+      console.error("Error creando preferencia MercadoPago:", e);
+      return res.status(500).json({ error: "No se pudo generar el link de pago" });
+    }
+  }
+  if (!checkoutUrl) return res.status(503).json({ error: "Mercado Pago no configurado" });
+  res.json({ checkoutUrl });
+});
 router4.get("/:id", async (req, res) => {
   const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
@@ -5010,14 +5345,70 @@ router4.get("/:id", async (req, res) => {
     seller: sellerDoc.exists ? { id: d.sellerId, email: sellerDoc.data()?.email } : null,
     createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
     updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
-    transferDeadline: d.transferDeadline?.toDate?.() ?? d.transferDeadline
+    transferDeadline: d.transferDeadline?.toDate?.() ?? d.transferDeadline,
+    checkoutUrl: d.mercadopagoCheckoutUrl ?? void 0
   });
+});
+router4.post("/:id/pay", async (req, res) => {
+  const orderId = req.params.id;
+  const { token, paymentMethodId, issuerId } = req.body || {};
+  if (!token || typeof token !== "string" || !paymentMethodId || typeof paymentMethodId !== "string") {
+    return res.status(400).json({ error: "Se requieren token y paymentMethodId (ej: visa, master)" });
+  }
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
+  if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
+  const d = doc.data();
+  if (d.buyerId !== req.user.id) return res.status(404).json({ error: "No encontrado" });
+  if (d.status !== "PENDIENTE_PAGO") {
+    return res.status(400).json({ error: "La orden ya no est\xE1 pendiente de pago" });
+  }
+  if (d.paymentMethod !== "mercadopago") {
+    return res.status(400).json({ error: "Solo Mercado Pago soporta pago con tarjeta" });
+  }
+  const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
+  const payerEmail = buyerDoc.data()?.email;
+  if (!payerEmail) return res.status(400).json({ error: "Usuario sin email" });
+  let title = "Orden";
+  if (d.ticketListingId) {
+    const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
+    title = listingDoc.data()?.eventName || "Ticket";
+  }
+  try {
+    const payment = await createPaymentWithToken({
+      orderId,
+      title,
+      amount: d.totalAmount,
+      payerEmail,
+      token,
+      paymentMethodId,
+      issuerId: typeof issuerId === "number" ? issuerId : void 0
+    });
+    await db().collection(COLLECTIONS.ORDERS).doc(orderId).update({
+      mercadopagoPaymentId: payment.id,
+      status: payment.status === "approved" ? "ESPERANDO_TRANSFERENCIA" : d.status,
+      updatedAt: /* @__PURE__ */ new Date()
+    });
+    res.json({
+      paymentId: payment.id,
+      status: payment.status,
+      statusDetail: payment.status_detail,
+      orderStatus: payment.status === "approved" ? "ESPERANDO_TRANSFERENCIA" : d.status
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error al procesar el pago";
+    res.status(500).json({ error: msg });
+  }
 });
 router4.post("/:id/confirm-payment", async (req, res) => {
   const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
   const d = doc.data();
   if (d.buyerId !== req.user.id || d.status !== "PENDIENTE_PAGO") return res.status(404).json({ error: "No encontrado" });
+  if (d.paymentMethod === "mercadopago") {
+    return res.status(400).json({
+      error: 'El pago se confirma al completar el checkout de Mercado Pago. Us\xE1 el bot\xF3n "Pagar con Mercado Pago".'
+    });
+  }
   await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({ status: "ESPERANDO_TRANSFERENCIA", updatedAt: /* @__PURE__ */ new Date() });
   res.json({ ok: true, status: "ESPERANDO_TRANSFERENCIA" });
 });
@@ -5501,6 +5892,59 @@ import { Router as Router7 } from "express";
 var router7 = Router7();
 router7.use(requireAuth);
 router7.use(requireAdmin);
+router7.get("/settings", async (_req, res) => {
+  const settings = await getPlatformSettings();
+  res.json({
+    ...settings,
+    mercadopago: {
+      ...settings.mercadopago,
+      accessToken: settings.mercadopago.accessToken ? "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" + settings.mercadopago.accessToken.slice(-4) : "",
+      publicKey: settings.mercadopago.publicKey ? "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" + settings.mercadopago.publicKey.slice(-4) : "",
+      webhookSecret: settings.mercadopago.webhookSecret ? "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" : ""
+    }
+  });
+});
+router7.put("/settings", async (req, res) => {
+  const body = req.body;
+  const docRef = db().collection(COLLECTIONS.PLATFORM_SETTINGS).doc("main");
+  const current = await getPlatformSettings();
+  const updates = {
+    updatedAt: /* @__PURE__ */ new Date()
+  };
+  if (typeof body.commissionPercentage === "number" && body.commissionPercentage >= 0 && body.commissionPercentage <= 100) {
+    updates.commissionPercentage = body.commissionPercentage;
+  }
+  if (body.mercadopago && typeof body.mercadopago === "object") {
+    const mp = body.mercadopago;
+    const useNew = (val, key) => typeof val === "string" && val.length > 0 && !val.startsWith("\u2022\u2022\u2022\u2022") ? val : current.mercadopago[key] || "";
+    updates.mercadopago = {
+      enabled: typeof mp.enabled === "boolean" ? mp.enabled : current.mercadopago.enabled,
+      accessToken: useNew(mp.accessToken, "accessToken"),
+      publicKey: useNew(mp.publicKey, "publicKey"),
+      webhookSecret: useNew(mp.webhookSecret, "webhookSecret"),
+      sandboxMode: typeof mp.sandboxMode === "boolean" ? mp.sandboxMode : current.mercadopago.sandboxMode,
+      backUrlBase: typeof mp.backUrlBase === "string" ? mp.backUrlBase : current.mercadopago.backUrlBase ?? ""
+    };
+  }
+  if (body.users && typeof body.users === "object") {
+    updates.users = { ...current.users, ...body.users };
+  }
+  if (body.visual && typeof body.visual === "object") {
+    updates.visual = { ...current.visual, ...body.visual };
+  }
+  await docRef.set(updates, { merge: true });
+  invalidateSettingsCache();
+  const updated = await getPlatformSettings();
+  res.json({
+    ...updated,
+    mercadopago: {
+      ...updated.mercadopago,
+      accessToken: updated.mercadopago.accessToken ? "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" + updated.mercadopago.accessToken.slice(-4) : "",
+      publicKey: updated.mercadopago.publicKey ? "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" + updated.mercadopago.publicKey.slice(-4) : "",
+      webhookSecret: updated.mercadopago.webhookSecret ? "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" : ""
+    }
+  });
+});
 router7.get("/stats", async (_req, res) => {
   const [usersSnap, ordersSnap, disputesSnap, kycSnap, listingsSnap, ordersCompletedSnap] = await Promise.all([
     db().collection(COLLECTIONS.USERS).get(),
@@ -5553,6 +5997,38 @@ router7.get("/users", async (req, res) => {
     })
   );
   res.json({ users: withKyc, total });
+});
+router7.get("/users/:userId/cards", async (req, res) => {
+  const { userId } = req.params;
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+  if (!userDoc.exists) return res.status(404).json({ error: "Usuario no encontrado" });
+  const userData = userDoc.data();
+  const email = userData.email;
+  if (!email || typeof email !== "string") {
+    return res.json({ cards: [], user: { id: userId, email: null } });
+  }
+  try {
+    const customerId = await getOrCreateCustomer(userId, email);
+    if (!userData.mpCustomerId) {
+      await db().collection(COLLECTIONS.USERS).doc(userId).update({
+        mpCustomerId: customerId,
+        updatedAt: /* @__PURE__ */ new Date()
+      });
+    }
+    const cards = await listCustomerCards(customerId);
+    res.json({
+      cards,
+      user: {
+        id: userId,
+        email: userData.email,
+        firstName: userData.firstName,
+        lastName: userData.lastName
+      }
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error al listar tarjetas";
+    res.status(500).json({ error: msg });
+  }
 });
 router7.get("/kyc/pending", async (_req, res) => {
   const snap = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).where("status", "==", "EN_REVISION").get();
@@ -5806,10 +6282,88 @@ router8.post("/didit", async (req, res) => {
     return res.status(500).json({ error: "Error interno" });
   }
 });
+router8.post("/mercadopago", async (req, res) => {
+  const rawBody = req.rawBody;
+  if (!rawBody) {
+    return res.status(400).json({ error: "Raw body no disponible" });
+  }
+  let body;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    return res.status(400).json({ error: "JSON inv\xE1lido" });
+  }
+  const { type, data } = body;
+  if (type !== "payment" || !data?.id) {
+    return res.status(200).json({ received: true });
+  }
+  const paymentId = String(data.id);
+  const xSignature = req.get("x-signature") ?? req.get("X-Signature");
+  const xRequestId = req.get("x-request-id") ?? req.get("X-Request-Id") ?? "";
+  const webhookSecret = await getMercadoPagoWebhookSecret();
+  if (webhookSecret && xSignature) {
+    const parts = xSignature.split(",");
+    let ts = "";
+    let v1 = "";
+    for (const part of parts) {
+      const [key, val] = part.split("=").map((s) => s.trim());
+      if (key === "ts") ts = val;
+      if (key === "v1") v1 = val;
+    }
+    const dataId = paymentId.toLowerCase();
+    const isValid2 = verifyMercadoPagoWebhookSignature(dataId, xRequestId, ts, webhookSecret, v1);
+    if (!isValid2) {
+      console.warn("Webhook MercadoPago: firma inv\xE1lida");
+      return res.status(401).json({ error: "Firma inv\xE1lida" });
+    }
+  }
+  if (!isMercadoPagoConfigured()) {
+    return res.status(200).json({ received: true });
+  }
+  const payment = await getPaymentById(paymentId);
+  if (!payment) {
+    return res.status(200).json({ received: true });
+  }
+  const orderId = payment.external_reference;
+  if (!orderId) {
+    return res.status(200).json({ received: true });
+  }
+  if (payment.status === "approved") {
+    const orderRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
+    const orderDoc = await orderRef.get();
+    if (orderDoc.exists && orderDoc.data()?.status === "PENDIENTE_PAGO") {
+      await orderRef.update({
+        status: "ESPERANDO_TRANSFERENCIA",
+        paymentIntentId: paymentId,
+        updatedAt: /* @__PURE__ */ new Date()
+      });
+    }
+  }
+  return res.status(200).json({ received: true });
+});
 var webhooksRouter = router8;
 
-// src/index.ts
+// src/routes/mercadopago.ts
+import { Router as Router10 } from "express";
+import path from "path";
+import { fileURLToPath } from "url";
 var __dirname = path.dirname(fileURLToPath(import.meta.url));
+var router9 = Router10();
+router9.get("/public-key", async (_req, res) => {
+  try {
+    const publicKey = await getMercadoPagoPublicKey();
+    res.json({ publicKey });
+  } catch (e) {
+    res.status(503).json({ error: "Mercado Pago no configurado" });
+  }
+});
+router9.get("/card-form", (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "..", "public", "card-form.html"));
+});
+var mercadopagoRouter = router9;
+
+// src/index.ts
+var __dirname2 = path2.dirname(fileURLToPath2(import.meta.url));
 var app2 = express();
 var PORT = process.env.PORT ?? 3001;
 app2.set("trust proxy", 1);
@@ -5844,6 +6398,7 @@ try {
 app2.use("/api/health", healthRouter);
 app2.use("/api/auth", authRouter);
 app2.use("/api/webhooks", webhooksRouter);
+app2.use("/api/mercadopago", mercadopagoRouter);
 app2.use("/api/users", usersRouter);
 app2.use("/api/tickets", ticketsRouter);
 app2.use("/api/orders", ordersRouter);

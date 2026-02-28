@@ -8,6 +8,7 @@
     "packages/*"
   ],
   "scripts": {
+    "postinstall": "patch-package && node apps/mobile/scripts/patch-react-native-screens-cpp.js",
     "dev": "pnpm run --parallel dev",
     "dev:api": "pnpm --filter api dev",
     "dev:api:run": "cd apps/api && npx tsx watch src/index.ts",

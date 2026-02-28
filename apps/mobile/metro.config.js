@@ -8,13 +8,9 @@ const config = {
   watchFolders: [monorepoRoot],
   resolver: {
     nodeModulesPaths: [
-      path.resolve(projectRoot, 'node_modules'),
       path.resolve(monorepoRoot, 'node_modules'),
+      path.resolve(projectRoot, 'node_modules'),
     ],
-    // Fuerza resolución de @babel/runtime en monorepo pnpm (Gradle bundle)
-    extraNodeModules: {
-      '@babel/runtime': path.resolve(projectRoot, 'node_modules/@babel/runtime'),
-    },
   },
 };
 

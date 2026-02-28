@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { requireAuth, requireAdmin, type AuthRequest } from '../middleware/auth.js';
 import { getPlatformSettings, invalidateSettingsCache } from '../lib/settings.js';
+import { getOrCreateCustomer, listCustomerCards } from '../lib/mercadopago.js';
 
 const router = Router();
 
@@ -20,6 +21,7 @@ router.get('/settings', async (_req, res) => {
     mercadopago: {
       ...settings.mercadopago,
       accessToken: settings.mercadopago.accessToken ? '••••••••' + settings.mercadopago.accessToken.slice(-4) : '',
+      publicKey: settings.mercadopago.publicKey ? '••••••••' + settings.mercadopago.publicKey.slice(-4) : '',
       webhookSecret: settings.mercadopago.webhookSecret ? '••••••••' : '',
     },
   });
@@ -40,11 +42,12 @@ router.put('/settings', async (req: AuthRequest, res) => {
 
   if (body.mercadopago && typeof body.mercadopago === 'object') {
     const mp = body.mercadopago as Record<string, unknown>;
-    const useNew = (val: unknown, key: 'accessToken' | 'webhookSecret') =>
+    const useNew = (val: unknown, key: 'accessToken' | 'webhookSecret' | 'publicKey') =>
       typeof val === 'string' && val.length > 0 && !val.startsWith('••••') ? val : (current.mercadopago[key] || '');
     updates.mercadopago = {
       enabled: typeof mp.enabled === 'boolean' ? mp.enabled : current.mercadopago.enabled,
       accessToken: useNew(mp.accessToken, 'accessToken'),
+      publicKey: useNew(mp.publicKey, 'publicKey'),
       webhookSecret: useNew(mp.webhookSecret, 'webhookSecret'),
       sandboxMode: typeof mp.sandboxMode === 'boolean' ? mp.sandboxMode : current.mercadopago.sandboxMode,
       backUrlBase: typeof mp.backUrlBase === 'string' ? mp.backUrlBase : (current.mercadopago.backUrlBase ?? ''),
@@ -68,6 +71,7 @@ router.put('/settings', async (req: AuthRequest, res) => {
     mercadopago: {
       ...updated.mercadopago,
       accessToken: updated.mercadopago.accessToken ? '••••••••' + updated.mercadopago.accessToken.slice(-4) : '',
+      publicKey: updated.mercadopago.publicKey ? '••••••••' + updated.mercadopago.publicKey.slice(-4) : '',
       webhookSecret: updated.mercadopago.webhookSecret ? '••••••••' : '',
     },
   });
@@ -145,6 +149,40 @@ router.get('/users', async (req: AuthRequest, res) => {
   );
 
   res.json({ users: withKyc, total });
+});
+
+/** Tarjetas adheridas de un usuario (solo metadata) */
+router.get('/users/:userId/cards', async (req: AuthRequest, res) => {
+  const { userId } = req.params;
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+  if (!userDoc.exists) return res.status(404).json({ error: 'Usuario no encontrado' });
+  const userData = userDoc.data()!;
+  const email = userData.email;
+  if (!email || typeof email !== 'string') {
+    return res.json({ cards: [], user: { id: userId, email: null } });
+  }
+  try {
+    const customerId = await getOrCreateCustomer(userId, email);
+    if (!userData.mpCustomerId) {
+      await db().collection(COLLECTIONS.USERS).doc(userId).update({
+        mpCustomerId: customerId,
+        updatedAt: new Date(),
+      });
+    }
+    const cards = await listCustomerCards(customerId);
+    res.json({
+      cards,
+      user: {
+        id: userId,
+        email: (userData as Record<string, unknown>).email,
+        firstName: (userData as Record<string, unknown>).firstName,
+        lastName: (userData as Record<string, unknown>).lastName,
+      },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Error al listar tarjetas';
+    res.status(500).json({ error: msg });
+  }
 });
 
 router.get('/kyc/pending', async (_req, res) => {

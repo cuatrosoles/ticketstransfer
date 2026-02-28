@@ -3,12 +3,12 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "start": "react-native start",
-    "android": "react-native run-android",
-    "ios": "react-native run-ios",
+    "start": "pnpm exec react-native start",
+    "android": "pnpm exec react-native run-android",
+    "ios": "pnpm exec react-native run-ios",
     "lint": "eslint .",
     "fix:android": "bash scripts/fix-android-build.sh",
-    "postinstall": "patch-package && node scripts/patch-react-native-screens-cpp.js",
+    "postinstall": "true",
     "apk:debug": "cd android && ./gradlew assembleDebug && cd ..",
     "apk:release": "cd android && ./gradlew assembleRelease && cd ..",
     "apk:release:no-daemon": "cd android && ./gradlew --stop && ./gradlew assembleRelease --no-daemon && cd .."
@@ -36,6 +36,8 @@
     "@react-native-firebase/storage": "^19.0.0"
   },
   "devDependencies": {
+    "metro-runtime": "0.80.12",
+    "nullthrows": "1.1.1",
     "@babel/core": "^7.23.7",
     "@babel/preset-env": "^7.23.7",
     "@react-native-community/cli-platform-android": "12.3.0",
