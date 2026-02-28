@@ -62,13 +62,17 @@ export function MensajesScreen() {
   const [searchResults, setSearchResults] = useState<UserSearchItem[]>([]);
   const [searching, setSearching] = useState(false);
   const [creating, setCreating] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const loadConversations = useCallback(async () => {
+    setError(null);
     try {
       const list = await getConversations();
       setConversations(list);
     } catch (e) {
-      console.error(e);
+      const msg = e instanceof Error ? e.message : 'Error al cargar conversaciones';
+      setError(msg);
+      setConversations([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -80,19 +84,17 @@ export function MensajesScreen() {
   }, [loadConversations]);
 
   useEffect(() => {
-    (async () => {
-      const granted = await requestNotificationPermission();
-      if (granted) {
-        const token = await getFcmToken();
-        if (token) {
-          try {
-            await updateProfile({ fcmToken: token });
-          } catch (e) {
-            console.warn('No se pudo registrar FCM token:', e);
-          }
-        }
-      }
-    })();
+    requestNotificationPermission()
+      .then((granted) => {
+        if (granted) return getFcmToken();
+        return null;
+      })
+      .then((token) => {
+        if (token) return updateProfile({ fcmToken: token });
+      })
+      .catch(() => {
+        // FCM es opcional: no mostrar error al usuario
+      });
   }, []);
 
   useEffect(() => {
@@ -216,13 +218,30 @@ export function MensajesScreen() {
               />
             }
             ListEmptyComponent={
-              <View style={[styles.empty, glassCard]}>
-                <Text style={styles.emptyIcon}>💬</Text>
-                <Text style={styles.emptyTitle}>Sin conversaciones</Text>
-                <Text style={styles.emptyText}>
-                  Tocá "Nueva conversación" y buscá un usuario por ID o email para empezar a chatear.
-                </Text>
-              </View>
+              error ? (
+                <View style={[styles.empty, glassCard]}>
+                  <Text style={styles.emptyIcon}>⚠️</Text>
+                  <Text style={styles.emptyTitle}>Error al cargar</Text>
+                  <Text style={styles.emptyText}>{error}</Text>
+                  <TouchableOpacity
+                    style={styles.retryBtn}
+                    onPress={() => {
+                      setLoading(true);
+                      loadConversations();
+                    }}
+                  >
+                    <Text style={styles.retryBtnText}>Reintentar</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={[styles.empty, glassCard]}>
+                  <Text style={styles.emptyIcon}>💬</Text>
+                  <Text style={styles.emptyTitle}>Sin conversaciones</Text>
+                  <Text style={styles.emptyText}>
+                    Tocá "Nueva conversación" y buscá un usuario por ID o email para empezar a chatear.
+                  </Text>
+                </View>
+              )
             }
           />
         )}
@@ -344,6 +363,14 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 48, marginBottom: spacing.md },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
   emptyText: { fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 22 },
+  retryBtn: {
+    marginTop: spacing.md,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: colors.primary,
+    borderRadius: radius,
+  },
+  retryBtnText: { color: colors.white, fontWeight: '600', fontSize: 15 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalContent: {
     backgroundColor: 'rgba(15, 23, 42, 0.98)',

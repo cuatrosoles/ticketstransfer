@@ -86,6 +86,7 @@ export function ProfileScreen() {
     city: '',
     province: '',
     postalCode: '',
+    address: '',
   });
 
   const loadProfile = async () => {
@@ -102,6 +103,7 @@ export function ProfileScreen() {
         city: data.city ?? '',
         province: data.province ?? '',
         postalCode: data.postalCode ?? '',
+        address: data.address ?? '',
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar el perfil');
@@ -130,6 +132,7 @@ export function ProfileScreen() {
         city: form.city?.trim() || undefined,
         province: form.province || undefined,
         postalCode: form.postalCode?.trim() || undefined,
+        address: form.address?.trim() || undefined,
       };
       await updateProfile(payload);
       await loadProfile();
@@ -152,6 +155,7 @@ export function ProfileScreen() {
         city: profile.city ?? '',
         province: profile.province ?? '',
         postalCode: profile.postalCode ?? '',
+        address: profile.address ?? '',
       });
     }
     setEditing(false);
@@ -339,6 +343,7 @@ export function ProfileScreen() {
                 )}
               </View>
             </View>
+            <ProfileField label="Domicilio" value={profile.address || '—'} />
             <ProfileField label="Ciudad" value={profile.city || '—'} />
             <ProfileField
               label="Provincia"
@@ -427,6 +432,14 @@ export function ProfileScreen() {
             >
               <Text style={styles.pickerValue}>{form.city || (form.province ? 'Seleccionar ciudad' : 'Primero elegí una provincia')}</Text>
             </TouchableOpacity>
+            <Text style={styles.label}>Domicilio (calle y número)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ej: Av. Corrientes 1234"
+              placeholderTextColor={colors.textMuted}
+              value={form.address}
+              onChangeText={(t) => setForm((f) => ({ ...f, address: t }))}
+            />
             <Text style={styles.label}>Código postal</Text>
             <TextInput
               style={styles.input}

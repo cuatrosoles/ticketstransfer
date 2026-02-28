@@ -130,6 +130,7 @@ export type Profile = {
   city: string | null;
   province: string | null;
   postalCode: string | null;
+  address: string | null;
   reputationScore: number | null;
   profileImageUrl: string | null;
   kyc: { status: string; rejectionReason: string | null } | null;
@@ -143,6 +144,7 @@ export type ProfileUpdate = {
   city?: string;
   province?: string;
   postalCode?: string;
+  address?: string;
   fcmToken?: string;
 };
 

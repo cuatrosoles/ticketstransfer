@@ -55,6 +55,7 @@ router.get('/profile', async (req: AuthRequest, res) => {
     city: data.city ?? null,
     province: data.province ?? null,
     postalCode: data.postalCode ?? null,
+    address: data.address ?? null,
     reputationScore: data.reputationScore ?? null,
     profileImageUrl: data.profileImageUrl ?? null,
     kyc: kyc ? { status: kyc.status, rejectionReason: kyc.rejectionReason ?? null } : { status: 'PENDIENTE', rejectionReason: null },
@@ -131,7 +132,7 @@ router.post('/profile/avatar', upload.single('avatar'), async (req: AuthRequest,
 
 router.patch('/profile', async (req: AuthRequest, res) => {
   const body = req.body || {};
-  const { username, firstName, lastName, phone, city, province, postalCode, fcmToken } = body;
+  const { username, firstName, lastName, phone, city, province, postalCode, address, fcmToken } = body;
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (firstName !== undefined) updateData.firstName = firstName;
   if (lastName !== undefined) updateData.lastName = lastName;
@@ -139,6 +140,7 @@ router.patch('/profile', async (req: AuthRequest, res) => {
   if (city !== undefined) updateData.city = city;
   if (province !== undefined) updateData.province = province;
   if (postalCode !== undefined) updateData.postalCode = postalCode;
+  if (address !== undefined) updateData.address = typeof address === 'string' ? address.trim() || null : null;
   if (fcmToken !== undefined) updateData.fcmToken = fcmToken;
 
   if (username !== undefined) {
@@ -166,6 +168,7 @@ router.patch('/profile', async (req: AuthRequest, res) => {
     username: data.username,
     firstName: data.firstName,
     lastName: data.lastName,
+    address: data.address ?? null,
   });
 });
 

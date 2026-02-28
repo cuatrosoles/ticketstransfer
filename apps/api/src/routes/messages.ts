@@ -21,12 +21,10 @@ router.get('/conversations', async (req: AuthRequest, res) => {
   const conv1 = await db()
     .collection(COLLECTIONS.CONVERSATIONS)
     .where('user1Id', '==', userId)
-    .orderBy('updatedAt', 'desc')
     .get();
   const conv2 = await db()
     .collection(COLLECTIONS.CONVERSATIONS)
     .where('user2Id', '==', userId)
-    .orderBy('updatedAt', 'desc')
     .get();
 
   const allConvs = [...conv1.docs, ...conv2.docs];
