@@ -59,8 +59,18 @@ WEB_URL="https://tu-web.com"   # Para URLs de retorno tras el pago
 3. Usar credenciales de **prueba** en `MERCADOPAGO_ACCESS_TOKEN`.
 4. Usar tarjetas de prueba de [Mercado Pago](https://www.mercadopago.com.ar/developers/es/docs/your-integrations/test/accounts).
 
-## Producción
+## Solo app móvil (sin web pública)
 
-- `WEB_URL` debe ser la URL pública de tu app web (ej: `https://ticketstransfer.com`).
-- Las URLs de retorno (`back_urls`) apuntan a `{WEB_URL}/orden/{orderId}/pago?status=success|failure|pending`.
+Si solo tenés app Android/iOS:
+
+1. **Admin** → Configuración → Pasarelas de pago.
+2. En **URL de retorno**, ingresá: `ticketTransfer://`
+3. Guardar.
+
+Tras el pago en Mercado Pago, el usuario será redirigido a la app mediante deep link (`ticketTransfer://orden/{orderId}/pago?status=success`). La app ya está configurada para manejar este esquema en Android e iOS.
+
+## Producción (con web)
+
+- Poné la URL pública de tu web (ej: `https://ticketstransfer.com`) en **URL de retorno**.
+- Las URLs de retorno serán `{URL}/orden/{orderId}/pago?status=success|failure|pending`.
 - El webhook debe ser accesible desde internet (HTTPS).

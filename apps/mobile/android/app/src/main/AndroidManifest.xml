@@ -30,6 +30,12 @@
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="ticketTransfer" android:host="kyc" android:pathPrefix="/callback" />
         </intent-filter>
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="ticketTransfer" android:host="orden" android:pathPrefix="/" />
+        </intent-filter>
       </activity>
     </application>
 </manifest>

@@ -10,6 +10,8 @@ export type MercadoPagoSettings = {
   accessToken: string;
   webhookSecret: string;
   sandboxMode: boolean;
+  /** URL base para retorno tras pago: https://web.com o ticketTransfer:// (deep link app) */
+  backUrlBase?: string;
 };
 
 export type PlatformSettings = {
@@ -27,6 +29,7 @@ const DEFAULTS: PlatformSettings = {
     accessToken: '',
     webhookSecret: '',
     sandboxMode: true,
+    backUrlBase: '',
   },
   users: {},
   visual: {},
@@ -55,6 +58,7 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
       accessToken: d.mercadopago?.accessToken ?? '',
       webhookSecret: d.mercadopago?.webhookSecret ?? '',
       sandboxMode: d.mercadopago?.sandboxMode ?? true,
+      backUrlBase: d.mercadopago?.backUrlBase ?? '',
     },
     users: d.users ?? {},
     visual: d.visual ?? {},

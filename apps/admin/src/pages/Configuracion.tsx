@@ -11,6 +11,7 @@ type MercadoPagoSettings = {
   accessToken: string;
   webhookSecret: string;
   sandboxMode: boolean;
+  backUrlBase?: string;
 };
 
 type PlatformSettings = {
@@ -162,6 +163,23 @@ export function Configuracion() {
                   }))
                 }
               />
+            </div>
+            <div className="form-group">
+              <label>URL de retorno (tras el pago)</label>
+              <input
+                type="text"
+                placeholder="ticketTransfer:// (app) o https://tu-web.com (web)"
+                value={form.mercadopago?.backUrlBase ?? ''}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    mercadopago: { ...(f.mercadopago || {}), backUrlBase: e.target.value },
+                  }))
+                }
+              />
+              <small className="text-muted">
+                Solo app móvil: usá <code>ticketTransfer://</code> para que el retorno abra la app. Con web: URL pública de tu sitio.
+              </small>
             </div>
             <div className="form-group">
               <label>

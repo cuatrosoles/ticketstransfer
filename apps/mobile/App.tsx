@@ -10,12 +10,21 @@ import { AuthProvider } from './src/context/AuthContext';
 import { ProfileImageProvider } from './src/context/ProfileImageContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 
+const linking = {
+  prefixes: ['ticketTransfer://'],
+  config: {
+    screens: {
+      OrderPago: 'orden/:orderId/pago',
+    },
+  },
+};
+
 export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
         <ProfileImageProvider>
-          <NavigationContainer>
+          <NavigationContainer linking={linking}>
             <RootNavigator />
           </NavigationContainer>
         </ProfileImageProvider>

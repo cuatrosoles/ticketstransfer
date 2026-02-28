@@ -62,8 +62,20 @@ export type CreatePreferenceParams = {
 
 export async function createCheckoutPreference(params: CreatePreferenceParams): Promise<{ initPoint: string; preferenceId: string }> {
   const { preference } = await getMercadoPagoClient();
-  const webUrl = process.env.WEB_URL || 'http://localhost:5173';
-  const basePath = webUrl.replace(/\/$/, '');
+  const settings = await getPlatformSettings();
+  const backBase = settings.mercadopago.backUrlBase || process.env.WEB_URL || process.env.APP_DEEP_LINK_SCHEME || 'http://localhost:5173';
+  const basePath = backBase.replace(/\/$/, '');
+
+  const isDeepLink = basePath.includes('://') && !basePath.startsWith('http');
+  const success = isDeepLink
+    ? `${basePath}orden/${params.orderId}/pago?status=success`
+    : `${basePath}/orden/${params.orderId}/pago?status=success`;
+  const failure = isDeepLink
+    ? `${basePath}orden/${params.orderId}/pago?status=failure`
+    : `${basePath}/orden/${params.orderId}/pago?status=failure`;
+  const pending = isDeepLink
+    ? `${basePath}orden/${params.orderId}/pago?status=pending`
+    : `${basePath}/orden/${params.orderId}/pago?status=pending`;
 
   const pref = await preference.create({
     body: {
@@ -78,9 +90,9 @@ export async function createCheckoutPreference(params: CreatePreferenceParams): 
       ],
       external_reference: params.orderId,
       back_urls: {
-        success: `${basePath}/orden/${params.orderId}/pago?status=success`,
-        failure: `${basePath}/orden/${params.orderId}/pago?status=failure`,
-        pending: `${basePath}/orden/${params.orderId}/pago?status=pending`,
+        success,
+        failure,
+        pending,
       },
       auto_return: 'approved' as const,
       payer: params.payerEmail ? { email: params.payerEmail } : undefined,
