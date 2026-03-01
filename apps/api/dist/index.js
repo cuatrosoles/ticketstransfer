@@ -4669,10 +4669,20 @@ async function createPaymentWithToken(params) {
 }
 
 // src/routes/users.ts
+var MSG_CREDENTIALES_TEST = "Us\xE1 credenciales de PRUEBA (Test) en Mercado Pago. Las credenciales de producci\xF3n no funcionan con tarjetas de test. En Tu integraci\xF3n \u2192 Credenciales \u2192 Credenciales de prueba, copi\xE1 el Access Token y la Public Key.";
 function extractMpError(e) {
   const err = e;
-  const fromBody = err?.cause?.body?.message;
-  const fromCause = err?.cause?.message;
+  const cause = err?.cause;
+  const causeList = Array.isArray(cause) ? cause : cause?.body?.cause;
+  if (Array.isArray(causeList)) {
+    const code300 = causeList.find(
+      (c) => c?.code === "300" || c?.description?.toLowerCase().includes("live credentials")
+    );
+    if (code300) return MSG_CREDENTIALES_TEST;
+  }
+  const body = cause?.body;
+  const fromBody = body?.message;
+  const fromCause = cause?.message;
   const fromMsg = err?.message;
   return (fromBody || fromCause || fromMsg) ?? null;
 }

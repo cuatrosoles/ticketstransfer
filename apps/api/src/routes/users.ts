@@ -17,11 +17,27 @@ import {
   removeCustomerCard,
 } from '../lib/mercadopago.js';
 
+const MSG_CREDENTIALES_TEST =
+  'Usá credenciales de PRUEBA (Test) en Mercado Pago. Las credenciales de producción no funcionan con tarjetas de test. En Tu integración → Credenciales → Credenciales de prueba, copiá el Access Token y la Public Key.';
+
 /** Extrae mensaje de error de respuestas Mercado Pago (SDK suele anidar en cause/body) */
 function extractMpError(e: unknown): string | null {
-  const err = e as { cause?: { body?: { message?: string }; message?: string }; message?: string };
-  const fromBody = err?.cause?.body?.message;
-  const fromCause = err?.cause?.message;
+  const err = e as {
+    cause?: unknown;
+    message?: string;
+  };
+  const cause = err?.cause;
+  const causeList = Array.isArray(cause) ? cause : (cause as { body?: { cause?: unknown } })?.body?.cause;
+  if (Array.isArray(causeList)) {
+    const code300 = causeList.find(
+      (c: { code?: string; description?: string }) =>
+        c?.code === '300' || c?.description?.toLowerCase().includes('live credentials')
+    );
+    if (code300) return MSG_CREDENTIALES_TEST;
+  }
+  const body = (cause as { body?: { message?: string; cause?: unknown[] } })?.body;
+  const fromBody = body?.message;
+  const fromCause = (cause as { message?: string })?.message;
   const fromMsg = err?.message;
   return (fromBody || fromCause || fromMsg) ?? null;
 }
