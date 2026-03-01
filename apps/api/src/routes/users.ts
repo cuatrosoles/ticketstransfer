@@ -16,9 +16,20 @@ import {
   listCustomerCards,
   removeCustomerCard,
 } from '../lib/mercadopago.js';
+import { getPlatformSettings, invalidateSettingsCache } from '../lib/settings.js';
 
 const MSG_CREDENTIALES_TEST =
-  'Usá credenciales de PRUEBA (Test) en Mercado Pago. Las credenciales de producción no funcionan con tarjetas de test. En Tu integración → Credenciales → Credenciales de prueba, copiá el Access Token y la Public Key.';
+  'Usá credenciales de PRUEBA (Test) en Mercado Pago. Las credenciales de producción no funcionan con tarjetas de test. Verificá: 1) platformSettings/main en Firestore tiene accessToken y publicKey de prueba. 2) En Railway, eliminá MERCADOPAGO_ACCESS_TOKEN y MERCADOPAGO_PUBLIC_KEY si existen (la API usa Firestore cuando están en Admin).';
+
+function isLiveCredentialsError(e: unknown): boolean {
+  const cause = (e as { cause?: unknown })?.cause;
+  const list = Array.isArray(cause) ? cause : (cause as { body?: { cause?: unknown } })?.body?.cause;
+  if (!Array.isArray(list)) return false;
+  return list.some(
+    (c: { code?: string; description?: string }) =>
+      c?.code === '300' || c?.description?.toLowerCase().includes('live credentials')
+  );
+}
 
 /** Extrae mensaje de error de respuestas Mercado Pago (SDK suele anidar en cause/body) */
 function extractMpError(e: unknown): string | null {
@@ -304,23 +315,46 @@ router.post('/kyc/session', async (req: AuthRequest, res) => {
 
 /** Tarjetas adheridas (Checkout API - Mercado Pago Customers) */
 router.get('/cards', async (req: AuthRequest, res) => {
-  try {
+  const doList = async () => {
     const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
     const userData = userDoc.data();
     const email = userData?.email;
     if (!email || typeof email !== 'string') {
-      return res.status(400).json({ error: 'Usuario sin email' });
+      throw new Error('Usuario sin email');
     }
-    const customerId = await getOrCreateCustomer(req.user!.id, email);
+    const settings = await getPlatformSettings();
+    const customerId = await getOrCreateCustomer(req.user!.id, email, settings.mercadopago.sandboxMode);
     if (!userData?.mpCustomerId) {
       await db().collection(COLLECTIONS.USERS).doc(req.user!.id).update({
         mpCustomerId: customerId,
         updatedAt: new Date(),
       });
     }
-    const cards = await listCustomerCards(customerId);
+    return listCustomerCards(customerId);
+  };
+  try {
+    const cards = await doList();
     res.json({ cards });
   } catch (e) {
+    if (e instanceof Error && e.message === 'Usuario sin email') {
+      return res.status(400).json({ error: e.message });
+    }
+    if (isLiveCredentialsError(e)) {
+      invalidateSettingsCache();
+      try {
+        const cards = await doList();
+        return res.json({ cards });
+      } catch (retryErr) {
+        const msg = retryErr instanceof Error && retryErr.message === 'Usuario sin email'
+          ? retryErr.message
+          : (extractMpError(retryErr) || MSG_CREDENTIALES_TEST);
+        if (retryErr instanceof Error && retryErr.message === 'Usuario sin email') {
+          return res.status(400).json({ error: msg });
+        }
+        console.error('[GET /cards] retry failed:', retryErr);
+        return res.status(500).json({ error: msg });
+      }
+    }
     const msg = extractMpError(e) || (e instanceof Error ? e.message : 'Error al listar tarjetas');
     console.error('[GET /cards]', e);
     res.status(500).json({ error: msg });
@@ -332,23 +366,44 @@ router.post('/cards', async (req: AuthRequest, res) => {
   if (!token) {
     return res.status(400).json({ error: 'Token de tarjeta requerido' });
   }
-  try {
+  const doAdd = async () => {
     const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
     const userData = userDoc.data();
     const email = userData?.email;
     if (!email || typeof email !== 'string') {
-      return res.status(400).json({ error: 'Usuario sin email' });
+      throw new Error('Usuario sin email');
     }
-    const customerId = await getOrCreateCustomer(req.user!.id, email);
+    const settings = await getPlatformSettings();
+    const customerId = await getOrCreateCustomer(req.user!.id, email, settings.mercadopago.sandboxMode);
     if (!userData?.mpCustomerId) {
       await db().collection(COLLECTIONS.USERS).doc(req.user!.id).update({
         mpCustomerId: customerId,
         updatedAt: new Date(),
       });
     }
-    const card = await addCardToCustomer(customerId, token);
+    return addCardToCustomer(customerId, token);
+  };
+  try {
+    const card = await doAdd();
     res.status(201).json({ card });
   } catch (e) {
+    if (e instanceof Error && e.message === 'Usuario sin email') {
+      return res.status(400).json({ error: e.message });
+    }
+    if (isLiveCredentialsError(e)) {
+      invalidateSettingsCache();
+      try {
+        const card = await doAdd();
+        return res.status(201).json({ card });
+      } catch (retryErr) {
+        if (retryErr instanceof Error && retryErr.message === 'Usuario sin email') {
+          return res.status(400).json({ error: retryErr.message });
+        }
+        const msg = extractMpError(retryErr) || MSG_CREDENTIALES_TEST;
+        console.error('[POST /cards] retry failed:', retryErr);
+        return res.status(500).json({ error: msg });
+      }
+    }
     const msg = extractMpError(e) || (e instanceof Error ? e.message : 'Error al agregar tarjeta');
     console.error('[POST /cards]', e);
     res.status(500).json({ error: msg });

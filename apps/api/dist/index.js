@@ -4488,7 +4488,7 @@ var DEFAULTS = {
 var SETTINGS_DOC_ID = "main";
 var cachedSettings = null;
 var cacheExpiry = 0;
-var CACHE_TTL_MS = 6e4;
+var CACHE_TTL_MS = 3e4;
 async function getPlatformSettings() {
   if (cachedSettings && Date.now() < cacheExpiry) {
     return cachedSettings;
@@ -4536,9 +4536,15 @@ function getAccessToken() {
 }
 async function getMercadoPagoClient() {
   const settings = await getPlatformSettings();
-  const token = settings.mercadopago.enabled && settings.mercadopago.accessToken ? settings.mercadopago.accessToken : getAccessToken();
+  const fromFirestore = settings.mercadopago.enabled && settings.mercadopago.accessToken;
+  const token = fromFirestore ? settings.mercadopago.accessToken : getAccessToken();
   if (!token) {
     throw new Error("Mercado Pago no configurado. Configur\xE1 el Access Token en Admin \u2192 Configuraci\xF3n \u2192 Pasarelas de Pago.");
+  }
+  if (settings.mercadopago.sandboxMode && !fromFirestore) {
+    throw new Error(
+      "Modo prueba activo: us\xE1 las credenciales desde Admin/Firestore (platformSettings/main). No uses variables de entorno con credenciales de producci\xF3n."
+    );
   }
   if (!client || lastToken !== token) {
     lastToken = token;
@@ -4620,12 +4626,18 @@ async function getMercadoPagoPublicKey() {
   if (!pk) throw new Error("Mercado Pago Public Key no configurado. Configur\xE1 en Admin \u2192 Pasarelas.");
   return pk;
 }
-async function getOrCreateCustomer(userId, email) {
+function getCustomerEmailForMp(userId, email, sandboxMode) {
+  if (!sandboxMode) return email;
+  const safe = userId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 50);
+  return `test_${safe}@testuser.com`;
+}
+async function getOrCreateCustomer(userId, email, sandboxMode = false) {
   const { customer } = await getMercadoPagoClient();
-  const search = await customer.search({ options: { email } });
+  const mpEmail = getCustomerEmailForMp(userId, email, sandboxMode);
+  const search = await customer.search({ options: { email: mpEmail } });
   const results = search.results;
   if (results && results.length > 0) return results[0].id;
-  const created = await customer.create({ body: { email } });
+  const created = await customer.create({ body: { email: mpEmail } });
   return created.id;
 }
 async function addCardToCustomer(customerId, token) {
@@ -4669,7 +4681,15 @@ async function createPaymentWithToken(params) {
 }
 
 // src/routes/users.ts
-var MSG_CREDENTIALES_TEST = "Us\xE1 credenciales de PRUEBA (Test) en Mercado Pago. Las credenciales de producci\xF3n no funcionan con tarjetas de test. En Tu integraci\xF3n \u2192 Credenciales \u2192 Credenciales de prueba, copi\xE1 el Access Token y la Public Key.";
+var MSG_CREDENTIALES_TEST = "Us\xE1 credenciales de PRUEBA (Test) en Mercado Pago. Las credenciales de producci\xF3n no funcionan con tarjetas de test. Verific\xE1: 1) platformSettings/main en Firestore tiene accessToken y publicKey de prueba. 2) En Railway, elimin\xE1 MERCADOPAGO_ACCESS_TOKEN y MERCADOPAGO_PUBLIC_KEY si existen (la API usa Firestore cuando est\xE1n en Admin).";
+function isLiveCredentialsError(e) {
+  const cause = e?.cause;
+  const list = Array.isArray(cause) ? cause : cause?.body?.cause;
+  if (!Array.isArray(list)) return false;
+  return list.some(
+    (c) => c?.code === "300" || c?.description?.toLowerCase().includes("live credentials")
+  );
+}
 function extractMpError(e) {
   const err = e;
   const cause = err?.cause;
@@ -4917,23 +4937,44 @@ router2.post("/kyc/session", async (req, res) => {
   }
 });
 router2.get("/cards", async (req, res) => {
-  try {
+  const doList = async () => {
     const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
     const userData = userDoc.data();
     const email = userData?.email;
     if (!email || typeof email !== "string") {
-      return res.status(400).json({ error: "Usuario sin email" });
+      throw new Error("Usuario sin email");
     }
-    const customerId = await getOrCreateCustomer(req.user.id, email);
+    const settings = await getPlatformSettings();
+    const customerId = await getOrCreateCustomer(req.user.id, email, settings.mercadopago.sandboxMode);
     if (!userData?.mpCustomerId) {
       await db().collection(COLLECTIONS.USERS).doc(req.user.id).update({
         mpCustomerId: customerId,
         updatedAt: /* @__PURE__ */ new Date()
       });
     }
-    const cards = await listCustomerCards(customerId);
+    return listCustomerCards(customerId);
+  };
+  try {
+    const cards = await doList();
     res.json({ cards });
   } catch (e) {
+    if (e instanceof Error && e.message === "Usuario sin email") {
+      return res.status(400).json({ error: e.message });
+    }
+    if (isLiveCredentialsError(e)) {
+      invalidateSettingsCache();
+      try {
+        const cards = await doList();
+        return res.json({ cards });
+      } catch (retryErr) {
+        const msg2 = retryErr instanceof Error && retryErr.message === "Usuario sin email" ? retryErr.message : extractMpError(retryErr) || MSG_CREDENTIALES_TEST;
+        if (retryErr instanceof Error && retryErr.message === "Usuario sin email") {
+          return res.status(400).json({ error: msg2 });
+        }
+        console.error("[GET /cards] retry failed:", retryErr);
+        return res.status(500).json({ error: msg2 });
+      }
+    }
     const msg = extractMpError(e) || (e instanceof Error ? e.message : "Error al listar tarjetas");
     console.error("[GET /cards]", e);
     res.status(500).json({ error: msg });
@@ -4944,23 +4985,44 @@ router2.post("/cards", async (req, res) => {
   if (!token) {
     return res.status(400).json({ error: "Token de tarjeta requerido" });
   }
-  try {
+  const doAdd = async () => {
     const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
     const userData = userDoc.data();
     const email = userData?.email;
     if (!email || typeof email !== "string") {
-      return res.status(400).json({ error: "Usuario sin email" });
+      throw new Error("Usuario sin email");
     }
-    const customerId = await getOrCreateCustomer(req.user.id, email);
+    const settings = await getPlatformSettings();
+    const customerId = await getOrCreateCustomer(req.user.id, email, settings.mercadopago.sandboxMode);
     if (!userData?.mpCustomerId) {
       await db().collection(COLLECTIONS.USERS).doc(req.user.id).update({
         mpCustomerId: customerId,
         updatedAt: /* @__PURE__ */ new Date()
       });
     }
-    const card = await addCardToCustomer(customerId, token);
+    return addCardToCustomer(customerId, token);
+  };
+  try {
+    const card = await doAdd();
     res.status(201).json({ card });
   } catch (e) {
+    if (e instanceof Error && e.message === "Usuario sin email") {
+      return res.status(400).json({ error: e.message });
+    }
+    if (isLiveCredentialsError(e)) {
+      invalidateSettingsCache();
+      try {
+        const card = await doAdd();
+        return res.status(201).json({ card });
+      } catch (retryErr) {
+        if (retryErr instanceof Error && retryErr.message === "Usuario sin email") {
+          return res.status(400).json({ error: retryErr.message });
+        }
+        const msg2 = extractMpError(retryErr) || MSG_CREDENTIALES_TEST;
+        console.error("[POST /cards] retry failed:", retryErr);
+        return res.status(500).json({ error: msg2 });
+      }
+    }
     const msg = extractMpError(e) || (e instanceof Error ? e.message : "Error al agregar tarjeta");
     console.error("[POST /cards]", e);
     res.status(500).json({ error: msg });
@@ -6030,7 +6092,8 @@ router7.get("/users/:userId/cards", async (req, res) => {
     return res.json({ cards: [], user: { id: userId, email: null } });
   }
   try {
-    const customerId = await getOrCreateCustomer(userId, email);
+    const settings = await getPlatformSettings();
+    const customerId = await getOrCreateCustomer(userId, email, settings.mercadopago.sandboxMode);
     if (!userData.mpCustomerId) {
       await db().collection(COLLECTIONS.USERS).doc(userId).update({
         mpCustomerId: customerId,
@@ -6421,6 +6484,7 @@ app2.use(
     message: { error: "Demasiadas solicitudes" }
   })
 );
+invalidateSettingsCache();
 try {
   getFirebaseAdmin();
   console.log("Firebase inicializado");

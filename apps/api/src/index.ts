@@ -22,6 +22,7 @@ import { adminRouter } from './routes/admin.js';
 import { healthRouter } from './routes/health.js';
 import { webhooksRouter } from './routes/webhooks.js';
 import { mercadopagoRouter } from './routes/mercadopago.js';
+import { invalidateSettingsCache } from './lib/settings.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -68,6 +69,8 @@ app.use(
     message: { error: 'Demasiadas solicitudes' },
   })
 );
+
+invalidateSettingsCache();
 
 // Inicializar Firebase al arrancar (para validar credenciales temprano)
 try {

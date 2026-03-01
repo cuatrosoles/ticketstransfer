@@ -42,7 +42,7 @@ const SETTINGS_DOC_ID = 'main';
 
 let cachedSettings: PlatformSettings | null = null;
 let cacheExpiry = 0;
-const CACHE_TTL_MS = 60_000; // 1 minuto
+const CACHE_TTL_MS = 30_000; // 30 segundos (evita credenciales desactualizadas)
 
 export async function getPlatformSettings(): Promise<PlatformSettings> {
   if (cachedSettings && Date.now() < cacheExpiry) {

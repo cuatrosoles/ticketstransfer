@@ -24,12 +24,17 @@ export async function getMercadoPagoClient(): Promise<{
   customer: Customer;
 }> {
   const settings = await getPlatformSettings();
-  const token = settings.mercadopago.enabled && settings.mercadopago.accessToken
-    ? settings.mercadopago.accessToken
-    : getAccessToken();
+  const fromFirestore = settings.mercadopago.enabled && settings.mercadopago.accessToken;
+  const token = fromFirestore ? settings.mercadopago.accessToken : getAccessToken();
 
   if (!token) {
     throw new Error('Mercado Pago no configurado. Configurá el Access Token en Admin → Configuración → Pasarelas de Pago.');
+  }
+
+  if (settings.mercadopago.sandboxMode && !fromFirestore) {
+    throw new Error(
+      'Modo prueba activo: usá las credenciales desde Admin/Firestore (platformSettings/main). No uses variables de entorno con credenciales de producción.'
+    );
   }
 
   if (!client || lastToken !== token) {
@@ -150,13 +155,21 @@ export async function getMercadoPagoPublicKey(): Promise<string> {
   return pk;
 }
 
+/** En modo prueba, Mercado Pago exige email de test user (@testuser.com). Con email real falla "live credentials". */
+function getCustomerEmailForMp(userId: string, email: string, sandboxMode: boolean): string {
+  if (!sandboxMode) return email;
+  const safe = userId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 50);
+  return `test_${safe}@testuser.com`;
+}
+
 /** Customers API – crear o obtener customer para usuario */
-export async function getOrCreateCustomer(userId: string, email: string): Promise<string> {
+export async function getOrCreateCustomer(userId: string, email: string, sandboxMode = false): Promise<string> {
   const { customer } = await getMercadoPagoClient();
-  const search = await customer.search({ options: { email } });
+  const mpEmail = getCustomerEmailForMp(userId, email, sandboxMode);
+  const search = await customer.search({ options: { email: mpEmail } });
   const results = search.results as Array<{ id: string }> | undefined;
   if (results && results.length > 0) return results[0].id;
-  const created = await customer.create({ body: { email } });
+  const created = await customer.create({ body: { email: mpEmail } });
   return (created as { id: string }).id;
 }
 

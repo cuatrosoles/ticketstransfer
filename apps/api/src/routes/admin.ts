@@ -7,6 +7,7 @@ import { db, COLLECTIONS } from '../lib/firestore.js';
 import { requireAuth, requireAdmin, type AuthRequest } from '../middleware/auth.js';
 import { getPlatformSettings, invalidateSettingsCache } from '../lib/settings.js';
 import { getOrCreateCustomer, listCustomerCards } from '../lib/mercadopago.js';
+import { getPlatformSettings } from '../lib/settings.js';
 
 const router = Router();
 
@@ -162,7 +163,8 @@ router.get('/users/:userId/cards', async (req: AuthRequest, res) => {
     return res.json({ cards: [], user: { id: userId, email: null } });
   }
   try {
-    const customerId = await getOrCreateCustomer(userId, email);
+    const settings = await getPlatformSettings();
+    const customerId = await getOrCreateCustomer(userId, email, settings.mercadopago.sandboxMode);
     if (!userData.mpCustomerId) {
       await db().collection(COLLECTIONS.USERS).doc(userId).update({
         mpCustomerId: customerId,
