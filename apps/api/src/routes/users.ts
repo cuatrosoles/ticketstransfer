@@ -315,10 +315,6 @@ router.post('/kyc/session', async (req: AuthRequest, res) => {
 
 /** Tarjetas adheridas (Checkout API - Mercado Pago Customers) */
 router.get('/cards', async (req: AuthRequest, res) => {
-  const settings = await getPlatformSettings();
-  if (settings.mercadopago.sandboxMode && settings.mercadopago.sandboxSkipCardSaving) {
-    return res.json({ cards: [], _sandboxSkip: true });
-  }
   const doList = async () => {
     const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
     const userData = userDoc.data();
@@ -326,6 +322,7 @@ router.get('/cards', async (req: AuthRequest, res) => {
     if (!email || typeof email !== 'string') {
       throw new Error('Usuario sin email');
     }
+    const settings = await getPlatformSettings();
     const customerId = await getOrCreateCustomer(req.user!.id, email, settings.mercadopago.sandboxMode);
     if (!userData?.mpCustomerId) {
       await db().collection(COLLECTIONS.USERS).doc(req.user!.id).update({
@@ -368,13 +365,6 @@ router.post('/cards', async (req: AuthRequest, res) => {
   const token = typeof req.body?.token === 'string' ? req.body.token.trim() : null;
   if (!token) {
     return res.status(400).json({ error: 'Token de tarjeta requerido' });
-  }
-  const settings = await getPlatformSettings();
-  if (settings.mercadopago.sandboxMode && settings.mercadopago.sandboxSkipCardSaving) {
-    return res.status(201).json({
-      card: { id: 'sandbox-skip', last_four_digits: '****', payment_method: { id: 'credit_card', name: 'Tarjeta' } },
-      _sandboxSkip: true,
-    });
   }
   const doAdd = async () => {
     const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();

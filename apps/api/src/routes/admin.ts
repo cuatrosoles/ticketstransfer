@@ -53,7 +53,6 @@ router.put('/settings', async (req: AuthRequest, res) => {
       sandboxMode: typeof mp.sandboxMode === 'boolean' ? mp.sandboxMode : current.mercadopago.sandboxMode,
       backUrlBase: typeof mp.backUrlBase === 'string' ? mp.backUrlBase : (current.mercadopago.backUrlBase ?? ''),
       sandboxUsePayerTestCom: typeof mp.sandboxUsePayerTestCom === 'boolean' ? mp.sandboxUsePayerTestCom : (current.mercadopago.sandboxUsePayerTestCom ?? false),
-      sandboxSkipCardSaving: typeof mp.sandboxSkipCardSaving === 'boolean' ? mp.sandboxSkipCardSaving : (current.mercadopago.sandboxSkipCardSaving ?? false),
     };
   }
 
