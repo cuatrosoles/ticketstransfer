@@ -40,7 +40,17 @@ const corsOrigin = isProduction
       process.env.CORS_ORIGIN_ADMIN || 'http://localhost:5174',
     ].filter(Boolean);
 
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        'script-src': ["'self'", 'https://sdk.mercadopago.com', "'unsafe-inline'"],
+        'connect-src': ["'self'", 'https://api.mercadopago.com', 'https://sdk.mercadopago.com'],
+        'frame-src': ["'self'", 'https://www.mercadopago.com', 'https://sdk.mercadopago.com', 'https://*.mercadopago.com'],
+      },
+    },
+  })
+);
 app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(
   express.json({
