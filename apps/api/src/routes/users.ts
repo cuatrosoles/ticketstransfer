@@ -17,6 +17,15 @@ import {
   removeCustomerCard,
 } from '../lib/mercadopago.js';
 
+/** Extrae mensaje de error de respuestas Mercado Pago (SDK suele anidar en cause/body) */
+function extractMpError(e: unknown): string | null {
+  const err = e as { cause?: { body?: { message?: string }; message?: string }; message?: string };
+  const fromBody = err?.cause?.body?.message;
+  const fromCause = err?.cause?.message;
+  const fromMsg = err?.message;
+  return (fromBody || fromCause || fromMsg) ?? null;
+}
+
 const router = Router();
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -296,7 +305,8 @@ router.get('/cards', async (req: AuthRequest, res) => {
     const cards = await listCustomerCards(customerId);
     res.json({ cards });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Error al listar tarjetas';
+    const msg = extractMpError(e) || (e instanceof Error ? e.message : 'Error al listar tarjetas');
+    console.error('[GET /cards]', e);
     res.status(500).json({ error: msg });
   }
 });
@@ -323,7 +333,8 @@ router.post('/cards', async (req: AuthRequest, res) => {
     const card = await addCardToCustomer(customerId, token);
     res.status(201).json({ card });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Error al agregar tarjeta';
+    const msg = extractMpError(e) || (e instanceof Error ? e.message : 'Error al agregar tarjeta');
+    console.error('[POST /cards]', e);
     res.status(500).json({ error: msg });
   }
 });

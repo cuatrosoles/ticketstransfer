@@ -4669,6 +4669,13 @@ async function createPaymentWithToken(params) {
 }
 
 // src/routes/users.ts
+function extractMpError(e) {
+  const err = e;
+  const fromBody = err?.cause?.body?.message;
+  const fromCause = err?.cause?.message;
+  const fromMsg = err?.message;
+  return (fromBody || fromCause || fromMsg) ?? null;
+}
 var router2 = Router2();
 var upload = multer({
   storage: multer.memoryStorage(),
@@ -4917,7 +4924,8 @@ router2.get("/cards", async (req, res) => {
     const cards = await listCustomerCards(customerId);
     res.json({ cards });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Error al listar tarjetas";
+    const msg = extractMpError(e) || (e instanceof Error ? e.message : "Error al listar tarjetas");
+    console.error("[GET /cards]", e);
     res.status(500).json({ error: msg });
   }
 });
@@ -4943,7 +4951,8 @@ router2.post("/cards", async (req, res) => {
     const card = await addCardToCustomer(customerId, token);
     res.status(201).json({ card });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Error al agregar tarjeta";
+    const msg = extractMpError(e) || (e instanceof Error ? e.message : "Error al agregar tarjeta");
+    console.error("[POST /cards]", e);
     res.status(500).json({ error: msg });
   }
 });

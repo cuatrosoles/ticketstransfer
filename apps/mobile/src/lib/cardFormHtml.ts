@@ -55,30 +55,36 @@ export function getCardFormHtml(apiBase: string): string {
         const bricksBuilder = mp.bricks();
         await bricksBuilder.create('cardPayment', 'cardPaymentBrick_container', {
           initialization: {
-            amount: 1,
+            amount: 100,
             payer: { email: 'payer@test.com' },
           },
           customization: {
             visual: { style: { theme: 'default' } },
+            paymentMethods: {
+              minInstallments: 1,
+              maxInstallments: 1,
+            },
           },
           callbacks: {
+            onReady: () => {},
+            onError: (err) => {
+              showErr(err?.message || 'Error al procesar la tarjeta');
+            },
             onSubmit: (formData) => {
               return new Promise((resolve, reject) => {
-                const token = formData.token || formData.paymentMethod?.token;
+                const token = formData.token || formData.paymentMethod?.token || formData.payment_method?.token;
                 if (token) {
+                  const payload = { type: 'CARD_TOKEN', token, ...(formData.payment_method_id && { payment_method_id: formData.payment_method_id }) };
                   if (window.ReactNativeWebView) {
-                    window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'CARD_TOKEN', token }));
+                    window.ReactNativeWebView.postMessage(JSON.stringify(payload));
                   } else if (window.parent !== window) {
-                    window.parent.postMessage({ type: 'CARD_TOKEN', token }, '*');
+                    window.parent.postMessage(payload, '*');
                   }
                   resolve();
                 } else {
                   reject(new Error('No se generó el token'));
                 }
               });
-            },
-            onError: (err) => {
-              showErr(err?.message || 'Error al procesar la tarjeta');
             },
           },
         });
