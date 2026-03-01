@@ -4480,7 +4480,8 @@ var DEFAULTS = {
     publicKey: "",
     webhookSecret: "",
     sandboxMode: true,
-    backUrlBase: ""
+    backUrlBase: "",
+    sandboxUsePayerTestCom: false
   },
   users: {},
   visual: {}
@@ -4507,7 +4508,8 @@ async function getPlatformSettings() {
       publicKey: d.mercadopago?.publicKey ?? "",
       webhookSecret: d.mercadopago?.webhookSecret ?? "",
       sandboxMode: d.mercadopago?.sandboxMode ?? true,
-      backUrlBase: d.mercadopago?.backUrlBase ?? ""
+      backUrlBase: d.mercadopago?.backUrlBase ?? "",
+      sandboxUsePayerTestCom: d.mercadopago?.sandboxUsePayerTestCom ?? false
     },
     users: d.users ?? {},
     visual: d.visual ?? {},
@@ -4572,6 +4574,9 @@ async function getMercadoPagoWebhookSecret() {
 async function createCheckoutPreference(params) {
   const { preference } = await getMercadoPagoClient();
   const settings = await getPlatformSettings();
+  const sandboxMode = settings.mercadopago.sandboxMode;
+  const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
+  const payerEmail = params.payerEmail && sandboxMode && usePayerTestCom ? "payer@test.com" : params.payerEmail && params.payerUserId && sandboxMode ? getCustomerEmailForMp(params.payerUserId, params.payerEmail, true) : params.payerEmail;
   const backBase = settings.mercadopago.backUrlBase || process.env.WEB_URL || process.env.APP_DEEP_LINK_SCHEME || "http://localhost:5173";
   const basePath = backBase.replace(/\/$/, "");
   const isDeepLink = basePath.includes("://") && !basePath.startsWith("http");
@@ -4596,7 +4601,7 @@ async function createCheckoutPreference(params) {
         pending
       },
       auto_return: "approved",
-      payer: params.payerEmail ? { email: params.payerEmail } : void 0
+      payer: payerEmail ? { email: payerEmail } : void 0
     }
   });
   const initPoint = pref.init_point;
@@ -4666,11 +4671,15 @@ async function removeCustomerCard(customerId, cardId) {
 }
 async function createPaymentWithToken(params) {
   const { payment } = await getMercadoPagoClient();
+  const settings = await getPlatformSettings();
+  const sandboxMode = settings.mercadopago.sandboxMode;
+  const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
+  const mpPayerEmail = sandboxMode && usePayerTestCom ? "payer@test.com" : params.payerUserId && sandboxMode ? getCustomerEmailForMp(params.payerUserId, params.payerEmail, true) : params.payerEmail;
   const body = {
     transaction_amount: params.amount,
     token: params.token,
     payment_method_id: params.paymentMethodId,
-    payer: { email: params.payerEmail },
+    payer: { email: mpPayerEmail },
     external_reference: params.orderId,
     description: params.title,
     installments: 1
@@ -5255,7 +5264,7 @@ router4.use(requireAuth);
 router4.post("/", async (req, res) => {
   const parsed = createOrderSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Datos inv\xE1lidos", details: parsed.error.flatten() });
+    res.status(400).json({ error: "Datos inv?lidos", details: parsed.error.flatten() });
     return;
   }
   const { ticketListingId, paymentMethod } = parsed.data;
@@ -5303,7 +5312,8 @@ router4.post("/", async (req, res) => {
         unitPrice: totalAmount,
         quantity: 1,
         currency: listing.currency || "ARS",
-        payerEmail: buyerDoc.data()?.email
+        payerEmail: buyerDoc.data()?.email,
+        payerUserId: req.user.id
       });
       checkoutUrl = initPoint;
       await db().collection(COLLECTIONS.ORDERS).doc(orderId).update({
@@ -5313,14 +5323,14 @@ router4.post("/", async (req, res) => {
       });
     } catch (e) {
       console.error("Error creando preferencia MercadoPago:", e);
-      res.status(500).json({ error: "No se pudo iniciar el checkout. Intent\xE1 de nuevo." });
+      res.status(500).json({ error: "No se pudo iniciar el checkout. Intent? de nuevo." });
       return;
     }
   } else if (paymentMethod === "stripe") {
-    res.status(400).json({ error: "Stripe a\xFAn no est\xE1 disponible. Us\xE1 Mercado Pago." });
+    res.status(400).json({ error: "Stripe a?n no est? disponible. Us? Mercado Pago." });
     return;
   } else if (paymentMethod === "mercadopago" && !await isMercadoPagoConfigured()) {
-    res.status(503).json({ error: "Mercado Pago no est\xE1 configurado. Contact\xE1 al administrador." });
+    res.status(503).json({ error: "Mercado Pago no est? configurado. Contact? al administrador." });
     return;
   }
   const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(listing.sellerId).get();
@@ -5381,7 +5391,7 @@ router4.get("/:id/checkout-url", async (req, res) => {
   if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
   const d = doc.data();
   if (d.buyerId !== req.user.id) return res.status(404).json({ error: "No encontrado" });
-  if (d.status !== "PENDIENTE_PAGO") return res.status(400).json({ error: "La orden ya no est\xE1 pendiente de pago" });
+  if (d.status !== "PENDIENTE_PAGO") return res.status(400).json({ error: "La orden ya no est? pendiente de pago" });
   if (d.paymentMethod !== "mercadopago") return res.status(400).json({ error: "Solo Mercado Pago soporta checkout URL" });
   let checkoutUrl = d.mercadopagoCheckoutUrl;
   if (!checkoutUrl && await isMercadoPagoConfigured()) {
@@ -5395,7 +5405,8 @@ router4.get("/:id/checkout-url", async (req, res) => {
         unitPrice: d.totalAmount,
         quantity: 1,
         currency: d.currency || "ARS",
-        payerEmail: buyerDoc.data()?.email
+        payerEmail: buyerDoc.data()?.email,
+        payerUserId: d.buyerId
       });
       checkoutUrl = initPoint;
       await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({
@@ -5444,7 +5455,7 @@ router4.post("/:id/pay", async (req, res) => {
   const d = doc.data();
   if (d.buyerId !== req.user.id) return res.status(404).json({ error: "No encontrado" });
   if (d.status !== "PENDIENTE_PAGO") {
-    return res.status(400).json({ error: "La orden ya no est\xE1 pendiente de pago" });
+    return res.status(400).json({ error: "La orden ya no est? pendiente de pago" });
   }
   if (d.paymentMethod !== "mercadopago") {
     return res.status(400).json({ error: "Solo Mercado Pago soporta pago con tarjeta" });
@@ -5463,6 +5474,7 @@ router4.post("/:id/pay", async (req, res) => {
       title,
       amount: d.totalAmount,
       payerEmail,
+      payerUserId: req.user.id,
       token,
       paymentMethodId,
       issuerId: typeof issuerId === "number" ? issuerId : void 0
@@ -5490,7 +5502,7 @@ router4.post("/:id/confirm-payment", async (req, res) => {
   if (d.buyerId !== req.user.id || d.status !== "PENDIENTE_PAGO") return res.status(404).json({ error: "No encontrado" });
   if (d.paymentMethod === "mercadopago") {
     return res.status(400).json({
-      error: 'El pago se confirma al completar el checkout de Mercado Pago. Us\xE1 el bot\xF3n "Pagar con Mercado Pago".'
+      error: 'El pago se confirma al completar el checkout de Mercado Pago. Us? el bot?n "Pagar con Mercado Pago".'
     });
   }
   await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({ status: "ESPERANDO_TRANSFERENCIA", updatedAt: /* @__PURE__ */ new Date() });
@@ -5513,7 +5525,7 @@ router4.post("/:id/confirm-received", async (req, res) => {
     received: req.body.received
   });
   if (!parsed.success) {
-    res.status(400).json({ error: "Datos inv\xE1lidos" });
+    res.status(400).json({ error: "Datos inv?lidos" });
     return;
   }
   const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
@@ -6007,7 +6019,8 @@ router7.put("/settings", async (req, res) => {
       publicKey: useNew(mp.publicKey, "publicKey"),
       webhookSecret: useNew(mp.webhookSecret, "webhookSecret"),
       sandboxMode: typeof mp.sandboxMode === "boolean" ? mp.sandboxMode : current.mercadopago.sandboxMode,
-      backUrlBase: typeof mp.backUrlBase === "string" ? mp.backUrlBase : current.mercadopago.backUrlBase ?? ""
+      backUrlBase: typeof mp.backUrlBase === "string" ? mp.backUrlBase : current.mercadopago.backUrlBase ?? "",
+      sandboxUsePayerTestCom: typeof mp.sandboxUsePayerTestCom === "boolean" ? mp.sandboxUsePayerTestCom : current.mercadopago.sandboxUsePayerTestCom ?? false
     };
   }
   if (body.users && typeof body.users === "object") {

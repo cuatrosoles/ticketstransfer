@@ -70,11 +70,22 @@ export type CreatePreferenceParams = {
   quantity?: number;
   currency?: string;
   payerEmail?: string;
+  /** Si sandboxMode, se usa email @testuser.com para evitar error 300 */
+  payerUserId?: string;
 };
 
 export async function createCheckoutPreference(params: CreatePreferenceParams): Promise<{ initPoint: string; preferenceId: string }> {
   const { preference } = await getMercadoPagoClient();
   const settings = await getPlatformSettings();
+  const sandboxMode = settings.mercadopago.sandboxMode;
+  const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
+  const payerEmail =
+    params.payerEmail && sandboxMode && usePayerTestCom
+      ? 'payer@test.com'
+      : params.payerEmail && params.payerUserId && sandboxMode
+        ? getCustomerEmailForMp(params.payerUserId, params.payerEmail, true)
+        : params.payerEmail;
+
   const backBase = settings.mercadopago.backUrlBase || process.env.WEB_URL || process.env.APP_DEEP_LINK_SCHEME || 'http://localhost:5173';
   const basePath = backBase.replace(/\/$/, '');
 
@@ -107,7 +118,7 @@ export async function createCheckoutPreference(params: CreatePreferenceParams): 
         pending,
       },
       auto_return: 'approved' as const,
-      payer: params.payerEmail ? { email: params.payerEmail } : undefined,
+      payer: payerEmail ? { email: payerEmail } : undefined,
     },
   });
 
@@ -217,16 +228,28 @@ export async function createPaymentWithToken(params: {
   title: string;
   amount: number;
   payerEmail: string;
+  /** userId del comprador; si sandboxMode, se usa email @testuser.com para evitar error 300 */
+  payerUserId?: string;
   token: string;
   paymentMethodId: string;
   issuerId?: number;
 }): Promise<{ id: string; status: string; status_detail?: string }> {
   const { payment } = await getMercadoPagoClient();
+  const settings = await getPlatformSettings();
+  const sandboxMode = settings.mercadopago.sandboxMode;
+  const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
+  const mpPayerEmail =
+    sandboxMode && usePayerTestCom
+      ? 'payer@test.com'
+      : params.payerUserId && sandboxMode
+        ? getCustomerEmailForMp(params.payerUserId, params.payerEmail, true)
+        : params.payerEmail;
+
   const body: Record<string, unknown> = {
     transaction_amount: params.amount,
     token: params.token,
     payment_method_id: params.paymentMethodId,
-    payer: { email: params.payerEmail },
+    payer: { email: mpPayerEmail },
     external_reference: params.orderId,
     description: params.title,
     installments: 1,

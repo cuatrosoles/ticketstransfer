@@ -13,6 +13,7 @@ type MercadoPagoSettings = {
   webhookSecret: string;
   sandboxMode: boolean;
   backUrlBase?: string;
+  sandboxUsePayerTestCom?: boolean;
 };
 
 type PlatformSettings = {
@@ -215,6 +216,24 @@ export function Configuracion() {
               </label>
               <small className="text-muted">
                 Usar credenciales de prueba. Desactivar para producción.
+              </small>
+            </div>
+            <div className="form-group">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={form.mercadopago?.sandboxUsePayerTestCom ?? false}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      mercadopago: { ...(f.mercadopago || {}), sandboxUsePayerTestCom: e.target.checked },
+                    }))
+                  }
+                />
+                {' '}Usar payer@test.com en sandbox (alternativa si error 300)
+              </label>
+              <small className="text-muted">
+                Si el error &quot;Unauthorized use of live credentials&quot; persiste, activá esta opción. Usa el mismo email que el formulario de tarjetas.
               </small>
             </div>
           </div>

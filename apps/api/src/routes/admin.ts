@@ -52,6 +52,7 @@ router.put('/settings', async (req: AuthRequest, res) => {
       webhookSecret: useNew(mp.webhookSecret, 'webhookSecret'),
       sandboxMode: typeof mp.sandboxMode === 'boolean' ? mp.sandboxMode : current.mercadopago.sandboxMode,
       backUrlBase: typeof mp.backUrlBase === 'string' ? mp.backUrlBase : (current.mercadopago.backUrlBase ?? ''),
+      sandboxUsePayerTestCom: typeof mp.sandboxUsePayerTestCom === 'boolean' ? mp.sandboxUsePayerTestCom : (current.mercadopago.sandboxUsePayerTestCom ?? false),
     };
   }
 
