@@ -176,7 +176,10 @@ function getCustomerEmailForMp(userId: string, email: string, sandboxMode: boole
 /** Customers API – crear o obtener customer para usuario */
 export async function getOrCreateCustomer(userId: string, email: string, sandboxMode = false): Promise<string> {
   const { customer } = await getMercadoPagoClient();
-  const mpEmail = getCustomerEmailForMp(userId, email, sandboxMode);
+  const settings = await getPlatformSettings();
+  const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
+  const mpEmail =
+    sandboxMode && usePayerTestCom ? 'payer@test.com' : getCustomerEmailForMp(userId, email, sandboxMode);
   const search = await customer.search({ options: { email: mpEmail } });
   const results = search.results as Array<{ id: string }> | undefined;
   if (results && results.length > 0) return results[0].id;

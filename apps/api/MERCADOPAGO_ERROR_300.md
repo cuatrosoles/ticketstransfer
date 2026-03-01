@@ -6,7 +6,7 @@ Este documento describe pasos para resolver el error 300 cuando se usan credenci
 
 1. **Email @testuser.com en sandbox**: Cuando `sandboxMode` está activo, las llamadas a Mercado Pago usan emails de test (`test_<userId>@testuser.com`) en lugar del email real del usuario, tanto para Customers como para Payments y Preferences.
 
-2. **Opción "Usar payer@test.com"**: Si el error persiste, activá en Admin → Configuración → Pasarelas la opción **"Usar payer@test.com en sandbox"**. Esto usa el mismo email que el formulario de tarjetas (Card Payment Brick), que puede ser requerido cuando el token se genera con ese email.
+2. **Opción "Usar payer@test.com"**: Si el error aparece **al agregar tarjeta**, activá en Admin → Configuración → Pasarelas la opción **"Usar payer@test.com en sandbox"**. El token del formulario se genera con ese email; el customer en MP debe usar el mismo para que coincidan.
 
 ## Verificación de credenciales
 

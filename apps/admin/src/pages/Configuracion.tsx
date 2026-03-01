@@ -230,10 +230,10 @@ export function Configuracion() {
                     }))
                   }
                 />
-                {' '}Usar payer@test.com en sandbox (alternativa si error 300)
+                {' '}Usar payer@test.com en sandbox (error 300 al agregar tarjeta)
               </label>
               <small className="text-muted">
-                Si el error &quot;Unauthorized use of live credentials&quot; persiste, activá esta opción. Usa el mismo email que el formulario de tarjetas.
+                Si falla al agregar tarjeta con &quot;Unauthorized use of live credentials&quot;, activá esta opción. El email debe coincidir con el del formulario de tarjetas.
               </small>
             </div>
           </div>

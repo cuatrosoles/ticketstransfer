@@ -4638,7 +4638,9 @@ function getCustomerEmailForMp(userId, email, sandboxMode) {
 }
 async function getOrCreateCustomer(userId, email, sandboxMode = false) {
   const { customer } = await getMercadoPagoClient();
-  const mpEmail = getCustomerEmailForMp(userId, email, sandboxMode);
+  const settings = await getPlatformSettings();
+  const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
+  const mpEmail = sandboxMode && usePayerTestCom ? "payer@test.com" : getCustomerEmailForMp(userId, email, sandboxMode);
   const search = await customer.search({ options: { email: mpEmail } });
   const results = search.results;
   if (results && results.length > 0) return results[0].id;
