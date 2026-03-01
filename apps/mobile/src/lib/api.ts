@@ -329,7 +329,12 @@ export async function removeUserCard(cardId: string): Promise<{ ok: boolean }> {
   return api<{ ok: boolean }>(`/api/users/cards/${cardId}`, { method: 'DELETE' });
 }
 
-/** URL del formulario de tarjeta para WebView */
+/** URL base de la API (para WebView baseUrl) */
+export function getApiBase(): string {
+  return API_BASE;
+}
+
+/** URL del formulario de tarjeta para WebView (legacy, preferir HTML embebido) */
 export function getCardFormUrl(): string {
   return `${API_BASE}/api/mercadopago/card-form`;
 }

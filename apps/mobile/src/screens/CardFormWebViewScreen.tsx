@@ -19,7 +19,8 @@ import { WebView } from 'react-native-webview';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
-import { getCardFormUrl, addUserCard } from '../lib/api';
+import { getApiBase, addUserCard } from '../lib/api';
+import { getCardFormHtml } from '../lib/cardFormHtml';
 import { colors, spacing } from '../theme';
 
 const USER_AGENT =
@@ -68,13 +69,18 @@ export function CardFormWebViewScreen() {
         )}
         <View style={[styles.webviewWrap, { minHeight: height - 160 }]}>
           <WebView
-            source={{ uri: getCardFormUrl() }}
+            source={{
+              html: getCardFormHtml(getApiBase()),
+              baseUrl: getApiBase(),
+            }}
             userAgent={USER_AGENT}
             originWhitelist={['https://*', 'http://*']}
             onMessage={handleMessage}
             onHttpError={(e) => setError('Error al cargar el formulario')}
+            javaScriptEnabled={true}
             mediaPlaybackRequiresUserAction={false}
             domStorageEnabled={true}
+            mixedContentMode="compatibility"
             startInLoadingState={true}
             renderLoading={() => (
               <View style={styles.loading}>
