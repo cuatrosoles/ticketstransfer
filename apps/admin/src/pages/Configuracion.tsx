@@ -230,10 +230,10 @@ export function Configuracion() {
                     }))
                   }
                 />
-                {' '}Usar payer@test.com en sandbox (error 300 al agregar tarjeta)
+                {' '}Usar test_payer_1@testuser.com en sandbox
               </label>
               <small className="text-muted">
-                Si falla al agregar tarjeta con &quot;Unauthorized use of live credentials&quot;, activá esta opción. El email debe coincidir con el del formulario de tarjetas.
+                Customer compartido (mismo email que el formulario). Formato requerido por MP: test_payer_[0-9]@testuser.com
               </small>
             </div>
           </div>

@@ -56,7 +56,7 @@ export function getCardFormHtml(apiBase: string): string {
         await bricksBuilder.create('cardPayment', 'cardPaymentBrick_container', {
           initialization: {
             amount: 100,
-            payer: { email: 'payer@test.com' },
+            payer: { email: 'test_payer_1@testuser.com' },
           },
           customization: {
             visual: { style: { theme: 'default' } },

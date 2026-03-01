@@ -81,7 +81,7 @@ export async function createCheckoutPreference(params: CreatePreferenceParams): 
   const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
   const payerEmail =
     params.payerEmail && sandboxMode && usePayerTestCom
-      ? 'payer@test.com'
+      ? 'test_payer_1@testuser.com'
       : params.payerEmail && params.payerUserId && sandboxMode
         ? getCustomerEmailForMp(params.payerUserId, params.payerEmail, true)
         : params.payerEmail;
@@ -166,11 +166,15 @@ export async function getMercadoPagoPublicKey(): Promise<string> {
   return pk;
 }
 
-/** En modo prueba, Mercado Pago exige email de test user (@testuser.com). Con email real falla "live credentials". */
+/**
+ * En sandbox, Mercado Pago exige formato test_payer_[0-9]{1,10}@testuser.com (error 128).
+ * Con email real y credenciales prod falla "Invalid domain user email for productive customer" (error 234).
+ */
 function getCustomerEmailForMp(userId: string, email: string, sandboxMode: boolean): string {
   if (!sandboxMode) return email;
-  const safe = userId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 50);
-  return `test_${safe}@testuser.com`;
+  const hash = userId.split('').reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) >>> 0, 0);
+  const num = (hash % 9999999999) + 1;
+  return `test_payer_${num}@testuser.com`;
 }
 
 /** Customers API – crear o obtener customer para usuario */
@@ -179,7 +183,7 @@ export async function getOrCreateCustomer(userId: string, email: string, sandbox
   const settings = await getPlatformSettings();
   const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
   const mpEmail =
-    sandboxMode && usePayerTestCom ? 'payer@test.com' : getCustomerEmailForMp(userId, email, sandboxMode);
+    sandboxMode && usePayerTestCom ? 'test_payer_1@testuser.com' : getCustomerEmailForMp(userId, email, sandboxMode);
   const search = await customer.search({ options: { email: mpEmail } });
   const results = search.results as Array<{ id: string }> | undefined;
   if (results && results.length > 0) return results[0].id;
@@ -243,7 +247,7 @@ export async function createPaymentWithToken(params: {
   const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
   const mpPayerEmail =
     sandboxMode && usePayerTestCom
-      ? 'payer@test.com'
+      ? 'test_payer_1@testuser.com'
       : params.payerUserId && sandboxMode
         ? getCustomerEmailForMp(params.payerUserId, params.payerEmail, true)
         : params.payerEmail;
