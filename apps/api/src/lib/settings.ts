@@ -15,10 +15,14 @@ export type MercadoPagoSettings = {
   /** URL base para retorno tras pago: https://web.com o ticketTransfer:// (deep link app) */
   backUrlBase?: string;
   /**
-   * Si true, en sandbox usa payer@test.com (mismo que el Brick) en pagos.
-   * Útil si el error 300 persiste con test_xxx@testuser.com.
+   * Si true, en sandbox usa test_payer_1@testuser.com (mismo que el Brick).
    */
   sandboxUsePayerTestCom?: boolean;
+  /**
+   * Si true, usa email real del usuario (para credenciales PRODUCCIÓN).
+   * Activar si aparece error 234 "Invalid domain user email for productive customer".
+   */
+  sandboxUseRealEmail?: boolean;
 };
 
 export type PlatformSettings = {
@@ -39,6 +43,7 @@ const DEFAULTS: PlatformSettings = {
     sandboxMode: true,
     backUrlBase: '',
     sandboxUsePayerTestCom: false,
+    sandboxUseRealEmail: false,
   },
   users: {},
   visual: {},
@@ -70,6 +75,7 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
       sandboxMode: d.mercadopago?.sandboxMode ?? true,
       backUrlBase: d.mercadopago?.backUrlBase ?? '',
       sandboxUsePayerTestCom: d.mercadopago?.sandboxUsePayerTestCom ?? false,
+      sandboxUseRealEmail: d.mercadopago?.sandboxUseRealEmail ?? false,
     },
     users: d.users ?? {},
     visual: d.visual ?? {},

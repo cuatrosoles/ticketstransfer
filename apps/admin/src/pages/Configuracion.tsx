@@ -14,6 +14,7 @@ type MercadoPagoSettings = {
   sandboxMode: boolean;
   backUrlBase?: string;
   sandboxUsePayerTestCom?: boolean;
+  sandboxUseRealEmail?: boolean;
 };
 
 type PlatformSettings = {
@@ -234,6 +235,24 @@ export function Configuracion() {
               </label>
               <small className="text-muted">
                 Customer compartido (mismo email que el formulario). Formato requerido por MP: test_payer_[0-9]@testuser.com
+              </small>
+            </div>
+            <div className="form-group">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={form.mercadopago?.sandboxUseRealEmail ?? false}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      mercadopago: { ...(f.mercadopago || {}), sandboxUseRealEmail: e.target.checked },
+                    }))
+                  }
+                />
+                {' '}Usar email real (error 234 - credenciales producción)
+              </label>
+              <small className="text-muted">
+                Si aparece &quot;Invalid domain user email for productive customer&quot;, activá esto. Usa el email real del usuario.
               </small>
             </div>
           </div>

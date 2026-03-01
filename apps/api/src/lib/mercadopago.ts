@@ -167,8 +167,8 @@ export async function getMercadoPagoPublicKey(): Promise<string> {
 }
 
 /**
- * En sandbox, Mercado Pago exige formato test_payer_[0-9]{1,10}@testuser.com (error 128).
- * Con email real y credenciales prod falla "Invalid domain user email for productive customer" (error 234).
+ * En sandbox con credenciales TEST: test_payer_[0-9]{1,10}@testuser.com.
+ * Con credenciales PRODUCCIÓN (error 234 "productive customer"): usar email real.
  */
 function getCustomerEmailForMp(userId: string, email: string, sandboxMode: boolean): string {
   if (!sandboxMode) return email;
@@ -182,8 +182,13 @@ export async function getOrCreateCustomer(userId: string, email: string, sandbox
   const { customer } = await getMercadoPagoClient();
   const settings = await getPlatformSettings();
   const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
+  const useRealEmail = settings.mercadopago.sandboxUseRealEmail;
   const mpEmail =
-    sandboxMode && usePayerTestCom ? 'test_payer_1@testuser.com' : getCustomerEmailForMp(userId, email, sandboxMode);
+    useRealEmail
+      ? email
+      : sandboxMode && usePayerTestCom
+        ? 'test_payer_1@testuser.com'
+        : getCustomerEmailForMp(userId, email, sandboxMode);
   const search = await customer.search({ options: { email: mpEmail } });
   const results = search.results as Array<{ id: string }> | undefined;
   if (results && results.length > 0) return results[0].id;

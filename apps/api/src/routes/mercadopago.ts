@@ -7,6 +7,9 @@ import { Router } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getMercadoPagoPublicKey } from '../lib/mercadopago.js';
+import { requireAuth, type AuthRequest } from '../middleware/auth.js';
+import { db, COLLECTIONS } from '../lib/firestore.js';
+import { getPlatformSettings } from '../lib/settings.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -19,6 +22,19 @@ router.get('/public-key', async (_req, res) => {
   } catch (e) {
     res.status(503).json({ error: 'Mercado Pago no configurado' });
   }
+});
+
+/** Email del payer para el Brick (cuando sandboxUseRealEmail: usa email real) */
+router.get('/payer-email', requireAuth, async (req: AuthRequest, res) => {
+  const settings = await getPlatformSettings();
+  if (settings.mercadopago.sandboxUseRealEmail) {
+    const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
+    const email = userDoc.data()?.email;
+    if (email && typeof email === 'string') {
+      return res.json({ payerEmail: email });
+    }
+  }
+  res.json({ payerEmail: 'test_payer_1@testuser.com' });
 });
 
 /** Página HTML para tokenizar tarjeta (WebView en app móvil) */

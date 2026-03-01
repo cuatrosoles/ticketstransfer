@@ -4,7 +4,7 @@
  */
 
 import * as React from 'react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   ScrollView,
@@ -19,7 +19,7 @@ import { WebView } from 'react-native-webview';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
-import { getApiBase, addUserCard } from '../lib/api';
+import { getApiBase, addUserCard, getPayerEmail } from '../lib/api';
 import { getCardFormHtml } from '../lib/cardFormHtml';
 import { colors, spacing } from '../theme';
 
@@ -31,6 +31,11 @@ export function CardFormWebViewScreen() {
   const { height } = useWindowDimensions();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [payerEmail, setPayerEmail] = useState<string>('test_payer_1@testuser.com');
+
+  useEffect(() => {
+    getPayerEmail().then(setPayerEmail).catch(() => {});
+  }, []);
 
   const handleMessage = async (event: { nativeEvent: { data?: string } }) => {
     const data = event.nativeEvent.data;
@@ -70,7 +75,7 @@ export function CardFormWebViewScreen() {
         <View style={[styles.webviewWrap, { minHeight: height - 160 }]}>
           <WebView
             source={{
-              html: getCardFormHtml(getApiBase()),
+              html: getCardFormHtml(getApiBase(), payerEmail),
               baseUrl: getApiBase(),
             }}
             userAgent={USER_AGENT}

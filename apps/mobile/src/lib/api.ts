@@ -318,6 +318,12 @@ export async function getUserCards(): Promise<{ cards: CardItem[] }> {
   return api<{ cards: CardItem[] }>('/api/users/cards');
 }
 
+/** Email del payer para el Brick (cuando sandboxUseRealEmail usa email real) */
+export async function getPayerEmail(): Promise<string> {
+  const data = await api<{ payerEmail: string }>('/api/mercadopago/payer-email');
+  return data.payerEmail;
+}
+
 export async function addUserCard(token: string): Promise<{ card: CardItem }> {
   return api<{ card: CardItem }>('/api/users/cards', {
     method: 'POST',

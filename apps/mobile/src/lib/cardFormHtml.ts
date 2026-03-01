@@ -2,8 +2,9 @@
  * HTML del formulario de tarjeta (Mercado Pago Bricks).
  * Se carga embebido en WebView para evitar problemas de red, CSP y rutas.
  * API_BASE se inyecta para que fetch funcione correctamente.
+ * payerEmail: cuando sandboxUseRealEmail, usar email real del usuario.
  */
-export function getCardFormHtml(apiBase: string): string {
+export function getCardFormHtml(apiBase: string, payerEmail = 'test_payer_1@testuser.com'): string {
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -56,7 +57,7 @@ export function getCardFormHtml(apiBase: string): string {
         await bricksBuilder.create('cardPayment', 'cardPaymentBrick_container', {
           initialization: {
             amount: 100,
-            payer: { email: 'test_payer_1@testuser.com' },
+            payer: { email: ${JSON.stringify(payerEmail)} },
           },
           customization: {
             visual: { style: { theme: 'default' } },
