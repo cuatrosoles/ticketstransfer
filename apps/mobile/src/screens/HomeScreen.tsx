@@ -23,7 +23,7 @@ import { BiometricActivationModal } from '../components/BiometricActivationModal
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
-import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { colors, spacing, radius, glassCard } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
@@ -93,13 +93,13 @@ export function HomeScreen() {
         <Text style={styles.socialTitle}>Seguinos en nuestras redes</Text>
         <View style={styles.socialRow}>
           <TouchableOpacity style={[styles.socialIcon, { backgroundColor: '#1877f2' }]} onPress={() => Linking.openURL('https://facebook.com')}>
-            <FontAwesome5 name="facebook-f" size={22} color="#fff" brand />
+            <FontAwesome name="facebook" size={24} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity style={[styles.socialIcon, { backgroundColor: '#e1306c' }]} onPress={() => Linking.openURL('https://instagram.com')}>
-            <FontAwesome5 name="instagram" size={24} color="#fff" brand />
+            <FontAwesome name="instagram" size={24} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity style={[styles.socialIcon, { backgroundColor: '#25d366' }]} onPress={() => Linking.openURL('https://wa.me')}>
-            <FontAwesome5 name="whatsapp" size={24} color="#fff" brand />
+            <FontAwesome name="whatsapp" size={24} color="#fff" />
           </TouchableOpacity>
         </View>
 

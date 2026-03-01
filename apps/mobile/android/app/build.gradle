@@ -79,7 +79,7 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.ttmobiletemp"
+    namespace "com.ticketstransfer.app"
     // applicationId debe coincidir con package_name en google-services.json
     defaultConfig {
         applicationId "com.ticketstransfer.app"
@@ -122,5 +122,8 @@ dependencies {
     }
 }
 
+project.ext.vectoricons = [
+    iconFontsDir: "${nodeModules}/react-native-vector-icons/Fonts",
+]
 apply from: file("${nodeModules}/react-native-vector-icons/fonts.gradle")
 apply from: file("${nodeModules}/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)

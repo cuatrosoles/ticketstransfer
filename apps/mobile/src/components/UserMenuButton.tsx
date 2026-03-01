@@ -5,7 +5,7 @@
 
 import * as React from 'react';
 import { TouchableOpacity, StyleSheet, Image } from 'react-native';
-import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { useUserMenu } from '../context/UserMenuContext';
 import { useProfileImage } from '../context/ProfileImageContext';
 import { ensureImageUrl } from '../lib/api';
@@ -20,7 +20,7 @@ export function UserMenuButton() {
       {imageUri ? (
         <Image source={{ uri: imageUri }} style={styles.avatar} />
       ) : (
-        <FontAwesome5 name="user" size={18} color="#fff" solid />
+        <FontAwesome name="user" size={18} color="#fff" />
       )}
     </TouchableOpacity>
   );

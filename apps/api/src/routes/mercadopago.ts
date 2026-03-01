@@ -23,7 +23,7 @@ router.get('/public-key', async (_req, res) => {
 
 /** Página HTML para tokenizar tarjeta (WebView en app móvil) */
 router.get('/card-form', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', '..', 'public', 'card-form.html'));
+  res.sendFile(path.join(__dirname, '..', 'public', 'card-form.html'));
 });
 
 export const mercadopagoRouter = router;

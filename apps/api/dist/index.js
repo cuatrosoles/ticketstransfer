@@ -4702,6 +4702,7 @@ router2.get("/profile", async (req, res) => {
     city: data.city ?? null,
     province: data.province ?? null,
     postalCode: data.postalCode ?? null,
+    address: data.address ?? null,
     reputationScore: data.reputationScore ?? null,
     profileImageUrl: data.profileImageUrl ?? null,
     kyc: kyc ? { status: kyc.status, rejectionReason: kyc.rejectionReason ?? null } : { status: "PENDIENTE", rejectionReason: null }
@@ -4774,7 +4775,7 @@ router2.post("/profile/avatar", upload.single("avatar"), async (req, res) => {
 });
 router2.patch("/profile", async (req, res) => {
   const body = req.body || {};
-  const { username, firstName, lastName, phone, city, province, postalCode, fcmToken } = body;
+  const { username, firstName, lastName, phone, city, province, postalCode, address, fcmToken } = body;
   const updateData = { updatedAt: /* @__PURE__ */ new Date() };
   if (firstName !== void 0) updateData.firstName = firstName;
   if (lastName !== void 0) updateData.lastName = lastName;
@@ -4782,6 +4783,7 @@ router2.patch("/profile", async (req, res) => {
   if (city !== void 0) updateData.city = city;
   if (province !== void 0) updateData.province = province;
   if (postalCode !== void 0) updateData.postalCode = postalCode;
+  if (address !== void 0) updateData.address = typeof address === "string" ? address.trim() || null : null;
   if (fcmToken !== void 0) updateData.fcmToken = fcmToken;
   if (username !== void 0) {
     const usernameVal = typeof username === "string" ? username.trim() : "";
@@ -4803,7 +4805,8 @@ router2.patch("/profile", async (req, res) => {
     email: data.email,
     username: data.username,
     firstName: data.firstName,
-    lastName: data.lastName
+    lastName: data.lastName,
+    address: data.address ?? null
   });
 });
 router2.post("/onboarding", async (req, res) => {
@@ -5664,8 +5667,8 @@ function normalizeUserIds(id1, id2) {
 }
 router6.get("/conversations", async (req, res) => {
   const userId = req.user.id;
-  const conv1 = await db().collection(COLLECTIONS.CONVERSATIONS).where("user1Id", "==", userId).orderBy("updatedAt", "desc").get();
-  const conv2 = await db().collection(COLLECTIONS.CONVERSATIONS).where("user2Id", "==", userId).orderBy("updatedAt", "desc").get();
+  const conv1 = await db().collection(COLLECTIONS.CONVERSATIONS).where("user1Id", "==", userId).get();
+  const conv2 = await db().collection(COLLECTIONS.CONVERSATIONS).where("user2Id", "==", userId).get();
   const allConvs = [...conv1.docs, ...conv2.docs];
   const seen = /* @__PURE__ */ new Set();
   const uniqueConvs = allConvs.filter((d) => {
@@ -6358,7 +6361,7 @@ router9.get("/public-key", async (_req, res) => {
   }
 });
 router9.get("/card-form", (_req, res) => {
-  res.sendFile(path.join(__dirname, "..", "..", "public", "card-form.html"));
+  res.sendFile(path.join(__dirname, "..", "public", "card-form.html"));
 });
 var mercadopagoRouter = router9;
 
