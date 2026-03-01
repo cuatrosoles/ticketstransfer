@@ -14,6 +14,7 @@ type MercadoPagoSettings = {
   sandboxMode: boolean;
   backUrlBase?: string;
   sandboxUsePayerTestCom?: boolean;
+  sandboxSkipCardSaving?: boolean;
 };
 
 type PlatformSettings = {
@@ -234,6 +235,24 @@ export function Configuracion() {
               </label>
               <small className="text-muted">
                 Si falla al agregar tarjeta con &quot;Unauthorized use of live credentials&quot;, activá esta opción. El email debe coincidir con el del formulario de tarjetas.
+              </small>
+            </div>
+            <div className="form-group">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={form.mercadopago?.sandboxSkipCardSaving ?? false}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      mercadopago: { ...(f.mercadopago || {}), sandboxSkipCardSaving: e.target.checked },
+                    }))
+                  }
+                />
+                {' '}No guardar tarjetas en sandbox (evita error 300)
+              </label>
+              <small className="text-muted">
+                Si nada funciona: activá esto. En sandbox no se guardan tarjetas en MP, pero podés probar pagos ingresando la tarjeta al momento de comprar.
               </small>
             </div>
           </div>

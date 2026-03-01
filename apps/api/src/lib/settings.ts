@@ -19,6 +19,11 @@ export type MercadoPagoSettings = {
    * Útil si el error 300 persiste con test_xxx@testuser.com.
    */
   sandboxUsePayerTestCom?: boolean;
+  /**
+   * Si true, en sandbox NO se guardan tarjetas en Mercado Pago (evita error 300).
+   * El usuario puede probar pagos con tarjeta nueva al momento de comprar.
+   */
+  sandboxSkipCardSaving?: boolean;
 };
 
 export type PlatformSettings = {
@@ -39,6 +44,7 @@ const DEFAULTS: PlatformSettings = {
     sandboxMode: true,
     backUrlBase: '',
     sandboxUsePayerTestCom: false,
+    sandboxSkipCardSaving: false,
   },
   users: {},
   visual: {},
@@ -70,6 +76,7 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
       sandboxMode: d.mercadopago?.sandboxMode ?? true,
       backUrlBase: d.mercadopago?.backUrlBase ?? '',
       sandboxUsePayerTestCom: d.mercadopago?.sandboxUsePayerTestCom ?? false,
+      sandboxSkipCardSaving: d.mercadopago?.sandboxSkipCardSaving ?? false,
     },
     users: d.users ?? {},
     visual: d.visual ?? {},
