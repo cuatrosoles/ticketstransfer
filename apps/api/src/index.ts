@@ -23,6 +23,7 @@ import { healthRouter } from './routes/health.js';
 import { webhooksRouter } from './routes/webhooks.js';
 import { mercadopagoRouter } from './routes/mercadopago.js';
 import { invalidateSettingsCache } from './lib/settings.js';
+import { uploadsDir, ensureUploadsDir } from './lib/uploads.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -79,6 +80,9 @@ try {
 } catch (e) {
   console.warn('Firebase no configurado. Definí GOOGLE_APPLICATION_CREDENTIALS o FIREBASE_SERVICE_ACCOUNT_JSON.');
 }
+
+ensureUploadsDir();
+app.use('/uploads', express.static(uploadsDir));
 
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);

@@ -1,11 +1,16 @@
 /**
  * Firebase Storage - Subida de archivos (avatars, tickets, KYC, evidencia).
+ * Fallback local cuando STORAGE_FALLBACK=local (útil si Firebase billing está deshabilitado).
  */
 
+import { writeFileSync, mkdirSync, existsSync } from 'fs';
+import path from 'path';
 import { getStorage } from './firebase-admin.js';
 import type { Bucket } from '@google-cloud/storage';
+import { uploadsDir, ensureUploadsDir } from './uploads.js';
 
 const PLACEHOLDER_BUCKET = 'tu-proyecto.appspot.com';
+const USE_LOCAL = process.env.STORAGE_FALLBACK === 'local';
 
 function resolveBucketName(): string {
   const env = process.env.FIREBASE_STORAGE_BUCKET?.trim();
@@ -31,16 +36,42 @@ export function getStorageBucket(): Bucket {
   return storage.bucket(bucketName);
 }
 
+/** Guarda en disco local y devuelve URL pública (APP_URL/uploads/...) */
+async function uploadFileLocal(filePath: string, buffer: Buffer): Promise<string> {
+  ensureUploadsDir();
+  const fullPath = path.join(uploadsDir, filePath);
+  const dir = path.dirname(fullPath);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeFileSync(fullPath, buffer);
+  const baseUrl = (process.env.APP_URL || 'http://localhost:3001').replace(/\/$/, '');
+  return `${baseUrl}/uploads/${filePath}`;
+}
+
 export async function uploadFile(
-  path: string,
+  filePath: string,
   buffer: Buffer,
   contentType: string
 ): Promise<string> {
-  const bucket = getStorageBucket();
-  const file = bucket.file(path);
-  await file.save(buffer, { metadata: { contentType } });
-  await file.makePublic();
-  return `https://storage.googleapis.com/${bucket.name}/${path}`;
+  if (USE_LOCAL) {
+    return uploadFileLocal(filePath, buffer);
+  }
+
+  try {
+    const bucket = getStorageBucket();
+    const file = bucket.file(filePath);
+    await file.save(buffer, { metadata: { contentType } });
+    await file.makePublic();
+    return `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const full = typeof err === 'object' && err !== null ? JSON.stringify(err) : msg;
+    const isBillingOrBucket = /403|404|accountDisabled|bucket does not exist|billing.*disabled|delinquent/i.test(msg + full);
+    if (isBillingOrBucket) {
+      console.warn('Firebase Storage falló (billing/bucket). Usando almacenamiento local:', msg);
+      return uploadFileLocal(filePath, buffer);
+    }
+    throw err;
+  }
 }
 
 export async function uploadFromStream(
