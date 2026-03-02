@@ -377,15 +377,38 @@ router.get('/conversations/:id/messages', async (req: AuthRequest, res) => {
 
 /** Tickets pendientes de verificación (para aprobar/rechazar) */
 router.get('/tickets/pending', async (_req, res) => {
-  const snap = await db()
-    .collection(COLLECTIONS.TICKET_LISTINGS)
-    .where('status', '==', 'PENDIENTE_VERIFICACION')
-    .orderBy('createdAt', 'desc')
-    .limit(100)
-    .get();
+  let docs: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>[] = [];
+  try {
+    const snap = await db()
+      .collection(COLLECTIONS.TICKET_LISTINGS)
+      .where('status', '==', 'PENDIENTE_VERIFICACION')
+      .limit(100)
+      .get();
+    docs = [...snap.docs];
+  } catch {
+    docs = [];
+  }
+
+  if (docs.length === 0) {
+    const allSnap = await db()
+      .collection(COLLECTIONS.TICKET_LISTINGS)
+      .orderBy('createdAt', 'desc')
+      .limit(100)
+      .get();
+    docs = allSnap.docs.filter((d) => {
+      const s = d.data().status;
+      return s === 'PENDIENTE_VERIFICACION' || s === undefined || s === null;
+    });
+  }
+
+  docs.sort((a, b) => {
+    const aAt = a.data().createdAt?.toDate?.()?.getTime() ?? 0;
+    const bAt = b.data().createdAt?.toDate?.()?.getTime() ?? 0;
+    return bAt - aAt;
+  });
 
   const tickets = await Promise.all(
-    snap.docs.map(async (doc) => {
+    docs.map(async (doc) => {
       const d = doc.data();
       const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
       const seller = sellerDoc.exists ? sellerDoc.data() : null;
@@ -409,7 +432,8 @@ router.patch('/tickets/:id/approve', async (req: AuthRequest, res) => {
   const doc = await docRef.get();
   if (!doc.exists) return res.status(404).json({ error: 'Ticket no encontrado' });
   const data = doc.data()!;
-  if (data.status !== 'PENDIENTE_VERIFICACION') {
+  const status = data.status ?? 'PENDIENTE_VERIFICACION';
+  if (status !== 'PENDIENTE_VERIFICACION') {
     return res.status(400).json({ error: 'El ticket no está pendiente de verificación' });
   }
   await docRef.update({
@@ -431,7 +455,8 @@ router.patch('/tickets/:id/reject', async (req: AuthRequest, res) => {
   const doc = await docRef.get();
   if (!doc.exists) return res.status(404).json({ error: 'Ticket no encontrado' });
   const data = doc.data()!;
-  if (data.status !== 'PENDIENTE_VERIFICACION') {
+  const status = data.status ?? 'PENDIENTE_VERIFICACION';
+  if (status !== 'PENDIENTE_VERIFICACION') {
     return res.status(400).json({ error: 'El ticket no está pendiente de verificación' });
   }
   await docRef.update({
