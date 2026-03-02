@@ -176,31 +176,31 @@ router.post(
       );
     }
 
-    const publicationPassword = (req.body.publicationPassword as string) || undefined;
-    const ticketeraOtra = (req.body.ticketeraOtra as string) || undefined;
-    const appBoletosOtra = (req.body.appBoletosOtra as string) || undefined;
-    const tipoEntradaOtro = (req.body.tipoEntradaOtro as string) || undefined;
-    const quantityEntries = parsed.data.quantityEntries != null ? String(parsed.data.quantityEntries) : undefined;
+    const publicationPassword = (req.body.publicationPassword as string)?.trim() || null;
+    const ticketeraOtra = (req.body.ticketeraOtra as string)?.trim() || null;
+    const appBoletosOtra = (req.body.appBoletosOtra as string)?.trim() || null;
+    const tipoEntradaOtro = (req.body.tipoEntradaOtro as string)?.trim() || null;
+    const quantityEntries = parsed.data.quantityEntries != null ? String(parsed.data.quantityEntries) : null;
 
     const listingData = {
       sellerId: req.user!.id,
       eventName: parsed.data.eventName,
       eventDate: new Date(parsed.data.eventDate),
-      eventPlace: parsed.data.eventPlace,
-      sector: parsed.data.sector,
-      row: parsed.data.row,
-      seat: parsed.data.seat,
-      quantityEntries: quantityEntries ?? null,
+      eventPlace: parsed.data.eventPlace ?? null,
+      sector: parsed.data.sector ?? null,
+      row: parsed.data.row ?? null,
+      seat: parsed.data.seat ?? null,
+      quantityEntries,
       tipoEntrada: parsed.data.tipoEntrada,
       price: parsed.data.price,
       currency: parsed.data.currency ?? 'ARS',
       ticketera: parsed.data.ticketera,
       appBoletos: parsed.data.appBoletos,
-      orderRef: parsed.data.orderRef,
+      orderRef: parsed.data.orderRef ?? null,
       category: parsed.data.category ?? 'OTRO',
       status: 'PENDIENTE_VERIFICACION',
-      captureTicketUrl,
-      captureOwnershipUrl,
+      captureTicketUrl: captureTicketUrl ?? null,
+      captureOwnershipUrl: captureOwnershipUrl ?? null,
       publicationPassword,
       ticketeraOtra,
       appBoletosOtra,
