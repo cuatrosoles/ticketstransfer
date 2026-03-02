@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { db, COLLECTIONS } from '../lib/firestore.js';
+import { getAuth } from '../lib/firebase-admin.js';
 import { uploadFile } from '../lib/firebase-storage.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { onboardingSchema } from '@tickets-transfer/shared';
@@ -62,19 +63,24 @@ const upload = multer({
 router.use(requireAuth);
 
 router.get('/profile', async (req: AuthRequest, res) => {
-  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
+  const userId = req.user!.id;
+  const [userDoc, kycDoc, firebaseUser] = await Promise.all([
+    db().collection(COLLECTIONS.USERS).doc(userId).get(),
+    db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get(),
+    getAuth().getUser(userId).catch(() => null),
+  ]);
   if (!userDoc.exists) return res.status(404).json({ error: 'No encontrado' });
   let data = userDoc.data()!;
 
   if (!data.numeroId) {
     const numeroId = `TT${Math.random().toString(36).slice(2, 10).toUpperCase()}${Date.now().toString(36).slice(-4).toUpperCase()}`;
-    await db().collection(COLLECTIONS.USERS).doc(req.user!.id).update({ numeroId, updatedAt: new Date() });
+    await db().collection(COLLECTIONS.USERS).doc(userId).update({ numeroId, updatedAt: new Date() });
     data = { ...data, numeroId };
   }
 
-  const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(req.user!.id).get();
   const kyc = kycDoc.exists ? kycDoc.data() : null;
   const phone = data.phone?.replace(/\+549\s*\+549/, '+549') ?? data.phone;
+  const emailVerified = data.emailVerified ?? firebaseUser?.emailVerified ?? false;
 
   res.json({
     id: req.user!.id,
@@ -87,6 +93,7 @@ router.get('/profile', async (req: AuthRequest, res) => {
     tipoDocumento: data.tipoDocumento ?? null,
     phone,
     phoneVerified: data.phoneVerified ?? false,
+    emailVerified,
     dateOfBirth: data.dateOfBirth ?? null,
     city: data.city ?? null,
     province: data.province ?? null,

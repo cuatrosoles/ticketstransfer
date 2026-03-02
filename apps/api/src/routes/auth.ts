@@ -173,6 +173,8 @@ router.get('/me', requireAuth, async (req: AuthRequest, res) => {
     tipoDocumento: data.tipoDocumento,
     sexo: data.sexo,
     phone: data.phone,
+    phoneVerified: data.phoneVerified ?? false,
+    emailVerified: data.emailVerified ?? false,
     dateOfBirth: data.dateOfBirth,
     city: data.city,
     province: data.province,

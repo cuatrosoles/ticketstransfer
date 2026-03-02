@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { db, COLLECTIONS } from '../lib/firestore.js';
+import { getAuth } from '../lib/firebase-admin.js';
 import { uploadFile } from '../lib/firebase-storage.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { createTicketListingSchema } from '@tickets-transfer/shared';
@@ -145,6 +146,40 @@ router.post(
     { name: 'captureOwnership', maxCount: 1 },
   ]),
   async (req: AuthRequest, res) => {
+    const userId = req.user!.id;
+    const [userDoc, kycDoc, firebaseUser] = await Promise.all([
+      db().collection(COLLECTIONS.USERS).doc(userId).get(),
+      db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get(),
+      getAuth().getUser(userId).catch(() => null),
+    ]);
+    const userData = userDoc.exists ? userDoc.data() : null;
+    const kycData = kycDoc.exists ? kycDoc.data() : null;
+    const kycStatus = kycData?.status ?? 'PENDIENTE';
+    const emailVerified = userData?.emailVerified ?? firebaseUser?.emailVerified ?? false;
+    const phoneVerified = userData?.phoneVerified ?? false;
+
+    if (kycStatus !== 'APROBADO') {
+      res.status(403).json({
+        error: 'Para publicar tickets debés tener la verificación KYC aprobada.',
+        code: 'KYC_REQUIRED',
+      });
+      return;
+    }
+    if (!emailVerified) {
+      res.status(403).json({
+        error: 'Para publicar tickets debés tener el email verificado.',
+        code: 'EMAIL_VERIFICATION_REQUIRED',
+      });
+      return;
+    }
+    if (!phoneVerified) {
+      res.status(403).json({
+        error: 'Para publicar tickets debés tener el teléfono verificado.',
+        code: 'PHONE_VERIFICATION_REQUIRED',
+      });
+      return;
+    }
+
     const body = { ...req.body, price: req.body.price != null ? Number(req.body.price) : undefined };
     const parsed = createTicketListingSchema.safeParse(body);
     if (!parsed.success) {

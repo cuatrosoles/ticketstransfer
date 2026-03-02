@@ -126,6 +126,7 @@ export type Profile = {
   tipoDocumento: string | null;
   phone: string | null;
   phoneVerified?: boolean;
+  emailVerified?: boolean;
   dateOfBirth: string | null;
   city: string | null;
   province: string | null;

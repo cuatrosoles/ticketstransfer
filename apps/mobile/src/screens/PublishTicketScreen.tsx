@@ -18,9 +18,9 @@ import {
   ActivityIndicator,
   PermissionsAndroid,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
-import { createTicketListing } from '../lib/api';
+import { createTicketListing, getProfile, type Profile } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
@@ -95,6 +95,22 @@ export function PublishTicketScreen() {
   const [captureTicket, setCaptureTicket] = useState<ImageAsset | null>(null);
   const [captureOwnership, setCaptureOwnership] = useState<ImageAsset | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      getProfile()
+        .then(setProfile)
+        .catch(() => setProfile(null))
+        .finally(() => setProfileLoading(false));
+    }, [])
+  );
+
+  const canPublish =
+    profile?.kyc?.status === 'APROBADO' &&
+    profile?.phoneVerified === true &&
+    profile?.emailVerified === true;
 
   const processImageResult = (
     res: { didCancel?: boolean; errorCode?: string; errorMessage?: string; assets?: Array<{ uri?: string; fileName?: string; type?: string }> },
@@ -219,12 +235,28 @@ export function PublishTicketScreen() {
         } as unknown as Blob);
       }
       await createTicketListing(formData);
-      Alert.alert('Listo', 'Tu ticket fue enviado a verificación.');
-      setEventName('');
-      setEventDate('');
-      setPrice('');
-      setCaptureTicket(null);
-      setCaptureOwnership(null);
+      const resetFormAndGoHome = () => {
+        setEventName('');
+        setEventDate('');
+        setEventPlace('');
+        setSector('');
+        setFila('');
+        setCantidadEntradas('');
+        setTipoEntrada('GENERAL');
+        setTipoEntradaOtro('');
+        setPrice('');
+        setTicketera('TICKETEK');
+        setTicketeraOtra('');
+        setAppBoletos('QUENTRO');
+        setAppBoletosOtra('');
+        setButacasAsientos('');
+        setOrderRef('');
+        setPublicationPassword('');
+        setCaptureTicket(null);
+        setCaptureOwnership(null);
+        (navigation as { navigate: (name: string) => void }).navigate('Main');
+      };
+      Alert.alert('Listo', 'Tu ticket fue enviado a verificación.', [{ text: 'OK', onPress: resetFormAndGoHome }]);
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo publicar.');
     } finally {
@@ -235,6 +267,48 @@ export function PublishTicketScreen() {
   const priceNum = parseFloat(price.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
   const comision = priceNum * (COMISION_PORCENTAJE / 100);
   const montoVendedor = priceNum - comision;
+
+  if (profileLoading) {
+    return (
+      <AuthBackground>
+        <View style={[styles.content, { justifyContent: 'center', alignItems: 'center', padding: spacing.xl }]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </AuthBackground>
+    );
+  }
+
+  if (!canPublish) {
+    const missing: string[] = [];
+    if (profile?.kyc?.status !== 'APROBADO') missing.push('Verificación KYC');
+    if (!profile?.emailVerified) missing.push('Email verificado');
+    if (!profile?.phoneVerified) missing.push('Teléfono verificado');
+    return (
+      <AuthBackground>
+        <View style={styles.inlineHeader}>
+          <ScreenHeader title="Publicar ticket" showBack onBack={() => navigation.goBack()} rightSlot={<UserMenuButton />} />
+        </View>
+        <View style={[styles.content, { padding: spacing.xl }]}>
+          <Text style={[styles.label, { marginBottom: spacing.md }]}>Verificación requerida</Text>
+          <Text style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0, color: colors.textMuted, marginBottom: spacing.lg }]}>
+            Para publicar tickets debés completar: {missing.join(', ')}.
+          </Text>
+          <TouchableOpacity
+            style={[styles.primaryButton, { marginTop: spacing.sm }]}
+            onPress={() => (navigation as { navigate: (name: string) => void }).navigate('Kyc')}
+          >
+            <Text style={styles.primaryButtonText}>Ir a verificación KYC</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.primaryButton, { marginTop: spacing.sm, backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.primary }]}
+            onPress={() => (navigation as { navigate: (name: string) => void }).navigate('Profile')}
+          >
+            <Text style={[styles.primaryButtonText, { color: colors.primary }]}>Completar perfil (teléfono / email)</Text>
+          </TouchableOpacity>
+        </View>
+      </AuthBackground>
+    );
+  }
 
   return (
     <AuthBackground>

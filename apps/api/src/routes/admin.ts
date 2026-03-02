@@ -7,7 +7,6 @@ import { db, COLLECTIONS } from '../lib/firestore.js';
 import { requireAuth, requireAdmin, type AuthRequest } from '../middleware/auth.js';
 import { getPlatformSettings, invalidateSettingsCache } from '../lib/settings.js';
 import { getOrCreateCustomer, listCustomerCards } from '../lib/mercadopago.js';
-import { getPlatformSettings } from '../lib/settings.js';
 
 const router = Router();
 
@@ -81,7 +80,7 @@ router.put('/settings', async (req: AuthRequest, res) => {
 });
 
 router.get('/stats', async (_req, res) => {
-  const [usersSnap, ordersSnap, disputesSnap, kycSnap, listingsSnap, ordersCompletedSnap] = await Promise.all([
+  const [usersSnap, ordersSnap, disputesSnap, kycSnap, listingsSnap, ordersCompletedSnap, ticketsPendingSnap] = await Promise.all([
     db().collection(COLLECTIONS.USERS).get(),
     db().collection(COLLECTIONS.ORDERS).get(),
     db()
@@ -91,6 +90,7 @@ router.get('/stats', async (_req, res) => {
     db().collection(COLLECTIONS.KYC_VERIFICATIONS).where('status', '==', 'EN_REVISION').get(),
     db().collection(COLLECTIONS.TICKET_LISTINGS).where('status', '==', 'DISPONIBLE').get(),
     db().collection(COLLECTIONS.ORDERS).where('status', '==', 'COMPLETADA').get(),
+    db().collection(COLLECTIONS.TICKET_LISTINGS).where('status', '==', 'PENDIENTE_VERIFICACION').get(),
   ]);
 
   res.json({
@@ -100,6 +100,7 @@ router.get('/stats', async (_req, res) => {
     disputesOpen: disputesSnap.size,
     kycPending: kycSnap.size,
     listingsCount: listingsSnap.size,
+    ticketsPending: ticketsPendingSnap.size,
   });
 });
 
@@ -372,6 +373,76 @@ router.get('/conversations/:id/messages', async (req: AuthRequest, res) => {
     user2: user2Doc.exists ? { id: conv.user2Id, ...user2Doc.data() } : null,
     messages,
   });
+});
+
+/** Tickets pendientes de verificación (para aprobar/rechazar) */
+router.get('/tickets/pending', async (_req, res) => {
+  const snap = await db()
+    .collection(COLLECTIONS.TICKET_LISTINGS)
+    .where('status', '==', 'PENDIENTE_VERIFICACION')
+    .orderBy('createdAt', 'desc')
+    .limit(100)
+    .get();
+
+  const tickets = await Promise.all(
+    snap.docs.map(async (doc) => {
+      const d = doc.data();
+      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+      const seller = sellerDoc.exists ? sellerDoc.data() : null;
+      return {
+        id: doc.id,
+        ...d,
+        seller: seller ? { id: d.sellerId, email: seller.email, firstName: seller.firstName, lastName: seller.lastName } : null,
+        eventDate: d.eventDate?.toDate?.() ?? d.eventDate,
+        createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+        updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+      };
+    })
+  );
+  res.json({ tickets });
+});
+
+/** Aprobar ticket: PENDIENTE_VERIFICACION -> DISPONIBLE */
+router.patch('/tickets/:id/approve', async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const docRef = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id);
+  const doc = await docRef.get();
+  if (!doc.exists) return res.status(404).json({ error: 'Ticket no encontrado' });
+  const data = doc.data()!;
+  if (data.status !== 'PENDIENTE_VERIFICACION') {
+    return res.status(400).json({ error: 'El ticket no está pendiente de verificación' });
+  }
+  await docRef.update({
+    status: 'DISPONIBLE',
+    reviewedAt: new Date(),
+    reviewedBy: req.user!.id,
+    rejectionReason: null,
+    updatedAt: new Date(),
+  });
+  const updated = await docRef.get();
+  res.json(updated.data());
+});
+
+/** Rechazar ticket: PENDIENTE_VERIFICACION -> RECHAZADO */
+router.patch('/tickets/:id/reject', async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const { rejectionReason } = req.body;
+  const docRef = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id);
+  const doc = await docRef.get();
+  if (!doc.exists) return res.status(404).json({ error: 'Ticket no encontrado' });
+  const data = doc.data()!;
+  if (data.status !== 'PENDIENTE_VERIFICACION') {
+    return res.status(400).json({ error: 'El ticket no está pendiente de verificación' });
+  }
+  await docRef.update({
+    status: 'RECHAZADO',
+    rejectionReason: typeof rejectionReason === 'string' ? rejectionReason.trim() || 'Rechazado por el administrador' : 'Rechazado por el administrador',
+    reviewedAt: new Date(),
+    reviewedBy: req.user!.id,
+    updatedAt: new Date(),
+  });
+  const updated = await docRef.get();
+  res.json(updated.data());
 });
 
 router.get('/orders', async (req: AuthRequest, res) => {

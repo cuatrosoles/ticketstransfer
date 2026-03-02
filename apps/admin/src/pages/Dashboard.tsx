@@ -8,6 +8,7 @@ type Stats = {
   disputesOpen: number;
   kycPending: number;
   listingsCount: number;
+  ticketsPending?: number;
 };
 
 export function Dashboard() {
@@ -53,6 +54,10 @@ export function Dashboard() {
         <div className="stat-card">
           <div className="value">{stats.listingsCount}</div>
           <div className="label">Tickets disponibles</div>
+        </div>
+        <div className="stat-card">
+          <div className="value">{stats.ticketsPending ?? 0}</div>
+          <div className="label">Tickets pendientes de revisión</div>
         </div>
       </div>
     </>
