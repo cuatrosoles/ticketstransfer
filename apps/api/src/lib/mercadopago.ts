@@ -220,7 +220,7 @@ export async function listCustomerCards(customerId: string): Promise<Array<{
 }>> {
   const { customer } = await getMercadoPagoClient();
   const result = await customer.listCards({ customerId });
-  const cards = (result as { data?: Array<Record<string, unknown>> })?.data || [];
+  const cards = Array.isArray(result) ? result : (result as { data?: Array<Record<string, unknown>> })?.data ?? [];
   return cards.map((c: Record<string, unknown>) => ({
     id: String(c.id),
     last_four_digits: String(c.last_four_digits || c.last4 || '****'),

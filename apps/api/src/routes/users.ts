@@ -323,8 +323,9 @@ router.get('/cards', async (req: AuthRequest, res) => {
       throw new Error('Usuario sin email');
     }
     const settings = await getPlatformSettings();
-    const customerId = await getOrCreateCustomer(req.user!.id, email, settings.mercadopago.sandboxMode);
-    if (!userData?.mpCustomerId) {
+    let customerId = userData?.mpCustomerId as string | undefined;
+    if (!customerId) {
+      customerId = await getOrCreateCustomer(req.user!.id, email, settings.mercadopago.sandboxMode);
       await db().collection(COLLECTIONS.USERS).doc(req.user!.id).update({
         mpCustomerId: customerId,
         updatedAt: new Date(),
@@ -375,12 +376,10 @@ router.post('/cards', async (req: AuthRequest, res) => {
     }
     const settings = await getPlatformSettings();
     const customerId = await getOrCreateCustomer(req.user!.id, email, settings.mercadopago.sandboxMode);
-    if (!userData?.mpCustomerId) {
-      await db().collection(COLLECTIONS.USERS).doc(req.user!.id).update({
-        mpCustomerId: customerId,
-        updatedAt: new Date(),
-      });
-    }
+    await db().collection(COLLECTIONS.USERS).doc(req.user!.id).update({
+      mpCustomerId: customerId,
+      updatedAt: new Date(),
+    });
     return addCardToCustomer(customerId, token);
   };
   try {
