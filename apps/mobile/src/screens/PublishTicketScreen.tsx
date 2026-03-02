@@ -18,7 +18,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { createTicketListing } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -95,19 +95,30 @@ export function PublishTicketScreen() {
   const [captureOwnership, setCaptureOwnership] = useState<ImageAsset | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const processImageResult = (res: { didCancel?: boolean; assets?: Array<{ uri?: string; fileName?: string; type?: string }> }, setter: (a: ImageAsset | null) => void) => {
+    if (res.didCancel || !res.assets?.[0]) return;
+    const asset = res.assets[0];
+    setter({
+      uri: asset.uri!,
+      fileName: asset.fileName || `img_${Date.now()}.jpg`,
+      type: asset.type || 'image/jpeg',
+    });
+  };
+
   const pickImage = (setter: (a: ImageAsset | null) => void) => {
-    launchImageLibrary(
-      { mediaType: 'photo', quality: 0.8 },
-      (res) => {
-        if (res.didCancel || !res.assets?.[0]) return;
-        const asset = res.assets[0];
-        setter({
-          uri: asset.uri!,
-          fileName: asset.fileName || `img_${Date.now()}.jpg`,
-          type: asset.type || 'image/jpeg',
-        });
-      }
-    );
+    Alert.alert('Seleccionar imagen', '¿De dónde querés obtener la imagen?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Tomar foto',
+        onPress: () =>
+          launchCamera({ mediaType: 'photo', quality: 0.8 }, (res) => processImageResult(res, setter)),
+      },
+      {
+        text: 'Elegir de galería',
+        onPress: () =>
+          launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, (res) => processImageResult(res, setter)),
+      },
+    ]);
   };
 
   const formatDateForApi = (localDate: string) => {
@@ -320,7 +331,7 @@ export function PublishTicketScreen() {
         {captureTicket ? (
           <Image source={{ uri: captureTicket.uri }} style={styles.thumb} resizeMode="cover" />
         ) : (
-          <Text style={styles.imageButtonText}>Seleccionar imagen</Text>
+          <Text style={styles.imageButtonText}>Tomar foto o elegir de galería</Text>
         )}
       </TouchableOpacity>
 
@@ -329,7 +340,7 @@ export function PublishTicketScreen() {
         {captureOwnership ? (
           <Image source={{ uri: captureOwnership.uri }} style={styles.thumb} resizeMode="cover" />
         ) : (
-          <Text style={styles.imageButtonText}>Seleccionar imagen</Text>
+          <Text style={styles.imageButtonText}>Tomar foto o elegir de galería</Text>
         )}
       </TouchableOpacity>
 
