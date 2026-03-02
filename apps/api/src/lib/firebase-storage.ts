@@ -5,14 +5,29 @@
 import { getStorage } from './firebase-admin.js';
 import type { Bucket } from '@google-cloud/storage';
 
-const BUCKET_NAME = process.env.FIREBASE_STORAGE_BUCKET || '';
+const PLACEHOLDER_BUCKET = 'tu-proyecto.appspot.com';
+
+function resolveBucketName(): string {
+  const env = process.env.FIREBASE_STORAGE_BUCKET?.trim();
+  if (env && env !== PLACEHOLDER_BUCKET) return env;
+
+  const storage = getStorage();
+  const opts = storage.app.options as { storageBucket?: string; projectId?: string };
+  if (opts.storageBucket && opts.storageBucket !== PLACEHOLDER_BUCKET) return opts.storageBucket;
+
+  const projectId = opts.projectId || process.env.GCLOUD_PROJECT;
+  if (projectId) {
+    return `${projectId}.firebasestorage.app`;
+  }
+
+  throw new Error(
+    'FIREBASE_STORAGE_BUCKET no configurado. Definilo en .env con el bucket real (ej: tu-proyecto.firebasestorage.app)'
+  );
+}
 
 export function getStorageBucket(): Bucket {
   const storage = getStorage();
-  const bucketName = BUCKET_NAME || (storage.app.options as { storageBucket?: string }).storageBucket;
-  if (!bucketName) {
-    throw new Error('FIREBASE_STORAGE_BUCKET no configurado. Definilo en .env');
-  }
+  const bucketName = resolveBucketName();
   return storage.bucket(bucketName);
 }
 
