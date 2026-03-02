@@ -148,7 +148,12 @@ router.post(
     const body = { ...req.body, price: req.body.price != null ? Number(req.body.price) : undefined };
     const parsed = createTicketListingSchema.safeParse(body);
     if (!parsed.success) {
-      res.status(400).json({ error: 'Datos inválidos', details: parsed.error.flatten() });
+      const flat = parsed.error.flatten();
+      const fieldErrs = flat.fieldErrors as Record<string, string[]>;
+      const firstKey = Object.keys(fieldErrs)[0];
+      const firstMsg = firstKey ? fieldErrs[firstKey]?.[0] : flat.formErrors?.[0];
+      const msg = firstMsg ? `Datos inválidos: ${firstMsg}` : 'Datos inválidos';
+      res.status(400).json({ error: msg, details: flat });
       return;
     }
     const files = req.files as { [key: string]: Express.Multer.File[] };

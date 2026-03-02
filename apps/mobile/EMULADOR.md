@@ -34,6 +34,16 @@ adb install -r v2/apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
 
 ---
 
+# Cámara en emulador
+
+Los emuladores Android suelen no tener cámara funcional. Si "Tomar foto" no hace nada o falla:
+
+1. **Usar "Elegir de galería"** para seleccionar una imagen existente.
+2. **Configurar cámara virtual**: en AVD Manager → editar emulador → "Show Advanced Settings" → Camera: "Webcam0" o "Virtual scene".
+3. **Probar en dispositivo físico** para verificar que la cámara funciona.
+
+---
+
 # Debug en emulador
 
 Para desarrollar y depurar con live reload y herramientas de desarrollo:

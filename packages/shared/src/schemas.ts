@@ -47,21 +47,34 @@ const appBoletosEnum = z.enum(['QUENTRO', 'ENIGMA', 'OTRA']);
 const tipoEntradaEnum = z.enum(['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO']);
 const categoriaEventoEnum = z.enum(['MUSICA', 'DEPORTES', 'TEATRO', 'FESTIVALES', 'OTRO']);
 
+/** Normaliza fecha a YYYY-MM-DD desde DD/MM/YYYY, DD-MM-YYYY o YYYY-MM-DD */
+function normalizeEventDate(val: unknown): string | unknown {
+  const s = String(val ?? '').trim();
+  if (!s) return val;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const match = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (match) {
+    const [, d, m, y] = match;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  return val;
+}
+
 export const createTicketListingSchema = z.object({
   eventName: z.string().min(2, 'Nombre del evento requerido'),
-  eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
-  eventPlace: z.string().optional(),
-  sector: z.string().optional(),
-  row: z.string().optional(),
-  seat: z.string().optional(),
+  eventDate: z.preprocess(normalizeEventDate, z.string().regex(/^\d{4}-\d{2}-\d{2}/, 'Fecha inválida (usa AAAA-MM-DD o DD/MM/AAAA)')),
+  eventPlace: z.string().optional().transform((s) => (s === '' ? undefined : s)),
+  sector: z.string().optional().transform((s) => (s === '' ? undefined : s)),
+  row: z.string().optional().transform((s) => (s === '' ? undefined : s)),
+  seat: z.string().optional().transform((s) => (s === '' ? undefined : s)),
   quantityEntries: z.union([z.string(), z.number()]).optional(),
   tipoEntrada: tipoEntradaEnum,
-  price: z.number().positive('Precio debe ser positivo'),
+  price: z.coerce.number().positive('Precio debe ser positivo'),
   currency: z.string().length(3).default('ARS'),
   ticketera: ticketeraEnum,
   appBoletos: appBoletosEnum,
-  orderRef: z.string().optional(),
-  category: categoriaEventoEnum.optional(),
+  orderRef: z.string().optional().transform((s) => (s === '' ? undefined : s)),
+  category: categoriaEventoEnum.optional().transform((v) => (v === '' ? undefined : v)),
 });
 
 export const createOrderSchema = z.object({

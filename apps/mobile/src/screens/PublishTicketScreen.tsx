@@ -16,6 +16,7 @@ import {
   Image,
   Platform,
   ActivityIndicator,
+  PermissionsAndroid,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
@@ -95,8 +96,20 @@ export function PublishTicketScreen() {
   const [captureOwnership, setCaptureOwnership] = useState<ImageAsset | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const processImageResult = (res: { didCancel?: boolean; assets?: Array<{ uri?: string; fileName?: string; type?: string }> }, setter: (a: ImageAsset | null) => void) => {
-    if (res.didCancel || !res.assets?.[0]) return;
+  const processImageResult = (
+    res: { didCancel?: boolean; errorCode?: string; errorMessage?: string; assets?: Array<{ uri?: string; fileName?: string; type?: string }> },
+    setter: (a: ImageAsset | null) => void
+  ) => {
+    if (res.didCancel) return;
+    if (res.errorCode || res.errorMessage) {
+      Alert.alert(
+        'Cámara no disponible',
+        'La cámara no pudo abrirse (en emuladores suele fallar). Usá "Elegir de galería" para seleccionar una imagen.',
+        [{ text: 'Entendido' }]
+      );
+      return;
+    }
+    if (!res.assets?.[0]) return;
     const asset = res.assets[0];
     setter({
       uri: asset.uri!,
@@ -105,14 +118,37 @@ export function PublishTicketScreen() {
     });
   };
 
+  const launchCameraWithPermission = (setter: (a: ImageAsset | null) => void) => {
+    const doLaunch = () => {
+      launchCamera({ mediaType: 'photo', quality: 0.8 }, (res) => processImageResult(res, setter));
+    };
+    if (Platform.OS === 'android') {
+      PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA, {
+        title: 'Permiso de cámara',
+        message: 'La app necesita acceso a la cámara para tomar fotos del ticket.',
+        buttonNeutral: 'Después',
+        buttonNegative: 'Cancelar',
+        buttonPositive: 'Aceptar',
+      }).then((granted) => {
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          doLaunch();
+        } else {
+          Alert.alert(
+            'Sin permiso',
+            'Se necesita permiso de cámara para tomar fotos. Podés usar "Elegir de galería" en su lugar.',
+            [{ text: 'Entendido' }]
+          );
+        }
+      });
+    } else {
+      doLaunch();
+    }
+  };
+
   const pickImage = (setter: (a: ImageAsset | null) => void) => {
     Alert.alert('Seleccionar imagen', '¿De dónde querés obtener la imagen?', [
       { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Tomar foto',
-        onPress: () =>
-          launchCamera({ mediaType: 'photo', quality: 0.8 }, (res) => processImageResult(res, setter)),
-      },
+      { text: 'Tomar foto', onPress: () => launchCameraWithPermission(setter) },
       {
         text: 'Elegir de galería',
         onPress: () =>
@@ -121,14 +157,17 @@ export function PublishTicketScreen() {
     ]);
   };
 
-  const formatDateForApi = (localDate: string) => {
-    if (!localDate) return '';
-    const [d, m, y] = localDate.split('/');
-    return `${y}-${m}-${d}`;
+  const toApiDate = (local: string): string => {
+    const s = local.trim();
+    if (!s) return '';
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+    return s;
   };
 
   const handleSubmit = async () => {
-    const dateStr = eventDate.includes('-') ? eventDate : eventDate.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1');
+    const dateStr = toApiDate(eventDate);
     if (!eventName.trim()) {
       Alert.alert('Falta nombre', 'Ingresá el nombre del evento.');
       return;
