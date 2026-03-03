@@ -145,12 +145,13 @@ export function MySalesScreen() {
 
   const keyExtractor = (item: OrderItem | TicketListingItem) => item.id;
 
-  const ListEmptyOrders = () => <Text style={styles.emptyText}>No tenés ventas.</Text>;
-  const ListEmptyListings = () => <Text style={styles.emptyText}>No tenés tickets publicados.</Text>;
-
   const renderSectionFooter = ({ section }: { section: Section }) => {
     if (section.data.length > 0) return null;
-    return section.title === 'Mis ventas' ? <ListEmptyOrders /> : <ListEmptyListings />;
+    return (
+      <Text style={styles.emptyText}>
+        {section.title === 'Mis ventas' ? 'No tenés ventas.' : 'No tenés tickets publicados.'}
+      </Text>
+    );
   };
 
   if (loading && orders.length === 0 && listings.length === 0) {
