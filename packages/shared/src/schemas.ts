@@ -76,11 +76,11 @@ export const createTicketListingSchema = z.object({
   ticketera: ticketeraEnum,
   appBoletos: appBoletosEnum,
   orderRef: z.string().optional().transform((s) => (s === '' ? undefined : s)),
-  category: categoriaEventoEnum.optional().transform((v) => (v === '' ? undefined : v)),
+  category: z.union([categoriaEventoEnum, z.literal('')]).optional().transform((v) => (v === '' ? undefined : v)),
 });
 
 export const createOrderSchema = z.object({
-  ticketListingId: z.string().uuid(),
+  ticketListingId: z.string().min(1, 'ID de publicación requerido'),
   paymentMethod: z.enum(['mercadopago', 'stripe']),
 });
 

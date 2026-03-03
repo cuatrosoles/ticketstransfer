@@ -17560,10 +17560,10 @@ var createTicketListingSchema = external_exports.object({
   ticketera: ticketeraEnum,
   appBoletos: appBoletosEnum,
   orderRef: external_exports.string().optional().transform((s) => s === "" ? void 0 : s),
-  category: categoriaEventoEnum.optional().transform((v) => v === "" ? void 0 : v)
+  category: external_exports.union([categoriaEventoEnum, external_exports.literal("")]).optional().transform((v) => v === "" ? void 0 : v)
 });
 var createOrderSchema = external_exports.object({
-  ticketListingId: external_exports.string().uuid(),
+  ticketListingId: external_exports.string().min(1, "ID de publicaci\xF3n requerido"),
   paymentMethod: external_exports.enum(["mercadopago", "stripe"])
 });
 var confirmReceivedSchema = external_exports.object({
@@ -18830,7 +18830,7 @@ router4.use(requireAuth);
 router4.post("/", async (req, res) => {
   const parsed = createOrderSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Datos inv?lidos", details: parsed.error.flatten() });
+    res.status(400).json({ error: "Datos inv\xE1lidos", details: parsed.error.flatten() });
     return;
   }
   const { ticketListingId, paymentMethod } = parsed.data;

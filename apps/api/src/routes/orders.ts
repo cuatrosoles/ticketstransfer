@@ -28,7 +28,7 @@ router.use(requireAuth);
 router.post('/', async (req: AuthRequest, res) => {
   const parsed = createOrderSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: 'Datos inv?lidos', details: parsed.error.flatten() });
+    res.status(400).json({ error: 'Datos inválidos', details: parsed.error.flatten() });
     return;
   }
   const { ticketListingId, paymentMethod } = parsed.data;
