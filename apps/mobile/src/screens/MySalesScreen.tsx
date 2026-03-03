@@ -13,6 +13,7 @@ import {
   RefreshControl,
   TouchableOpacity,
   Alert,
+  InteractionManager,
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -33,26 +34,32 @@ export function MySalesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
-    Promise.all([getMySales(), getMyListings()])
-      .then(([o, l]) => {
-        setOrders(o);
-        setListings(l);
-      })
-      .catch(() => {
-        setOrders([]);
-        setListings([]);
-      })
-      .finally(() => {
-        setLoading(false);
-        setRefreshing(false);
-      });
+  const load = useCallback(async (retryCount = 0) => {
+    try {
+      const [o, l] = await Promise.all([getMySales(), getMyListings()]);
+      setOrders(o);
+      setListings(l);
+    } catch {
+      if (retryCount < 1) {
+        InteractionManager.runAfterInteractions(() => {
+          setTimeout(() => load(1), 600);
+        });
+        return;
+      }
+      setOrders([]);
+      setListings([]);
+    }
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      load();
+      const task = InteractionManager.runAfterInteractions(() => {
+        load(0);
+      });
+      return () => task.cancel();
     }, [load])
   );
 

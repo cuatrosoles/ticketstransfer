@@ -8,25 +8,28 @@
     "packages/*"
   ],
   "scripts": {
-    "postinstall": "patch-package && node apps/mobile/scripts/patch-react-native-screens-cpp.js",
-    "dev": "pnpm run --parallel dev",
-    "dev:api": "pnpm --filter api dev",
+    "postinstall": "(cd apps/mobile && pnpm exec patch-package) && node apps/mobile/scripts/patch-react-native-screens-cpp.js",
+    "install:clean": "node -e \"const fs=require('fs');const t=Date.now();['node_modules','apps/api/node_modules','apps/web/node_modules','apps/admin/node_modules','apps/mobile/node_modules','packages/shared/node_modules'].forEach(d=>{if(fs.existsSync(d)){try{fs.renameSync(d,d+'.old.'+t);}catch(e){console.error('Renombrar falló:',d,e.message);}}});['package-lock.json','pnpm-lock.yaml'].forEach(f=>{if(fs.existsSync(f))fs.unlinkSync(f);});\" && pnpm install",
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:api": "npm run dev --workspace=api",
     "dev:api:run": "cd apps/api && npx tsx watch src/index.ts",
-    "dev:web": "pnpm --filter web dev",
+    "dev:web": "npm run dev --workspace=web",
     "dev:web:run": "cd apps/web && npx vite",
-    "dev:admin": "pnpm --filter admin dev",
+    "dev:admin": "npm run dev --workspace=admin",
     "dev:admin:run": "cd apps/admin && npx vite",
-    "build": "pnpm run -r build",
-    "build:api": "pnpm --filter api build",
-    "build:web": "pnpm --filter web build",
-    "build:admin": "pnpm --filter admin build",
-    "db:generate": "pnpm --filter api run db:generate",
-    "db:migrate": "pnpm --filter api run db:migrate",
-    "db:studio": "pnpm --filter api run db:studio",
-    "db:push": "pnpm --filter api run db:push"
+    "build": "npm run build --workspaces --if-present",
+    "build:api": "npm run build --workspace=api",
+    "build:web": "npm run build --workspace=web",
+    "build:admin": "npm run build --workspace=admin",
+    "db:generate": "cd apps/api && npx prisma generate",
+    "db:migrate": "cd apps/api && npx prisma migrate deploy",
+    "db:studio": "cd apps/api && npx prisma studio",
+    "db:push": "cd apps/api && npx prisma db push"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.0"
   },
   "engines": {
     "node": ">=20.0.0"
-  },
-  "packageManager": "pnpm@9.0.0"
+  }
 }

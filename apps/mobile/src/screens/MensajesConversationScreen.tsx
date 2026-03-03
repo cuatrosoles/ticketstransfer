@@ -130,10 +130,14 @@ export function MensajesConversationScreen() {
                 <View
                   style={[styles.bubble, msg.isFromMe ? styles.bubbleUser : styles.bubbleOther]}
                 >
-                  <Text style={[styles.bubbleText, msg.isFromMe && styles.bubbleTextUser]}>
+                  <Text
+                    selectable
+                    style={[styles.bubbleText, msg.isFromMe && styles.bubbleTextUser]}
+                  >
                     {msg.content}
                   </Text>
                   <Text
+                    selectable
                     style={[
                       styles.bubbleTime,
                       msg.isFromMe ? styles.bubbleTimeUser : styles.bubbleTimeOther,

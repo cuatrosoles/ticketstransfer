@@ -24,8 +24,10 @@ cd /Users/juanprogramador/Trabajos/ticketTransfer/v2
 ## Paso 2: Instalar dependencias (si hiciste cambios)
 
 ```bash
-pnpm install
+npm install
 ```
+
+(Si falla, probá `npm run install:clean`)
 
 ---
 
@@ -212,6 +214,24 @@ sdk.dir=/Users/juanprogramador/Library/Android/sdk
 
 ---
 
+### Error al instalar dependencias
+
+Si `rm -rf node_modules` falla con "Directory not empty" (firebase tiene symlinks circulares), usá **rimraf**:
+
+```bash
+cd v2
+npm run install:clean
+```
+
+Ese script usa `rimraf` que maneja symlinks correctamente. Si falla, probá manualmente:
+
+```bash
+npx rimraf node_modules apps/*/node_modules packages/*/node_modules
+npm install
+```
+
+---
+
 ### Error: "Couldn't determine Hermesc location"
 
 En monorepos (pnpm/yarn workspaces), el plugin de React Native a veces no encuentra el binario `hermesc`. Ya está resuelto en `android/app/build.gradle` con `hermesCommand` apuntando a `node_modules/react-native/sdks/hermesc/osx-bin/hermesc` (macOS) o `linux64-bin` (Linux).
@@ -228,9 +248,9 @@ ls v2/node_modules/react-native/sdks/hermesc/osx-bin/hermesc
 
 ```bash
 cd /Users/juanprogramador/Trabajos/ticketTransfer/v2
-pnpm install
+npm install
 cd apps/mobile
-pnpm apk:release
+npm run apk:release
 ```
 
 El APK estará en:  

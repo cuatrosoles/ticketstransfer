@@ -3,9 +3,9 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "start": "pnpm exec react-native start",
-    "android": "pnpm exec react-native run-android",
-    "ios": "pnpm exec react-native run-ios",
+    "start": "npx react-native start",
+    "android": "npx react-native run-android",
+    "ios": "npx react-native run-ios",
     "lint": "eslint .",
     "fix:android": "bash scripts/fix-android-build.sh",
     "postinstall": "true",

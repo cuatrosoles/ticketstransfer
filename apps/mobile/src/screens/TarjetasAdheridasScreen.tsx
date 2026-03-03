@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  InteractionManager,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { AuthBackground } from '../components/AuthBackground';
@@ -46,21 +47,29 @@ export function TarjetasAdheridasScreen() {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const fetchCards = useCallback(async () => {
+  const fetchCards = useCallback(async (retryCount = 0) => {
     try {
       const { cards: list } = await getUserCards();
       setCards(list);
     } catch {
+      if (retryCount < 1) {
+        InteractionManager.runAfterInteractions(() => {
+          setTimeout(() => fetchCards(1), 600);
+        });
+        return;
+      }
       setCards([]);
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      fetchCards();
+      const task = InteractionManager.runAfterInteractions(() => {
+        fetchCards(0);
+      });
+      return () => task.cancel();
     }, [fetchCards])
   );
 

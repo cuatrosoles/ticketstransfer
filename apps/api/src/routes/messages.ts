@@ -4,6 +4,7 @@
  */
 
 import { Router } from 'express';
+import { FieldValue } from 'firebase-admin/firestore';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { sendPushNotification } from '../lib/firebase-messaging.js';
@@ -294,10 +295,13 @@ router.post('/conversations/:id/messages', async (req: AuthRequest, res) => {
   const fcmToken = recipientDoc.data()?.fcmToken;
   if (fcmToken) {
     const senderName = [sender?.firstName, sender?.lastName].filter(Boolean).join(' ') || sender?.email || 'Alguien';
-    await sendPushNotification(fcmToken, 'Nuevo mensaje', `${senderName}: ${content.trim().slice(0, 50)}`, {
+    const pushResult = await sendPushNotification(fcmToken, 'Nuevo mensaje', `${senderName}: ${content.trim().slice(0, 50)}`, {
       type: 'new_message',
       conversationId: convId,
     });
+    if (pushResult.tokenInvalid) {
+      await db().collection(COLLECTIONS.USERS).doc(recipientId).update({ fcmToken: FieldValue.delete() });
+    }
   }
 
   res.status(201).json({
