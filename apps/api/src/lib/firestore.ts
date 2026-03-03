@@ -10,6 +10,7 @@ const db = () => getFirestore();
 
 export const COLLECTIONS = {
   USERS: 'users',
+  EMAIL_VERIFICATION_CODES: 'emailVerificationCodes',
   USER_ONBOARDING: 'userOnboarding',
   KYC_VERIFICATIONS: 'kycVerifications',
   TICKET_LISTINGS: 'ticketListings',

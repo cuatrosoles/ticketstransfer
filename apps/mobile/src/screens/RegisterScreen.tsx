@@ -1,12 +1,12 @@
 /**
- * Registro – 2 pasos como web: paso 1 (email, repetir email, contraseña, términos);
- * paso 2 (nombre, apellido, tipo DNI, sexo, fecha, país, teléfono, provincia, ciudad, dirección, etc.).
- * Validación: no se puede pasar al paso 2 ni enviar sin completar correctamente.
+ * Registro – 3 pasos: paso 1 (email, repetir email, contraseña, términos);
+ * paso 2 (verificación de email con código);
+ * paso 3 (nombre, apellido, tipo doc, documento, sexo, fecha nacimiento, administrador, país).
  * Tras registro navega a Kyc (igual que web).
  */
 
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,15 +14,15 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
   Modal,
   Pressable,
+  Switch,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { useAuth } from '../context/AuthContext';
-import { checkUsername } from '../lib/api';
+import { sendEmailVerificationCode, verifyEmailCode, checkUsername } from '../lib/api';
 import { registerSchema, SEXO_OPCIONES, TIPO_DOCUMENTO, PREFIJO_TELEFONO_DEFAULT } from '../lib/registerConstants';
 import { PROVINCIAS_ARGENTINA, CIUDADES_POR_PROVINCIA } from '../data/provinciasArgentina';
 import { AuthBackground } from '../components/AuthBackground';
@@ -34,6 +34,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList, 'Register'>;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN = 8;
+const RESEND_COOLDOWN_SEC = 30;
 
 function validateStep1(
   email: string,
@@ -60,6 +61,8 @@ export function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [agreeTerms, setAgreeTerms] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [username, setUsername] = useState('');
@@ -67,6 +70,7 @@ export function RegisterScreen() {
   const [documentNumber, setDocumentNumber] = useState('');
   const [sexo, setSexo] = useState<string>('');
   const [dateOfBirth, setDateOfBirth] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
   const [country, setCountry] = useState('AR');
   const [phoneAreaCode, setPhoneAreaCode] = useState('');
   const [phone, setPhone] = useState('');
@@ -111,23 +115,81 @@ export function RegisterScreen() {
     return () => clearTimeout(t);
   }, [username]);
 
-  const handleNextStep = () => {
+  const step1Valid = !validateStep1(email, repeatEmail, password, confirmPassword, agreeTerms);
+
+  const startResendCooldown = useCallback(() => {
+    setResendCooldown(RESEND_COOLDOWN_SEC);
+  }, []);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
+
+  const handleNextStep = async () => {
     const err = validateStep1(email, repeatEmail, password, confirmPassword, agreeTerms);
     if (err) {
       setError(err);
       return;
     }
     setError('');
-    setStep(2);
+    setLoading(true);
+    try {
+      await sendEmailVerificationCode(email.trim());
+      startResendCooldown();
+      setStep(2);
+      setVerificationCode('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al enviar el código');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const step2RequiredOk = !!firstName.trim() && !!lastName.trim() && !!username.trim() && (username.length < 2 || usernameStatus === 'available');
+  const handleResendCode = async () => {
+    if (resendCooldown > 0) return;
+    setError('');
+    setLoading(true);
+    try {
+      await sendEmailVerificationCode(email.trim());
+      startResendCooldown();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al reenviar');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmCode = async () => {
+    const code = verificationCode.trim();
+    if (!code || code.length !== 6) {
+      setError('Ingresá el código de 6 dígitos');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    try {
+      await verifyEmailCode(email.trim(), code);
+      setStep(3);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Código incorrecto');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const step3RequiredOk =
+    !!firstName.trim() &&
+    !!lastName.trim() &&
+    !!username.trim() &&
+    (username.length < 2 || usernameStatus === 'available');
 
   const handleRegister = async () => {
     setError('');
     const payload = {
-      email,
-      repeatEmail,
+      email: email.trim(),
+      repeatEmail: repeatEmail.trim(),
       password,
       confirmPassword,
       firstName: firstName.trim(),
@@ -149,6 +211,8 @@ export function RegisterScreen() {
       numero: numero || undefined,
       piso: piso || undefined,
       depto: depto || undefined,
+      isAdmin,
+      role: isAdmin ? 'admin' : 'user',
     };
     const result = registerSchema.safeParse(payload);
     if (!result.success) {
@@ -169,7 +233,6 @@ export function RegisterScreen() {
     setLoading(true);
     try {
       await register(payload as Record<string, unknown>);
-      // La app pasa al stack autenticado; HomeScreen redirige a Kyc (igual que web).
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al crear la cuenta');
     } finally {
@@ -230,12 +293,49 @@ export function RegisterScreen() {
       <Text style={styles.hint}>Completá todos los campos correctamente para continuar.</Text>
       <View style={styles.actions}>
         <GradientButton title="VOLVER" variant="secondary" onPress={() => navigation.goBack()} style={styles.actionBtn} />
-        <GradientButton title="SIGUIENTE >" onPress={handleNextStep} style={styles.actionBtn} />
+        <GradientButton
+          title={step1Valid ? 'SIGUIENTE >' : 'Completá todos los campos correctamente para continuar.'}
+          onPress={handleNextStep}
+          disabled={!step1Valid}
+          loading={loading}
+          style={StyleSheet.flatten([styles.actionBtn, !step1Valid && styles.actionBtnDisabled])}
+        />
       </View>
     </>
   );
 
   const renderStep2 = () => (
+    <>
+      <Text style={styles.verifyTitle}>CONFIRMA TU DIRECCIÓN DE CORREO</Text>
+      <Text style={styles.verifySubtitle}>ESCRIBI EL CODIGO QUE TE ENVIAMOS</Text>
+      <TextInput
+        style={[styles.input, styles.codeInput]}
+        placeholder="000000"
+        placeholderTextColor={colors.textMuted}
+        value={verificationCode}
+        onChangeText={(t) => { setVerificationCode(t.replace(/\D/g, '').slice(0, 6)); setError(''); }}
+        keyboardType="number-pad"
+        maxLength={6}
+      />
+      <TouchableOpacity
+        onPress={handleResendCode}
+        disabled={resendCooldown > 0}
+        style={styles.resendRow}
+      >
+        <Text style={[styles.resendText, resendCooldown > 0 && styles.resendDisabled]}>
+          {resendCooldown > 0
+            ? `REENVIAR CODIGO EN ${String(Math.floor(resendCooldown / 60)).padStart(2, '0')}:${String(resendCooldown % 60).padStart(2, '0')}`
+            : 'REENVIAR CODIGO'}
+        </Text>
+      </TouchableOpacity>
+      <View style={styles.actions}>
+        <GradientButton title="VOLVER" variant="secondary" onPress={() => setStep(1)} style={styles.actionBtn} />
+        <GradientButton title="CONFIRMAR" onPress={handleConfirmCode} loading={loading} style={styles.actionBtn} />
+      </View>
+    </>
+  );
+
+  const renderStep3 = () => (
     <>
       <Text style={styles.label}>Nombre/s</Text>
       <TextInput style={styles.input} placeholder="Nombre" placeholderTextColor={colors.textMuted} value={firstName} onChangeText={setFirstName} />
@@ -271,7 +371,7 @@ export function RegisterScreen() {
       </View>
       {tipoDocumento ? (
         <>
-          <Text style={styles.label}>N°</Text>
+          <Text style={styles.label}>Texto (según tu documento ID)</Text>
           <TextInput
             style={styles.input}
             placeholder={`Número de ${tipoDocumento}`}
@@ -282,7 +382,7 @@ export function RegisterScreen() {
           />
         </>
       ) : null}
-      <Text style={styles.label}>Sexo (según tu documento)</Text>
+      <Text style={styles.label}>Sexo (según tu documento ID)</Text>
       <View style={styles.sexoRow}>
         {SEXO_OPCIONES.map((s) => (
           <TouchableOpacity
@@ -309,6 +409,10 @@ export function RegisterScreen() {
       >
         <Text style={styles.pickerValue}>{dateOfBirth || 'dd/mm/aaaa'}</Text>
       </TouchableOpacity>
+      <View style={styles.adminRow}>
+        <Text style={styles.label}>Administrador</Text>
+        <Switch value={isAdmin} onValueChange={setIsAdmin} trackColor={{ false: '#334155', true: '#3b82f6' }} thumbColor="#f8fafc" />
+      </View>
       <Text style={styles.label}>País</Text>
       <View style={styles.pickerRow}>
         <TouchableOpacity style={[styles.chip, styles.chipSelected]}>
@@ -358,15 +462,15 @@ export function RegisterScreen() {
       <TextInput style={styles.input} placeholder="Piso" placeholderTextColor={colors.textMuted} value={piso} onChangeText={setPiso} />
       <Text style={styles.label}>Depto</Text>
       <TextInput style={styles.input} placeholder="Depto" placeholderTextColor={colors.textMuted} value={depto} onChangeText={setDepto} />
-      <Text style={styles.hint}>Completá los campos obligatorios (Nombre, Apellido y los del paso anterior) para registrar.</Text>
+      <Text style={styles.hint}>Completá los campos obligatorios (Nombre, Apellido, Usuario y los del paso anterior) para registrar.</Text>
       <View style={styles.actions}>
-        <GradientButton title="VOLVER" variant="secondary" onPress={() => setStep(1)} style={styles.actionBtn} />
+        <GradientButton title="VOLVER" variant="secondary" onPress={() => setStep(2)} style={styles.actionBtn} />
         <GradientButton
           title="Crear cuenta"
           onPress={handleRegister}
-          disabled={!step2RequiredOk}
+          disabled={!step3RequiredOk}
           loading={loading}
-          style={StyleSheet.flatten([styles.actionBtn, !step2RequiredOk && styles.actionBtnDisabled])}
+          style={StyleSheet.flatten([styles.actionBtn, !step3RequiredOk && styles.actionBtnDisabled])}
         />
       </View>
     </>
@@ -375,11 +479,11 @@ export function RegisterScreen() {
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <ScreenHeader title="CREAR CUENTA" showBack onBack={() => navigation.goBack()} />
+        <ScreenHeader title="CREAR CUENTA" showBack onBack={() => (step === 1 ? navigation.goBack() : setStep(step - 1))} />
         <View style={styles.glassWrap}>
           <View style={styles.glassPanel}>
-          {step === 1 ? renderStep1() : renderStep2()}
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+            {step === 1 ? renderStep1() : step === 2 ? renderStep2() : renderStep3()}
+            {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>
         </View>
       </ScrollView>
@@ -501,16 +605,18 @@ const styles = StyleSheet.create({
     color: '#f8fafc',
     marginBottom: 8,
   },
-  inputDisabled: { opacity: 0.6 },
   pickerValue: { color: '#f8fafc' },
+  inputDisabled: { opacity: 0.6 },
   pickerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
-  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.3)' },
-  chipSelected: { borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.2)' },
-  chipText: { color: '#f8fafc', fontSize: 14 },
   phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' },
   phoneLabel: { fontSize: 12, color: '#94a3b8', width: 60 },
   phoneAreaInput: { width: 70, marginBottom: 0 },
   phoneInput: { flex: 1, minWidth: 100, marginBottom: 0 },
+  usernameError: { color: '#ef4444', fontSize: 13, marginTop: -4, marginBottom: 4 },
+  usernameOk: { color: '#22c55e', fontSize: 13, marginTop: -4, marginBottom: 4 },
+  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.3)' },
+  chipSelected: { borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.2)' },
+  chipText: { color: '#f8fafc', fontSize: 14 },
   sexoRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   sexoBtn: { flex: 1, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.3)', alignItems: 'center' },
   sexoBtnSelected: { borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.2)' },
@@ -522,11 +628,16 @@ const styles = StyleSheet.create({
   checkLabel: { flex: 1, fontSize: 13, color: '#94a3b8' },
   hint: { fontSize: 12, color: '#94a3b8', marginTop: 8 },
   error: { color: '#ef4444', marginTop: 8, marginBottom: 8 },
-  usernameError: { color: '#ef4444', fontSize: 13, marginTop: -4, marginBottom: 4 },
-  usernameOk: { color: '#22c55e', fontSize: 13, marginTop: -4, marginBottom: 4 },
   actions: { flexDirection: 'row', gap: 12, marginTop: 24 },
   actionBtn: { flex: 1 },
   actionBtnDisabled: { opacity: 0.6 },
+  verifyTitle: { fontSize: 18, fontWeight: '700', color: '#f8fafc', textAlign: 'center', marginBottom: 8 },
+  verifySubtitle: { fontSize: 14, color: '#94a3b8', textAlign: 'center', marginBottom: 16 },
+  codeInput: { textAlign: 'center', fontSize: 24, letterSpacing: 8 },
+  resendRow: { marginTop: 12, marginBottom: 8 },
+  resendText: { fontSize: 14, color: '#ef4444', textAlign: 'center' },
+  resendDisabled: { color: '#64748b', opacity: 0.7 },
+  adminRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 8 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalBox: { backgroundColor: '#1e293b', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '60%' },
   modalScroll: { maxHeight: 400 },

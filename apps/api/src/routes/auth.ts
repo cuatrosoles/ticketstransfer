@@ -4,9 +4,14 @@
  * Login: se realiza en el cliente con Firebase Auth SDK (signInWithEmailAndPassword).
  */
 
+import { createHash } from 'crypto';
 import { Router } from 'express';
 import { getAuth } from '../lib/firebase-admin.js';
 import { db, COLLECTIONS } from '../lib/firestore.js';
+
+function emailDocId(email: string): string {
+  return createHash('sha256').update(email.toLowerCase().trim()).digest('hex').slice(0, 32);
+}
 import { registerBodySchema } from '@tickets-transfer/shared';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 
@@ -79,6 +84,34 @@ router.post('/register', async (req, res) => {
 
   const uid = firebaseUser.uid;
 
+  const body = parsed.data as Record<string, unknown>;
+  const isAdmin = body.role === 'admin' || body.isAdmin === true;
+  const docId = emailDocId(email);
+  const verificationDoc = await db().collection(COLLECTIONS.EMAIL_VERIFICATION_CODES).doc(docId).get();
+  const verificationData = verificationDoc.data();
+  const verifiedAt = verificationData?.verifiedAt as { toDate?: () => Date } | Date | undefined;
+  const verifiedDate = verifiedAt?.toDate?.() ?? (verifiedAt ? new Date(verifiedAt as string) : null);
+  const emailVerified =
+    !!verificationData?.verified &&
+    verifiedDate &&
+    Date.now() - verifiedDate.getTime() < 15 * 60 * 1000;
+  if (emailVerified) {
+    await db().collection(COLLECTIONS.EMAIL_VERIFICATION_CODES).doc(docId).delete();
+  }
+
+  const normalizedDateOfBirth = dateOfBirth
+    ? (() => {
+        const s = String(dateOfBirth).trim();
+        const match = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+        if (match) {
+          const [, d, m, y] = match;
+          return new Date(parseInt(y!, 10), parseInt(m!, 10) - 1, parseInt(d!, 10));
+        }
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return new Date(s.slice(0, 10));
+        return null;
+      })()
+    : null;
+
   const userData = {
     email,
     username: username || null,
@@ -91,11 +124,12 @@ router.post('/register', async (req, res) => {
     sexo: sexo || null,
     phone: fullPhone || phone || null,
     phoneVerified: false,
+    dateOfBirth: normalizedDateOfBirth,
     city: city || null,
     province: province || null,
     postalCode: postalCode || null,
-    role: 'user',
-    emailVerified: false,
+    role: isAdmin ? 'admin' : 'user',
+    emailVerified: emailVerified || false,
     reputationScore: 0,
     profileImageUrl: null,
     createdAt: new Date(),
@@ -123,6 +157,71 @@ router.post('/register', async (req, res) => {
     customToken,
     accessToken: customToken, // Alias para compatibilidad - cliente debe usar signInWithCustomToken
   });
+});
+
+/** Enviar código de verificación de email (antes de crear cuenta) */
+router.post('/email/send-code', async (req, res) => {
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : null;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    res.status(400).json({ error: 'Email inválido' });
+    return;
+  }
+  const usersRef = db().collection(COLLECTIONS.USERS);
+  const existing = await usersRef.where('email', '==', email).limit(1).get();
+  if (!existing.empty) {
+    res.status(409).json({ error: 'Ya existe una cuenta con ese email' });
+    return;
+  }
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  const docId = emailDocId(email);
+  await db().collection(COLLECTIONS.EMAIL_VERIFICATION_CODES).doc(docId).set({
+    email,
+    code,
+    expiresAt,
+    createdAt: new Date(),
+  });
+
+  const { sendVerificationCodeEmail } = await import('../lib/email.js');
+  const { ok, error: sendError } = await sendVerificationCodeEmail(email, code);
+  if (!ok) {
+    console.error('[Email] Error:', sendError);
+    res.status(500).json({ error: 'Error al enviar el email. Intentá de nuevo.' });
+    return;
+  }
+  res.json({ ok: true, message: 'Código enviado' });
+});
+
+/** Verificar código de email (antes de crear cuenta) */
+router.post('/email/verify-code', async (req, res) => {
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : null;
+  const code = typeof req.body?.code === 'string' ? req.body.code.trim() : null;
+  if (!email || !code || code.length !== 6) {
+    res.status(400).json({ error: 'Email y código de 6 dígitos requeridos' });
+    return;
+  }
+  const docId = emailDocId(email);
+  const doc = await db().collection(COLLECTIONS.EMAIL_VERIFICATION_CODES).doc(docId).get();
+  const data = doc.data();
+  if (!data || data.email !== email) {
+    res.status(400).json({ error: 'Solicitá primero un código de verificación' });
+    return;
+  }
+  const exp = data.expiresAt as { toDate?: () => Date } | Date;
+  const expDate = exp?.toDate?.() ?? new Date(exp as string);
+  if (new Date() > expDate) {
+    res.status(400).json({ error: 'El código expiró. Solicitá uno nuevo.' });
+    return;
+  }
+  if (data.code !== code) {
+    res.status(400).json({ error: 'Código incorrecto' });
+    return;
+  }
+  await db().collection(COLLECTIONS.EMAIL_VERIFICATION_CODES).doc(docId).update({
+    verifiedAt: new Date(),
+    verified: true,
+  });
+  res.json({ ok: true, emailVerified: true });
 });
 
 router.get('/username/check', async (req, res) => {

@@ -94,6 +94,22 @@ export async function checkUsername(username: string): Promise<{ available: bool
   );
 }
 
+export async function sendEmailVerificationCode(email: string): Promise<{ ok: boolean }> {
+  return api<{ ok: boolean }>('/api/auth/email/send-code', {
+    method: 'POST',
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    token: null,
+  });
+}
+
+export async function verifyEmailCode(email: string, code: string): Promise<{ ok: boolean; emailVerified: boolean }> {
+  return api<{ ok: boolean; emailVerified: boolean }>('/api/auth/email/verify-code', {
+    method: 'POST',
+    body: JSON.stringify({ email: email.trim().toLowerCase(), code: code.trim() }),
+    token: null,
+  });
+}
+
 export async function login(email: string, password: string) {
   return api<{ user: unknown; accessToken: string; refreshToken: string }>('/api/auth/login', {
     method: 'POST',

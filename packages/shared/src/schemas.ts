@@ -24,6 +24,8 @@ const registerBase = z.object({
   province: z.string().optional(),
   postalCode: z.string().optional(),
   agreeTerms: z.boolean().refine((v) => v === true, 'Debes aceptar la política de privacidad'),
+  isAdmin: z.boolean().optional(),
+  role: z.enum(['user', 'admin']).optional(),
 });
 
 export const registerSchema = registerBase.refine((d) => d.password === d.confirmPassword, { message: 'Las contraseñas no coinciden', path: ['confirmPassword'] });
