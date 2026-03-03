@@ -82,7 +82,14 @@ try {
 }
 
 ensureUploadsDir();
-app.use('/uploads', express.static(uploadsDir));
+app.use(
+  '/uploads',
+  express.static(uploadsDir, {
+    setHeaders: (res) => {
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    },
+  })
+);
 
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
