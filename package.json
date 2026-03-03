@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "postinstall": "node -e \"const fs=require('fs');const p='apps/mobile/node_modules/react-native-screens';if(fs.existsSync(p)||fs.existsSync('node_modules/react-native-screens')){require('child_process').execSync('cd apps/mobile && pnpm exec patch-package',{stdio:'inherit'});require('child_process').execSync('node apps/mobile/scripts/patch-react-native-screens-cpp.js',{stdio:'inherit'});}\"",
+    "postinstall": "((cd apps/mobile && pnpm exec patch-package) && node apps/mobile/scripts/patch-react-native-screens-cpp.js) || true",
     "install:clean": "node -e \"const fs=require('fs');const t=Date.now();['node_modules','apps/api/node_modules','apps/web/node_modules','apps/admin/node_modules','apps/mobile/node_modules','packages/shared/node_modules'].forEach(d=>{if(fs.existsSync(d)){try{fs.renameSync(d,d+'.old.'+t);}catch(e){console.error('Renombrar falló:',d,e.message);}}});['package-lock.json','pnpm-lock.yaml'].forEach(f=>{if(fs.existsSync(f))fs.unlinkSync(f);});\" && pnpm install",
     "dev": "npm run dev --workspaces --if-present",
     "dev:api": "npm run dev --workspace=api",
