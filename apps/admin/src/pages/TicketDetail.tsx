@@ -211,7 +211,18 @@ export function TicketDetail() {
             </div>
             <div className="form-group">
               <label>Fecha (YYYY-MM-DD)</label>
-              <input type="date" value={form.eventDate ?? ''} onChange={(e) => setForm((f) => ({ ...f, eventDate: e.target.value }))} className="input" />
+              <input
+                type="date"
+                value={
+                  form.eventDate
+                    ? typeof form.eventDate === 'string'
+                      ? form.eventDate.slice(0, 10)
+                      : new Date(form.eventDate).toISOString().slice(0, 10)
+                    : ''
+                }
+                onChange={(e) => setForm((f) => ({ ...f, eventDate: e.target.value }))}
+                className="input"
+              />
             </div>
             <div className="form-group">
               <label>Lugar</label>
