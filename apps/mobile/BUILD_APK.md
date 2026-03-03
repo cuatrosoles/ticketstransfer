@@ -212,6 +212,18 @@ sdk.dir=/Users/juanprogramador/Library/Android/sdk
 
 ---
 
+### Error: "Couldn't determine Hermesc location"
+
+En monorepos (pnpm/yarn workspaces), el plugin de React Native a veces no encuentra el binario `hermesc`. Ya está resuelto en `android/app/build.gradle` con `hermesCommand` apuntando a `node_modules/react-native/sdks/hermesc/osx-bin/hermesc` (macOS) o `linux64-bin` (Linux).
+
+Si el error persiste, verificá que exista:
+
+```bash
+ls v2/node_modules/react-native/sdks/hermesc/osx-bin/hermesc
+```
+
+---
+
 ## Resumen rápido
 
 ```bash
