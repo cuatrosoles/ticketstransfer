@@ -1,5 +1,16 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
+
+const STATUS_OPTIONS = [
+  { value: 'TODOS', label: 'Todos' },
+  { value: 'PENDIENTE_VERIFICACION', label: 'Pendientes' },
+  { value: 'DISPONIBLE', label: 'Disponibles' },
+  { value: 'PAUSADO', label: 'Pausados' },
+  { value: 'RECHAZADO', label: 'Rechazados' },
+  { value: 'VENDIDO', label: 'Vendidos' },
+  { value: 'ELIMINADO', label: 'Eliminados' },
+];
 
 type TicketItem = {
   id: string;
@@ -7,6 +18,7 @@ type TicketItem = {
   eventDate: string | Date;
   eventPlace: string | null;
   sector: string | null;
+  status: string;
   tipoEntrada: string;
   price: number;
   currency: string;
@@ -20,47 +32,29 @@ type TicketItem = {
 
 export function Tickets() {
   const [tickets, setTickets] = useState<TicketItem[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [rejecting, setRejecting] = useState<string | null>(null);
-  const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
+  const [statusFilter, setStatusFilter] = useState('TODOS');
 
   const load = () => {
     setLoading(true);
-    api<{ tickets: TicketItem[] }>('/api/admin/tickets/pending')
-      .then((r) => setTickets(r.tickets || []))
-      .catch(() => setTickets([]))
+    const params = new URLSearchParams();
+    if (statusFilter !== 'TODOS') params.set('status', statusFilter);
+    api<{ tickets: TicketItem[]; total: number }>(`/api/admin/tickets?${params}`)
+      .then((r) => {
+        setTickets(r.tickets || []);
+        setTotal(r.total ?? 0);
+      })
+      .catch(() => {
+        setTickets([]);
+        setTotal(0);
+      })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     load();
-  }, []);
-
-  const approve = async (id: string) => {
-    try {
-      await api(`/api/admin/tickets/${id}/approve`, { method: 'PATCH' });
-      load();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error');
-    }
-  };
-
-  const reject = async (id: string) => {
-    const reason = rejectReason[id]?.trim() || 'Rechazado por el administrador';
-    setRejecting(id);
-    try {
-      await api(`/api/admin/tickets/${id}/reject`, {
-        method: 'PATCH',
-        body: JSON.stringify({ rejectionReason: reason }),
-      });
-      setRejectReason((prev) => ({ ...prev, [id]: '' }));
-      load();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error');
-    } finally {
-      setRejecting(null);
-    }
-  };
+  }, [statusFilter]);
 
   const formatDate = (d: string | Date) => {
     if (!d) return '-';
@@ -68,74 +62,83 @@ export function Tickets() {
     return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
+  const statusBadge = (s: string) => {
+    const c =
+      s === 'DISPONIBLE' ? 'approved' :
+      s === 'PENDIENTE_VERIFICACION' ? 'open' :
+      s === 'RECHAZADO' || s === 'ELIMINADO' ? 'rejected' :
+      'pending';
+    return <span className={`badge badge-${c}`}>{s}</span>;
+  };
+
   if (loading) return <p>Cargando…</p>;
 
   return (
     <>
-      <div className="admin-header">
-        <h1 className="admin-title">Tickets pendientes de verificación</h1>
+      <div className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <h1 className="admin-title">Tickets</h1>
+        <select
+          className="input"
+          style={{ width: 200 }}
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        >
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
       </div>
       {tickets.length === 0 ? (
-        <div className="card">No hay tickets pendientes de revisión.</div>
+        <div className="card">No hay tickets con el filtro seleccionado.</div>
       ) : (
-        tickets.map((t) => (
-          <div key={t.id} className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <strong style={{ fontSize: '1.1rem' }}>{t.eventName}</strong>
-                <div style={{ marginTop: 8, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                  Fecha: {formatDate(t.eventDate)} · {t.eventPlace || 'Sin lugar'}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {tickets.map((t) => (
+            <div key={t.id} className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <Link to={`/tickets/${t.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                    <strong style={{ fontSize: '1.1rem' }}>{t.eventName}</strong>
+                  </Link>
+                  <div style={{ marginTop: 4 }}>{statusBadge(t.status)}</div>
+                  <div style={{ marginTop: 8, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                    Fecha: {formatDate(t.eventDate)} · {t.eventPlace || 'Sin lugar'}
+                  </div>
+                  <div style={{ marginTop: 4 }}>
+                    {t.sector && <span>Sector: {t.sector}</span>}
+                    <span style={{ marginLeft: 12 }}>{t.tipoEntrada}</span>
+                    <span style={{ marginLeft: 12, fontWeight: 600 }}>
+                      ${t.price?.toLocaleString?.('es-AR') ?? t.price} {t.currency}
+                    </span>
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: '0.875rem' }}>
+                    Vendedor: <strong>{t.seller?.email}</strong>{' '}
+                    {[t.seller?.firstName, t.seller?.lastName].filter(Boolean).join(' ')}
+                  </div>
+                  <div style={{ marginTop: 8, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    {t.captureTicketUrl && (
+                      <a href={t.captureTicketUrl} target="_blank" rel="noopener noreferrer">
+                        Ver captura
+                      </a>
+                    )}
+                    {t.captureOwnershipUrl && (
+                      <a href={t.captureOwnershipUrl} target="_blank" rel="noopener noreferrer">
+                        Ver titularidad
+                      </a>
+                    )}
+                  </div>
                 </div>
-                <div style={{ marginTop: 4 }}>
-                  {t.sector && <span>Sector: {t.sector}</span>}
-                  <span style={{ marginLeft: 12 }}>{t.tipoEntrada}</span>
-                  <span style={{ marginLeft: 12, fontWeight: 600 }}>
-                    ${t.price.toLocaleString('es-AR')} {t.currency}
-                  </span>
-                </div>
-                <div style={{ marginTop: 8, fontSize: '0.875rem' }}>
-                  Vendido por: <strong>{t.seller?.email}</strong>{' '}
-                  {[t.seller?.firstName, t.seller?.lastName].filter(Boolean).join(' ')}
-                </div>
-                <div style={{ marginTop: 8, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  {t.captureTicketUrl && (
-                    <a href={t.captureTicketUrl} target="_blank" rel="noopener noreferrer">
-                      Ver captura ticket
-                    </a>
-                  )}
-                  {t.captureOwnershipUrl && (
-                    <a href={t.captureOwnershipUrl} target="_blank" rel="noopener noreferrer">
-                      Ver titularidad
-                    </a>
-                  )}
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" className="btn btn-primary btn-sm" onClick={() => approve(t.id)}>
-                    Aprobar
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-danger btn-sm"
-                    onClick={() => reject(t.id)}
-                    disabled={rejecting === t.id}
-                  >
-                    {rejecting === t.id ? 'Rechazando…' : 'Rechazar'}
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  placeholder="Motivo de rechazo (opcional)"
-                  className="input"
-                  style={{ width: 220, fontSize: '0.875rem' }}
-                  value={rejectReason[t.id] ?? ''}
-                  onChange={(e) => setRejectReason((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                />
+                <Link to={`/tickets/${t.id}`} className="btn btn-primary btn-sm">
+                  Ver / Editar
+                </Link>
               </div>
             </div>
-          </div>
-        ))
+          ))}
+        </div>
+      )}
+      {total > 0 && (
+        <p style={{ marginTop: 12, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+          Total: {total} ticket{total !== 1 ? 's' : ''}
+        </p>
       )}
     </>
   );

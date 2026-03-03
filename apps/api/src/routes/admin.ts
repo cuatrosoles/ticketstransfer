@@ -375,38 +375,17 @@ router.get('/conversations/:id/messages', async (req: AuthRequest, res) => {
   });
 });
 
-/** Tickets pendientes de verificación (para aprobar/rechazar) */
+/** Tickets pendientes (ruta específica antes de :id) */
 router.get('/tickets/pending', async (_req, res) => {
-  let docs: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>[] = [];
-  try {
-    const snap = await db()
-      .collection(COLLECTIONS.TICKET_LISTINGS)
-      .where('status', '==', 'PENDIENTE_VERIFICACION')
-      .limit(100)
-      .get();
-    docs = [...snap.docs];
-  } catch {
-    docs = [];
-  }
-
-  if (docs.length === 0) {
-    const allSnap = await db()
-      .collection(COLLECTIONS.TICKET_LISTINGS)
-      .orderBy('createdAt', 'desc')
-      .limit(100)
-      .get();
-    docs = allSnap.docs.filter((d) => {
-      const s = d.data().status;
-      return s === 'PENDIENTE_VERIFICACION' || s === undefined || s === null;
-    });
-  }
-
-  docs.sort((a, b) => {
-    const aAt = a.data().createdAt?.toDate?.()?.getTime() ?? 0;
-    const bAt = b.data().createdAt?.toDate?.()?.getTime() ?? 0;
-    return bAt - aAt;
+  const snap = await db()
+    .collection(COLLECTIONS.TICKET_LISTINGS)
+    .orderBy('createdAt', 'desc')
+    .limit(200)
+    .get();
+  const docs = snap.docs.filter((d) => {
+    const s = d.data().status;
+    return s === 'PENDIENTE_VERIFICACION' || s === undefined || s === null;
   });
-
   const tickets = await Promise.all(
     docs.map(async (doc) => {
       const d = doc.data();
@@ -423,6 +402,112 @@ router.get('/tickets/pending', async (_req, res) => {
     })
   );
   res.json({ tickets });
+});
+
+/** Listar todos los tickets (con filtro opcional por status) */
+router.get('/tickets', async (req: AuthRequest, res) => {
+  const { status, page = '1', limit = '50' } = req.query;
+  const pageNum = Math.max(1, Number(page));
+  const limitNum = Math.min(100, Math.max(1, Number(limit)));
+  const statusFilter = typeof status === 'string' && status && status !== 'TODOS' ? status : null;
+
+  const snap = await db()
+    .collection(COLLECTIONS.TICKET_LISTINGS)
+    .orderBy('createdAt', 'desc')
+    .limit(500)
+    .get();
+
+  let docs = [...snap.docs];
+  if (statusFilter) {
+    docs = docs.filter((d) => (d.data().status ?? 'PENDIENTE_VERIFICACION') === statusFilter);
+  }
+  const total = docs.length;
+  const skip = (pageNum - 1) * limitNum;
+  const paginated = docs.slice(skip, skip + limitNum);
+
+  const tickets = await Promise.all(
+    paginated.map(async (doc) => {
+      const d = doc.data();
+      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+      const seller = sellerDoc.exists ? sellerDoc.data() : null;
+      return {
+        id: doc.id,
+        ...d,
+        seller: seller ? { id: d.sellerId, email: seller.email, firstName: seller.firstName, lastName: seller.lastName } : null,
+        eventDate: d.eventDate?.toDate?.() ?? d.eventDate,
+        createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+        updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+      };
+    })
+  );
+  res.json({ tickets, total });
+});
+
+/** Detalle de un ticket */
+router.get('/tickets/:id', async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id).get();
+  if (!doc.exists) return res.status(404).json({ error: 'Ticket no encontrado' });
+  const d = doc.data()!;
+  const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+  const seller = sellerDoc.exists ? sellerDoc.data() : null;
+  res.json({
+    id: doc.id,
+    ...d,
+    seller: seller ? { id: d.sellerId, email: seller.email, firstName: seller.firstName, lastName: seller.lastName } : null,
+    eventDate: d.eventDate?.toDate?.() ?? d.eventDate,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+  });
+});
+
+/** Actualizar ticket (campos editables) */
+router.patch('/tickets/:id', async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const body = req.body as Record<string, unknown>;
+  const docRef = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id);
+  const doc = await docRef.get();
+  if (!doc.exists) return res.status(404).json({ error: 'Ticket no encontrado' });
+
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  const allowed = ['eventName', 'eventDate', 'eventPlace', 'sector', 'row', 'seat', 'quantityEntries', 'tipoEntrada', 'tipoEntradaOtro', 'price', 'currency', 'ticketera', 'ticketeraOtra', 'appBoletos', 'appBoletosOtra', 'orderRef', 'category', 'status'];
+  for (const key of allowed) {
+    if (body[key] !== undefined) {
+      if (key === 'eventDate' && body[key]) {
+        updates[key] = new Date(body[key] as string);
+      } else if (key === 'price' && body[key] !== undefined) {
+        updates[key] = Number(body[key]);
+      } else {
+        updates[key] = body[key] === '' || body[key] === null ? null : body[key];
+      }
+    }
+  }
+  await docRef.update(updates);
+  const updated = await docRef.get();
+  const d = updated.data()!;
+  const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+  const seller = sellerDoc.exists ? sellerDoc.data() : null;
+  res.json({
+    id: updated.id,
+    ...d,
+    seller: seller ? { id: d.sellerId, email: seller.email, firstName: seller.firstName, lastName: seller.lastName } : null,
+    eventDate: d.eventDate?.toDate?.() ?? d.eventDate,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+  });
+});
+
+/** Eliminar ticket (soft delete: status -> ELIMINADO) */
+router.delete('/tickets/:id', async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const docRef = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id);
+  const doc = await docRef.get();
+  if (!doc.exists) return res.status(404).json({ error: 'Ticket no encontrado' });
+  await docRef.update({
+    status: 'ELIMINADO',
+    updatedAt: new Date(),
+  });
+  res.json({ ok: true });
 });
 
 /** Aprobar ticket: PENDIENTE_VERIFICACION -> DISPONIBLE */
