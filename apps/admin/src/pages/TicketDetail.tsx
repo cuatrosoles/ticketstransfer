@@ -112,7 +112,7 @@ export function TicketDetail() {
     if (!id) return;
     try {
       await api(`/api/admin/tickets/${id}/approve`, { method: 'PATCH' });
-      load();
+      navigate('/tickets?status=DISPONIBLE');
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Error');
     }

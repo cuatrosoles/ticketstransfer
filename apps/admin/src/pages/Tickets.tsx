@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 
 const STATUS_OPTIONS = [
@@ -30,14 +30,25 @@ type TicketItem = {
   seller: { id: string; email: string; firstName: string | null; lastName: string | null } | null;
 };
 
+const VALID_STATUSES = new Set(STATUS_OPTIONS.map((o) => o.value));
+
 export function Tickets() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawStatus = searchParams.get('status') || 'TODOS';
+  const statusFromUrl = VALID_STATUSES.has(rawStatus) ? rawStatus : 'TODOS';
   const [tickets, setTickets] = useState<TicketItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('TODOS');
+  const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState(statusFromUrl);
+
+  useEffect(() => {
+    setStatusFilter(statusFromUrl);
+  }, [statusFromUrl]);
 
   const load = () => {
     setLoading(true);
+    setError(null);
     const params = new URLSearchParams();
     if (statusFilter !== 'TODOS') params.set('status', statusFilter);
     api<{ tickets: TicketItem[]; total: number }>(`/api/admin/tickets?${params}`)
@@ -45,9 +56,10 @@ export function Tickets() {
         setTickets(r.tickets || []);
         setTotal(r.total ?? 0);
       })
-      .catch(() => {
+      .catch((e) => {
         setTickets([]);
         setTotal(0);
+        setError(e instanceof Error ? e.message : 'Error al cargar tickets');
       })
       .finally(() => setLoading(false));
   };
@@ -72,6 +84,7 @@ export function Tickets() {
   };
 
   if (loading) return <p>Cargando…</p>;
+  if (error) return <div className="card" style={{ color: 'var(--danger)' }}>{error}</div>;
 
   return (
     <>
@@ -81,7 +94,11 @@ export function Tickets() {
           className="input"
           style={{ width: 200 }}
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            setStatusFilter(v);
+            setSearchParams(v === 'TODOS' ? {} : { status: v });
+          }}
         >
           {STATUS_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -89,7 +106,14 @@ export function Tickets() {
         </select>
       </div>
       {tickets.length === 0 ? (
-        <div className="card">No hay tickets con el filtro seleccionado.</div>
+        <div className="card">
+          <p>No hay tickets con el filtro seleccionado.</p>
+          {statusFilter !== 'TODOS' && (
+            <p style={{ marginTop: 8, fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+              Probá cambiar el filtro a <strong>Todos</strong> para ver todos los tickets.
+            </p>
+          )}
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {tickets.map((t) => (
