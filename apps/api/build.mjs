@@ -36,6 +36,7 @@ const external = [
   'jsonwebtoken',
   'mercadopago',
   'multer',
+  'twilio',
 ];
 
 await esbuild.build({
