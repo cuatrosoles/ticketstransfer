@@ -81,10 +81,18 @@ EMAIL_FROM_VERIFICATION="Tickets Transfer <noreply@tudominio.com>"
 
 ## Resolución de problemas
 
-### Error: "Error al enviar el email"
+### Error: "Error al enviar el email" / "You can only send testing emails to your own email address"
+- **Causa:** Estás usando `onboarding@resend.dev` (por defecto). Resend solo permite enviar a tu propio email con ese remitente.
+- **Solución:** Si ya verificaste un dominio (ej: `ticketstransfer.juanprogramador.com`), agregá en Railway:
+  ```
+  EMAIL_FROM_VERIFICATION="Tickets Transfer <noreply@ticketstransfer.juanprogramador.com>"
+  ```
+- Hacé redeploy después de agregar la variable.
+
+### Error genérico al enviar
 - Verificá que `RESEND_API_KEY` esté correcta.
 - Revisá los logs de la API para ver el mensaje de error de Resend.
-- Si usás dominio propio, asegurate de que esté verificado.
+- Si usás dominio propio, asegurate de que esté verificado en Resend → Domains.
 
 ### El email no llega
 - Revisá la carpeta de spam.

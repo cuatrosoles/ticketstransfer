@@ -120,11 +120,16 @@ router.post('/phone/verify-request', async (req: AuthRequest, res) => {
     phoneVerificationExpires: expiresAt,
     updatedAt: new Date(),
   });
-  if (process.env.SMS_PROVIDER === 'twilio' && process.env.TWILIO_ACCOUNT_SID) {
-    console.log('[SMS] Código para', phone, ':', code);
-  } else {
-    console.log('[DEV] Código de verificación para', phone, ':', code);
+
+  const { sendVerificationSms } = await import('../lib/sms.js');
+  const result = await sendVerificationSms(phone, code);
+
+  if (!result.ok) {
+    console.error('[SMS] Error al enviar código:', result.error);
+    res.status(500).json({ error: 'Error al enviar el SMS. Intentá de nuevo.' });
+    return;
   }
+
   res.json({ ok: true, message: 'Código enviado' });
 });
 
