@@ -16,7 +16,7 @@ const firebaseConfig = {
 };
 
 if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-  console.error('Firebase no configurado. Definí VITE_FIREBASE_API_KEY y VITE_FIREBASE_PROJECT_ID en Railway.');
+  console.error('Firebase no configurado. Definí VITE_FIREBASE_API_KEY y VITE_FIREBASE_PROJECT_ID en Vercel/Railway.');
 }
 
 const app = initializeApp(firebaseConfig);

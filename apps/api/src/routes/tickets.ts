@@ -7,6 +7,7 @@ import multer from 'multer';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { getAuth } from '../lib/firebase-admin.js';
 import { uploadFile } from '../lib/firebase-storage.js';
+import { redactImage, parsePixelateRegionsFromBody } from '../lib/image-redaction.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { createTicketListingSchema } from '@tickets-transfer/shared';
 
@@ -194,20 +195,31 @@ router.post(
     const files = req.files as { [key: string]: Express.Multer.File[] };
     const listingId = db().collection(COLLECTIONS.TICKET_LISTINGS).doc().id;
 
+    const pixelateRegions = parsePixelateRegionsFromBody(req.body as Record<string, unknown>);
+
     let captureTicketUrl: string | undefined;
     let captureOwnershipUrl: string | undefined;
+
     if (files.captureTicket?.[0]) {
+      const file = files.captureTicket[0];
+      const { buffer, mimeType } = await redactImage(file.buffer, {
+        regions: pixelateRegions,
+      });
       captureTicketUrl = await uploadFile(
         `tickets/${listingId}/capture_${Date.now()}.jpg`,
-        files.captureTicket[0].buffer,
-        files.captureTicket[0].mimetype || 'image/jpeg'
+        buffer,
+        mimeType
       );
     }
     if (files.captureOwnership?.[0]) {
+      const file = files.captureOwnership[0];
+      const { buffer, mimeType } = await redactImage(file.buffer, {
+        regions: pixelateRegions,
+      });
       captureOwnershipUrl = await uploadFile(
         `tickets/${listingId}/ownership_${Date.now()}.jpg`,
-        files.captureOwnership[0].buffer,
-        files.captureOwnership[0].mimetype || 'image/jpeg'
+        buffer,
+        mimeType
       );
     }
 

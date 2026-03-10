@@ -10,7 +10,8 @@ import type { Bucket } from '@google-cloud/storage';
 import { uploadsDir, ensureUploadsDir } from './uploads.js';
 
 const PLACEHOLDER_BUCKET = 'tu-proyecto.appspot.com';
-const USE_LOCAL = process.env.STORAGE_FALLBACK === 'local';
+// En Vercel no hay disco persistente; no usar fallback local.
+const USE_LOCAL = !process.env.VERCEL && process.env.STORAGE_FALLBACK === 'local';
 
 function resolveBucketName(): string {
   const env = process.env.FIREBASE_STORAGE_BUCKET?.trim();
@@ -66,9 +67,12 @@ export async function uploadFile(
     const msg = err instanceof Error ? err.message : String(err);
     const full = typeof err === 'object' && err !== null ? JSON.stringify(err) : msg;
     const isBillingOrBucket = /403|404|accountDisabled|bucket does not exist|billing.*disabled|delinquent/i.test(msg + full);
-    if (isBillingOrBucket) {
+    if (isBillingOrBucket && USE_LOCAL) {
       console.warn('Firebase Storage falló (billing/bucket). Usando almacenamiento local:', msg);
       return uploadFileLocal(filePath, buffer);
+    }
+    if (isBillingOrBucket && process.env.VERCEL) {
+      console.error('En Vercel se requiere Firebase Storage. No se puede usar fallback local.');
     }
     throw err;
   }

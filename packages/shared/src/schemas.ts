@@ -93,3 +93,13 @@ export const openDisputeSchema = z.object({
   orderId: z.string().uuid(),
   reason: z.string().min(10, 'Describe el motivo de la disputa'),
 });
+
+/** Opcional: regiones para pixelar (0-1). Si no se envía, la API usa regiones por defecto. */
+export const pixelateRegionSchema = z.object({
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  width: z.number().min(0.01).max(1),
+  height: z.number().min(0.01).max(1),
+});
+
+export const pixelateRegionsSchema = z.array(pixelateRegionSchema).optional();

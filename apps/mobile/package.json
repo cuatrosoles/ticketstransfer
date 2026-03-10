@@ -8,7 +8,7 @@
     "ios": "npx react-native run-ios",
     "lint": "eslint .",
     "fix:android": "bash scripts/fix-android-build.sh",
-    "postinstall": "true",
+    "postinstall": "node -e \"process.exit(0)\"",
     "apk:debug": "cd android && ./gradlew assembleDebug && cd ..",
     "apk:release": "cd android && ./gradlew assembleRelease && cd ..",
     "apk:release:no-daemon": "cd android && ./gradlew --stop && ./gradlew assembleRelease --no-daemon && cd .."

@@ -269,3 +269,36 @@ export declare const openDisputeSchema: z.ZodObject<{
     orderId: string;
     reason: string;
 }>;
+/** Opcional: regiones para pixelar (0-1). Si no se envía, la API usa regiones por defecto. */
+export declare const pixelateRegionSchema: z.ZodObject<{
+    x: z.ZodNumber;
+    y: z.ZodNumber;
+    width: z.ZodNumber;
+    height: z.ZodNumber;
+}, "strip", z.ZodTypeAny, {
+    y: number;
+    x: number;
+    width: number;
+    height: number;
+}, {
+    y: number;
+    x: number;
+    width: number;
+    height: number;
+}>;
+export declare const pixelateRegionsSchema: z.ZodOptional<z.ZodArray<z.ZodObject<{
+    x: z.ZodNumber;
+    y: z.ZodNumber;
+    width: z.ZodNumber;
+    height: z.ZodNumber;
+}, "strip", z.ZodTypeAny, {
+    y: number;
+    x: number;
+    width: number;
+    height: number;
+}, {
+    y: number;
+    x: number;
+    width: number;
+    height: number;
+}>, "many">>;

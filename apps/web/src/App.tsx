@@ -18,6 +18,7 @@ import { PoliticaPrivacidad } from './pages/PoliticaPrivacidad';
 import { TerminosYCondiciones } from './pages/TerminosYCondiciones';
 import { SolicitarBaja } from './pages/SolicitarBaja';
 import { Perfil } from './pages/Perfil';
+import { Publicar } from './pages/Publicar';
 import { Layout } from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -42,7 +43,7 @@ export function App() {
       <Route path="/kyc" element={<ProtectedRoute><Layout><Kyc /></Layout></ProtectedRoute>} />
       <Route path="/kyc/callback" element={<ProtectedRoute><Layout><KycCallback /></Layout></ProtectedRoute>} />
       <Route path="/home" element={<ProtectedRoute><Layout><Home /></Layout></ProtectedRoute>} />
-      <Route path="/publicar" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Publicar ticket</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />
+      <Route path="/publicar" element={<ProtectedRoute><Layout><Publicar /></Layout></ProtectedRoute>} />
       <Route path="/comprar-ticket" element={<ProtectedRoute><Layout><ComprarTicket /></Layout></ProtectedRoute>} />
       <Route path="/orden/:id/pago" element={<ProtectedRoute><Layout><Pago /></Layout></ProtectedRoute>} />
       <Route path="/mis-compras" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Mis compras</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />

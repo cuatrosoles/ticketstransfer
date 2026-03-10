@@ -25,3 +25,11 @@ export interface OnboardingPayload {
   ticketeras: string[];
   appsBoletos: string[];
 }
+
+/** Región normalizada (0-1) para pixelar en imágenes de tickets. Fase 2: enviada por el cliente. */
+export interface PixelateRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}

@@ -111,3 +111,8 @@ export async function createKycSession(platform: 'web' | 'mobile') {
 export async function getKyc() {
   return api<{ status: string; rejectionReason?: string | null }>('/api/users/kyc');
 }
+
+/** Publicar ticket (multipart: body + captureTicket, captureOwnership). Opcional: pixelateRegions (Fase 2). */
+export async function createTicketListing(formData: FormData) {
+  return apiUpload<{ id: string }>('/api/tickets', formData);
+}

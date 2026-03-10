@@ -1,6 +1,7 @@
 /**
  * Punto de entrada de la API Tickets Transfer v2.
  * Firebase: Auth, Firestore, Storage, Cloud Messaging.
+ * Compatible con Railway (Node server) y Vercel (serverless; export default app).
  */
 
 import 'dotenv/config';
@@ -25,11 +26,12 @@ import { mercadopagoRouter } from './routes/mercadopago.js';
 import { invalidateSettingsCache } from './lib/settings.js';
 import { uploadsDir, ensureUploadsDir } from './lib/uploads.js';
 
+const isVercel = Boolean(process.env.VERCEL);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
-// Necesario cuando la API está detrás de un proxy (Railway, etc.) para que express-rate-limit
+// Necesario cuando la API está detrás de un proxy (Railway, Vercel, etc.) para que express-rate-limit
 // identifique correctamente la IP del cliente mediante X-Forwarded-For
 app.set('trust proxy', 1);
 
@@ -42,8 +44,12 @@ const corsOrigin = isProduction
       process.env.CORS_ORIGIN_ADMIN || 'http://localhost:5174',
     ].filter(Boolean);
 
+// Helmet y express-rate-limit: aserción de tipo para compatibilidad ESM/CommonJS en Vercel
+type HelmetFn = (options?: object) => express.RequestHandler;
+type RateLimitFn = (options?: object) => express.RequestHandler;
+
 app.use(
-  helmet({
+  (helmet as HelmetFn)({
     contentSecurityPolicy: {
       directives: {
         'script-src': ["'self'", 'https://sdk.mercadopago.com', "'unsafe-inline'"],
@@ -64,7 +70,7 @@ app.use(
 );
 
 app.use(
-  rateLimit({
+  (rateLimit as RateLimitFn)({
     windowMs: 15 * 60 * 1000,
     max: 200,
     message: { error: 'Demasiadas solicitudes' },
@@ -81,15 +87,18 @@ try {
   console.warn('Firebase no configurado. Definí GOOGLE_APPLICATION_CREDENTIALS o FIREBASE_SERVICE_ACCOUNT_JSON.');
 }
 
-ensureUploadsDir();
-app.use(
-  '/uploads',
-  express.static(uploadsDir, {
-    setHeaders: (res) => {
-      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    },
-  })
-);
+// En Vercel no hay sistema de archivos persistente; express.static() no sirve. Usar solo Firebase Storage.
+if (!isVercel) {
+  ensureUploadsDir();
+  app.use(
+    '/uploads',
+    express.static(uploadsDir, {
+      setHeaders: (res) => {
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      },
+    })
+  );
+}
 
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
@@ -111,6 +120,10 @@ app.use((err: unknown, _req: express.Request, res: express.Response) => {
   res.status(500).json({ error: 'Error interno del servidor' });
 });
 
-app.listen(PORT, () => {
-  console.log(`API Tickets Transfer v2 en http://localhost:${PORT}`);
-});
+// En Vercel se exporta la app como serverless; en local/Railway se inicia el servidor.
+export default app;
+if (!isVercel) {
+  app.listen(PORT, () => {
+    console.log(`API Tickets Transfer v2 en http://localhost:${PORT}`);
+  });
+}

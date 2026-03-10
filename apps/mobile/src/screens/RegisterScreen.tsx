@@ -409,10 +409,13 @@ export function RegisterScreen() {
       >
         <Text style={styles.pickerValue}>{dateOfBirth || 'dd/mm/aaaa'}</Text>
       </TouchableOpacity>
+      {/*
       <View style={styles.adminRow}>
         <Text style={styles.label}>Administrador</Text>
         <Switch value={isAdmin} onValueChange={setIsAdmin} trackColor={{ false: '#334155', true: '#3b82f6' }} thumbColor="#f8fafc" />
       </View>
+      */}
+      
       <Text style={styles.label}>País</Text>
       <View style={styles.pickerRow}>
         <TouchableOpacity style={[styles.chip, styles.chipSelected]}>

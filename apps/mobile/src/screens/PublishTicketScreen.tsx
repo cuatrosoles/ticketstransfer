@@ -204,6 +204,7 @@ export function PublishTicketScreen() {
     setSubmitting(true);
     try {
       const formData = new FormData();
+      // La API pixelará automáticamente zonas sensibles (QR, nombres, etc.). Opcional: enviar pixelateRegions (Fase 2) si se implementa detección de QR en app.
       formData.append('eventName', eventName.trim());
       formData.append('eventDate', dateStr);
       formData.append('eventPlace', eventPlace.trim());

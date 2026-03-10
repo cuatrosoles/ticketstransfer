@@ -2,6 +2,8 @@
 
 Este documento explica cómo subir la API a un hosting y generar el APK para que tu cliente (en otra ciudad) pueda instalarlo, registrarse e iniciar sesión. **No hace falta usar terminal ni comandos** en el servidor: todo se configura desde la web.
 
+**Migración a Vercel:** Si querés migrar todo el proyecto (API, Web, Admin) de Railway a Vercel, seguí la guía completa en [docs/MIGRACION_RAILWAY_A_VERCEL.md](docs/MIGRACION_RAILWAY_A_VERCEL.md).
+
 ---
 
 ## Importante: Hostinger compartido básico
