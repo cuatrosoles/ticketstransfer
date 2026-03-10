@@ -3,7 +3,7 @@
  * Ubicación: apps/web/src/pages/Pago.tsx
  */
 
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 
@@ -18,7 +18,6 @@ type Order = {
 
 export function Pago() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const location = useLocation();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
