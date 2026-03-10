@@ -74,7 +74,7 @@ export async function verifyDiditWebhookSignature(
   signature: string | undefined,
   timestamp: string | undefined,
   secretKey: string
-): boolean {
+): Promise<boolean> {
   if (!signature || !timestamp || !secretKey) return false;
 
   const WEBHOOK_MAX_AGE_SEC = 300; // 5 minutos

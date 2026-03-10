@@ -140,7 +140,7 @@ export async function getPaymentById(paymentId: string): Promise<PaymentInfo | n
   try {
     const { payment } = await getMercadoPagoClient();
     const result = await payment.get({ id: paymentId });
-    return result as { id: string; status: string; external_reference?: string };
+    return result as unknown as { id: string; status: string; external_reference?: string };
   } catch {
     return null;
   }
@@ -220,8 +220,9 @@ export async function listCustomerCards(customerId: string): Promise<Array<{
 }>> {
   const { customer } = await getMercadoPagoClient();
   const result = await customer.listCards({ customerId });
-  const cards = Array.isArray(result) ? result : (result as { data?: Array<Record<string, unknown>> })?.data ?? [];
-  return cards.map((c: Record<string, unknown>) => ({
+  const rawCards = Array.isArray(result) ? result : (result as { data?: unknown[] })?.data ?? [];
+  const cards = rawCards as Array<Record<string, unknown>>;
+  return cards.map((c) => ({
     id: String(c.id),
     last_four_digits: String(c.last_four_digits || c.last4 || '****'),
     payment_method: (c.payment_method as { id: string; name: string }) || { id: 'credit_card', name: 'Tarjeta' },
@@ -268,5 +269,5 @@ export async function createPaymentWithToken(params: {
   };
   if (params.issuerId) body.issuer_id = params.issuerId;
   const result = await payment.create({ body });
-  return result as { id: string; status: string; status_detail?: string };
+  return result as unknown as { id: string; status: string; status_detail?: string };
 }

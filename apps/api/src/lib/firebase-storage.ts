@@ -6,8 +6,10 @@
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import path from 'path';
 import { getStorage } from './firebase-admin.js';
-import type { Bucket } from '@google-cloud/storage';
 import { uploadsDir, ensureUploadsDir } from './uploads.js';
+
+/** Tipo del bucket inferido para evitar conflicto CJS/ESM de @google-cloud/storage en Vercel. */
+type StorageBucket = ReturnType<ReturnType<typeof getStorage>['bucket']>;
 
 const PLACEHOLDER_BUCKET = 'tu-proyecto.appspot.com';
 // En Vercel no hay disco persistente; no usar fallback local.
@@ -31,7 +33,7 @@ function resolveBucketName(): string {
   );
 }
 
-export function getStorageBucket(): Bucket {
+export function getStorageBucket(): StorageBucket {
   const storage = getStorage();
   const bucketName = resolveBucketName();
   return storage.bucket(bucketName);
