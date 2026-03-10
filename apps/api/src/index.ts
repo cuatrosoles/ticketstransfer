@@ -49,7 +49,7 @@ type HelmetFn = (options?: object) => express.RequestHandler;
 type RateLimitFn = (options?: object) => express.RequestHandler;
 
 app.use(
-  (helmet as HelmetFn)({
+  (helmet as unknown as HelmetFn)({
     contentSecurityPolicy: {
       directives: {
         'script-src': ["'self'", 'https://sdk.mercadopago.com', "'unsafe-inline'"],
@@ -70,7 +70,7 @@ app.use(
 );
 
 app.use(
-  (rateLimit as RateLimitFn)({
+  (rateLimit as unknown as RateLimitFn)({
     windowMs: 15 * 60 * 1000,
     max: 200,
     message: { error: 'Demasiadas solicitudes' },
