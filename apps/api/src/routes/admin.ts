@@ -117,9 +117,10 @@ router.get('/users', async (req: AuthRequest, res) => {
 
   const snap = await query.limit(limitNum * 3).get(); // Fetch extra for client filter
 
-  let users = snap.docs.map((doc) => {
+  type UserRow = { id: string; createdAt: unknown; email?: string; firstName?: string; lastName?: string; [key: string]: unknown };
+  let users: UserRow[] = snap.docs.map((doc) => {
     const d = doc.data();
-    return { id: doc.id, ...d, createdAt: d.createdAt?.toDate?.() ?? d.createdAt };
+    return { id: doc.id, ...d, createdAt: d.createdAt?.toDate?.() ?? d.createdAt } as UserRow;
   });
 
   if (typeof q === 'string' && q) {
