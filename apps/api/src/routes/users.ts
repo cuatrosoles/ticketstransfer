@@ -269,7 +269,7 @@ router.post(
   async (req: AuthRequest, res) => {
     const files = req.files as { [key: string]: Express.Multer.File[] };
     const uid = req.user!.id;
-    const updates: Record<string, string> = { status: 'EN_REVISION', updatedAt: new Date() };
+    const updates: Record<string, string | Date> = { status: 'EN_REVISION', updatedAt: new Date() };
 
     if (files.dniFront?.[0]) {
       const path = `kyc/${uid}/dni_front_${Date.now()}.jpg`;
