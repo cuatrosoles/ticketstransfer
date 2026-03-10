@@ -12,6 +12,17 @@ import { db, COLLECTIONS } from '../lib/firestore.js';
 function emailDocId(email: string): string {
   return createHash('sha256').update(email.toLowerCase().trim()).digest('hex').slice(0, 32);
 }
+
+/** Convierte valor de Firestore (Timestamp con toDate) o Date a Date. */
+function toDateSafe(val: unknown): Date | null {
+  if (val == null) return null;
+  if (val instanceof Date) return val;
+  const v = val as { toDate?: () => Date };
+  if (typeof v.toDate === 'function') return v.toDate();
+  if (typeof val === 'string' || typeof val === 'number') return new Date(val);
+  return null;
+}
+
 import { registerBodySchema } from '@tickets-transfer/shared';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 
@@ -89,8 +100,7 @@ router.post('/register', async (req, res) => {
   const docId = emailDocId(email);
   const verificationDoc = await db().collection(COLLECTIONS.EMAIL_VERIFICATION_CODES).doc(docId).get();
   const verificationData = verificationDoc.data();
-  const verifiedAt = verificationData?.verifiedAt as { toDate?: () => Date } | Date | undefined;
-  const verifiedDate = verifiedAt?.toDate?.() ?? (verifiedAt ? new Date(verifiedAt as string) : null);
+  const verifiedDate = toDateSafe(verificationData?.verifiedAt);
   const emailVerified =
     !!verificationData?.verified &&
     verifiedDate &&
@@ -207,9 +217,8 @@ router.post('/email/verify-code', async (req, res) => {
     res.status(400).json({ error: 'Solicitá primero un código de verificación' });
     return;
   }
-  const exp = data.expiresAt as { toDate?: () => Date } | Date;
-  const expDate = exp?.toDate?.() ?? new Date(exp as string);
-  if (new Date() > expDate) {
+  const expDate = toDateSafe(data.expiresAt);
+  if (!expDate || new Date() > expDate) {
     res.status(400).json({ error: 'El código expiró. Solicitá uno nuevo.' });
     return;
   }
