@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { createTicketListing, getProfile, type Profile } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -235,7 +236,8 @@ export function PublishTicketScreen() {
           type: captureOwnership.type || 'image/jpeg',
         } as unknown as Blob);
       }
-      await createTicketListing(formData);
+      const listing = await createTicketListing(formData) as { id?: string };
+      const listingId = listing?.id;
       const resetFormAndGoHome = () => {
         setEventName('');
         setEventDate('');
@@ -257,7 +259,24 @@ export function PublishTicketScreen() {
         setCaptureOwnership(null);
         (navigation as { navigate: (name: string) => void }).navigate('Main');
       };
-      Alert.alert('Listo', 'Tu ticket fue enviado a verificación.', [{ text: 'OK', onPress: resetFormAndGoHome }]);
+      const copyAndConfirm = () => {
+        if (listingId) {
+          Clipboard.setString(listingId);
+          Alert.alert('Copiado', 'El código del ticket se copió al portapapeles. Podés compartirlo por redes, email, etc.', [{ text: 'OK', onPress: resetFormAndGoHome }]);
+        } else {
+          resetFormAndGoHome();
+        }
+      };
+      Alert.alert(
+        'Listo',
+        listingId
+          ? `Tu ticket fue enviado a verificación.\n\nCódigo: ${listingId}\n\nPodés copiarlo para compartirlo.`
+          : 'Tu ticket fue enviado a verificación.',
+        [
+          ...(listingId ? [{ text: 'Copiar código', onPress: copyAndConfirm }] : []),
+          { text: 'OK', onPress: resetFormAndGoHome },
+        ]
+      );
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo publicar.');
     } finally {

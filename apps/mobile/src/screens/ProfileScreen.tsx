@@ -20,7 +20,6 @@ import {
   Platform,
   Alert,
   PermissionsAndroid,
-  Share,
 } from 'react-native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { useNavigation } from '@react-navigation/native';
@@ -351,26 +350,6 @@ export function ProfileScreen() {
             />
             <ProfileField label="Código postal" value={profile.postalCode || '—'} />
             {profile.dateOfBirth ? <ProfileField label="Fecha de nacimiento" value={formatDate(profile.dateOfBirth)} /> : null}
-            <View style={styles.copyIdRow}>
-              <Text style={styles.label}>Número ID</Text>
-              <View style={styles.copyIdValue}>
-                <Text style={styles.value}>{profile.numeroId || '—'}</Text>
-                {profile.numeroId ? (
-                  <TouchableOpacity
-                    style={styles.copyIdBtn}
-                    onPress={async () => {
-                      try {
-                        await Share.share({ message: profile.numeroId!, title: 'ID Tickets Transfer' });
-                      } catch {
-                        Alert.alert('ID', profile.numeroId!, [{ text: 'OK' }]);
-                      }
-                    }}
-                  >
-                    <Text style={styles.copyIdBtnText}>📋 Copiar / Compartir</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            </View>
             <View style={styles.kycRow}>
               <Text style={styles.label}>Verificación KYC</Text>
               <KycBadge status={profile.kyc?.status ?? 'PENDIENTE'} />
@@ -675,10 +654,6 @@ const styles = StyleSheet.create({
   phoneUnverified: { fontSize: 14, color: '#ef4444' },
   verifyPhoneBtn: { paddingVertical: 4, paddingHorizontal: 8, backgroundColor: colors.primary, borderRadius: 8 },
   verifyPhoneBtnText: { color: colors.white, fontSize: 12, fontWeight: '600' },
-  copyIdRow: { marginBottom: spacing.md },
-  copyIdValue: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  copyIdBtn: { paddingVertical: 4, paddingHorizontal: 10, backgroundColor: colors.primary, borderRadius: 8 },
-  copyIdBtnText: { color: colors.white, fontSize: 13, fontWeight: '600' },
   phoneVerifyModal: { backgroundColor: 'rgba(30, 58, 138, 0.98)', margin: 24, padding: 24, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.3)' },
   phoneVerifyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: spacing.lg },
   phoneVerifyActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },

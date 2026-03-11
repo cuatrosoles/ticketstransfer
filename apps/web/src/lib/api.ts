@@ -122,3 +122,34 @@ export async function getKyc() {
 export async function createTicketListing(formData: FormData) {
   return apiUpload<{ id: string }>('/api/tickets', formData);
 }
+
+export type TicketListingItem = {
+  id: string;
+  eventName: string;
+  eventDate: string;
+  eventPlace?: string | null;
+  sector?: string | null;
+  tipoEntrada: string;
+  price: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+};
+
+export async function getMyListings() {
+  return api<TicketListingItem[]>('/api/tickets/my/listings');
+}
+
+export type OrderItem = {
+  id: string;
+  status: string;
+  totalAmount: number;
+  currency: string;
+  createdAt: string;
+  ticketListing: { id: string; eventName?: string; eventDate?: string; price?: number } | null;
+  buyer?: { email?: string } | null;
+};
+
+export async function getMySales() {
+  return api<OrderItem[]>('/api/orders/my/sales');
+}

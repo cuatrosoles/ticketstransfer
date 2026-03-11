@@ -19,6 +19,7 @@ import { TerminosYCondiciones } from './pages/TerminosYCondiciones';
 import { SolicitarBaja } from './pages/SolicitarBaja';
 import { Perfil } from './pages/Perfil';
 import { Publicar } from './pages/Publicar';
+import { MisVentas } from './pages/MisVentas';
 import { Layout } from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -47,7 +48,7 @@ export function App() {
       <Route path="/comprar-ticket" element={<ProtectedRoute><Layout><ComprarTicket /></Layout></ProtectedRoute>} />
       <Route path="/orden/:id/pago" element={<ProtectedRoute><Layout><Pago /></Layout></ProtectedRoute>} />
       <Route path="/mis-compras" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Mis compras</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />
-      <Route path="/mis-ventas" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Mis ventas</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />
+      <Route path="/mis-ventas" element={<ProtectedRoute><Layout><MisVentas /></Layout></ProtectedRoute>} />
       <Route path="/perfil" element={<ProtectedRoute><Layout><Perfil /></Layout></ProtectedRoute>} />
       <Route path="/tickets" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Tickets</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />
       <Route path="/tarjetas" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Tarjetas adheridas</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />

@@ -85,6 +85,7 @@ export function Publicar() {
   const [detectingQR, setDetectingQR] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [successListingId, setSuccessListingId] = useState<string | null>(null);
 
   const onCaptureTicketChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -168,15 +169,53 @@ export function Publicar() {
         formData.append('pixelateRegions', JSON.stringify(pixelateRegions));
       }
 
-      await createTicketListing(formData);
-      navigate('/home');
-      window.alert('Tu ticket fue enviado a verificación.');
+      const result = await createTicketListing(formData);
+      const listingId = result?.id;
+      if (listingId) {
+        setSuccessListingId(listingId);
+      } else {
+        navigate('/home');
+        window.alert('Tu ticket fue enviado a verificación.');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo publicar.');
     } finally {
       setSubmitting(false);
     }
   };
+
+  const handleCopyId = (id: string) => {
+    navigator.clipboard.writeText(id).then(() => {
+      window.alert('Código copiado al portapapeles. Podés compartirlo por redes, email, etc.');
+    }).catch(() => {
+      window.prompt('Copiá el código del ticket:', id);
+    });
+  };
+
+  if (successListingId) {
+    return (
+      <div className="page-content">
+        <h1 className="page-title">Ticket enviado</h1>
+        <div className="glass" style={{ padding: 24, borderRadius: 12, maxWidth: 560 }}>
+          <p className="text-muted" style={{ marginBottom: 16 }}>Tu ticket fue enviado a verificación.</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>Código:</span>
+            <code style={{ fontSize: 14, padding: '6px 10px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>{successListingId}</code>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => handleCopyId(successListingId)}
+            >
+              Copiar al portapapeles
+            </button>
+          </div>
+          <button type="button" className="btn-secondary" onClick={() => navigate('/home')}>
+            Ir al inicio
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page-content">
