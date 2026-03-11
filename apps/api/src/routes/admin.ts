@@ -7,6 +7,7 @@ import { db, COLLECTIONS } from '../lib/firestore.js';
 import { requireAuth, requireAdmin, type AuthRequest } from '../middleware/auth.js';
 import { getPlatformSettings, invalidateSettingsCache } from '../lib/settings.js';
 import { getOrCreateCustomer, listCustomerCards } from '../lib/mercadopago.js';
+import { getDiditSessionDecision, updateDiditSessionStatus } from '../lib/didit.js';
 
 const router = Router();
 
@@ -283,38 +284,104 @@ router.get('/kyc/pending', async (_req, res) => {
       const d = doc.data();
       const userDoc = await db().collection(COLLECTIONS.USERS).doc(d.userId || doc.id).get();
       const user = userDoc.data();
-      return {
+      const item: Record<string, unknown> = {
         id: doc.id,
         ...d,
         user: user ? { id: userDoc.id, email: user.email, firstName: user.firstName, lastName: user.lastName } : null,
         updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
       };
+      if (d.diditSessionId) {
+        const diditData = await getDiditSessionDecision(d.diditSessionId);
+        item.diditSession = diditData;
+      }
+      return item;
     })
   );
   res.json(list);
 });
 
+/** Detalle Didit de una verificación KYC (por userId o sessionId) */
+router.get('/kyc/:userId/didit-details', async (req: AuthRequest, res) => {
+  const { userId } = req.params;
+  const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
+  if (!kycDoc.exists) return res.status(404).json({ error: 'Verificación KYC no encontrada' });
+  const d = kycDoc.data()!;
+  const sessionId = d.diditSessionId;
+  if (!sessionId) {
+    return res.json({
+      hasDiditSession: false,
+      message: 'Esta verificación no usó Didit (flujo legacy con upload manual)',
+    });
+  }
+  const diditData = await getDiditSessionDecision(sessionId);
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+  const user = userDoc.exists ? userDoc.data() : null;
+  res.json({
+    hasDiditSession: true,
+    sessionId,
+    didit: diditData,
+    user: user ? { id: userId, email: user.email, firstName: user.firstName, lastName: user.lastName } : null,
+    ourStatus: d.status,
+    rejectionReason: d.rejectionReason,
+  });
+});
+
 router.patch('/kyc/:userId', async (req: AuthRequest, res) => {
   const { userId } = req.params;
-  const { status, rejectionReason } = req.body;
-  if (status !== 'APROBADO' && status !== 'RECHAZADO') {
-    res.status(400).json({ error: 'status debe ser APROBADO o RECHAZADO' });
+  const { status, rejectionReason, sendEmail, comment } = req.body as {
+    status: 'APROBADO' | 'RECHAZADO' | 'RESUBMIT';
+    rejectionReason?: string;
+    sendEmail?: boolean;
+    comment?: string;
+  };
+  if (status !== 'APROBADO' && status !== 'RECHAZADO' && status !== 'RESUBMIT') {
+    res.status(400).json({ error: 'status debe ser APROBADO, RECHAZADO o RESUBMIT' });
     return;
   }
-  await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).set(
-    {
-      status,
-      rejectionReason: status === 'RECHAZADO' ? rejectionReason || 'Rechazado por el administrador' : null,
-      reviewedAt: new Date(),
-      reviewedBy: req.user!.id,
-      updatedAt: new Date(),
-    },
-    { merge: true }
-  );
+
   const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
+  if (!kycDoc.exists) return res.status(404).json({ error: 'Verificación KYC no encontrada' });
+  const kycData = kycDoc.data()!;
+  const diditSessionId = kycData.diditSessionId;
+
+  if (diditSessionId && (status === 'APROBADO' || status === 'RECHAZADO' || status === 'RESUBMIT')) {
+    const diditStatus = status === 'APROBADO' ? 'Approved' : status === 'RECHAZADO' ? 'Declined' : 'Resubmitted';
+    const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+    const userEmail = userDoc.exists ? userDoc.data()?.email : undefined;
+    const result = await updateDiditSessionStatus(diditSessionId, {
+      new_status: diditStatus,
+      comment: comment || rejectionReason || (status === 'APROBADO' ? 'Aprobado manualmente' : status === 'RECHAZADO' ? 'Rechazado por el administrador' : 'Reenviar documentación'),
+      send_email: sendEmail === true,
+      email_address: sendEmail ? userEmail : undefined,
+      email_language: 'es',
+    });
+    if (!result.ok) {
+      return res.status(500).json({ error: result.error || 'Error al actualizar Didit' });
+    }
+  }
+
+  if (status !== 'RESUBMIT') {
+    await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).set(
+      {
+        status: status === 'APROBADO' ? 'APROBADO' : 'RECHAZADO',
+        rejectionReason: status === 'RECHAZADO' ? (rejectionReason || comment || 'Rechazado por el administrador') : null,
+        reviewedAt: new Date(),
+        reviewedBy: req.user!.id,
+        updatedAt: new Date(),
+      },
+      { merge: true }
+    );
+  } else {
+    await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).set(
+      { status: 'PENDIENTE', rejectionReason: null, updatedAt: new Date() },
+      { merge: true }
+    );
+  }
+
+  const updatedKyc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
   const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
   res.json({
-    ...kycDoc.data(),
+    ...updatedKyc.data(),
     user: userDoc.exists ? { id: userId, email: userDoc.data()?.email } : null,
   });
 });

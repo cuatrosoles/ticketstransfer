@@ -69,6 +69,99 @@ export async function createDiditSession(params: DiditCreateSessionParams): Prom
   return data as DiditSessionResponse;
 }
 
+/** Respuesta de Retrieve Session (GET /v3/session/{sessionId}/decision/) */
+export type DiditSessionDecision = {
+  session_id: string;
+  session_number?: number;
+  session_url?: string;
+  status?: string;
+  workflow_id?: string;
+  features?: string[];
+  vendor_data?: string;
+  id_verifications?: Array<{
+    node_id?: string;
+    status?: string;
+    document_type?: string;
+    document_number?: string;
+    personal_number?: string;
+    portrait_image?: string;
+    front_image?: string;
+    back_image?: string;
+    front_video?: string;
+    back_video?: string;
+    first_name?: string;
+    last_name?: string;
+    full_name?: string;
+    date_of_birth?: string;
+    address?: string;
+    formatted_address?: string;
+    expiration_date?: string;
+    issuing_state?: string;
+    front_image_camera_front_face_match_score?: number;
+    back_image_camera_front_face_match_score?: number;
+  }>;
+  liveness_verifications?: Array<{
+    status?: string;
+    liveness_score?: number;
+    selfie_image?: string;
+    selfie_video?: string;
+  }>;
+};
+
+/** Obtener detalles completos de una sesión Didit */
+export async function getDiditSessionDecision(sessionId: string): Promise<DiditSessionDecision | null> {
+  if (!DIDIT_API_KEY) return null;
+  if (!sessionId) return null;
+
+  const res = await fetch(`${DIDIT_BASE}/v3/session/${sessionId}/decision/`, {
+    method: 'GET',
+    headers: { 'X-Api-Key': DIDIT_API_KEY },
+  });
+
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  return data as DiditSessionDecision;
+}
+
+/** Actualizar estado de sesión Didit (aprobación/rechazo manual, resubmit) */
+export async function updateDiditSessionStatus(
+  sessionId: string,
+  params: {
+    new_status: 'Approved' | 'Declined' | 'Resubmitted';
+    comment?: string;
+    send_email?: boolean;
+    email_address?: string;
+    email_language?: string;
+  }
+): Promise<{ ok: boolean; error?: string }> {
+  if (!DIDIT_API_KEY) {
+    return { ok: false, error: 'DIDIT_API_KEY no configurado' };
+  }
+  if (!sessionId) return { ok: false, error: 'sessionId requerido' };
+
+  const res = await fetch(`${DIDIT_BASE}/v3/session/${sessionId}/update-status/`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Api-Key': DIDIT_API_KEY,
+    },
+    body: JSON.stringify({
+      new_status: params.new_status,
+      ...(params.comment && { comment: params.comment }),
+      ...(params.send_email && { send_email: params.send_email }),
+      ...(params.email_address && { email_address: params.email_address }),
+      ...(params.email_language && { email_language: params.email_language }),
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = (data as { detail?: string }).detail || (data as { message?: string }).message || 'Error Didit';
+    return { ok: false, error: msg };
+  }
+  return { ok: true };
+}
+
 export async function verifyDiditWebhookSignature(
   rawBody: string,
   signature: string | undefined,

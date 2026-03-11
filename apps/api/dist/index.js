@@ -18073,6 +18073,43 @@ async function createDiditSession(params) {
   }
   return data;
 }
+async function getDiditSessionDecision(sessionId) {
+  if (!DIDIT_API_KEY) return null;
+  if (!sessionId) return null;
+  const res = await fetch(`${DIDIT_BASE}/v3/session/${sessionId}/decision/`, {
+    method: "GET",
+    headers: { "X-Api-Key": DIDIT_API_KEY }
+  });
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  return data;
+}
+async function updateDiditSessionStatus(sessionId, params) {
+  if (!DIDIT_API_KEY) {
+    return { ok: false, error: "DIDIT_API_KEY no configurado" };
+  }
+  if (!sessionId) return { ok: false, error: "sessionId requerido" };
+  const res = await fetch(`${DIDIT_BASE}/v3/session/${sessionId}/update-status/`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Api-Key": DIDIT_API_KEY
+    },
+    body: JSON.stringify({
+      new_status: params.new_status,
+      ...params.comment && { comment: params.comment },
+      ...params.send_email && { send_email: params.send_email },
+      ...params.email_address && { email_address: params.email_address },
+      ...params.email_language && { email_language: params.email_language }
+    })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data.detail || data.message || "Error Didit";
+    return { ok: false, error: msg };
+  }
+  return { ok: true };
+}
 async function verifyDiditWebhookSignature(rawBody, signature, timestamp, secretKey) {
   if (!signature || !timestamp || !secretKey) return false;
   const WEBHOOK_MAX_AGE_SEC = 300;
@@ -19985,37 +20022,92 @@ router7.get("/kyc/pending", async (_req, res) => {
       const d = doc.data();
       const userDoc = await db().collection(COLLECTIONS.USERS).doc(d.userId || doc.id).get();
       const user = userDoc.data();
-      return {
+      const item = {
         id: doc.id,
         ...d,
         user: user ? { id: userDoc.id, email: user.email, firstName: user.firstName, lastName: user.lastName } : null,
         updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt
       };
+      if (d.diditSessionId) {
+        const diditData = await getDiditSessionDecision(d.diditSessionId);
+        item.diditSession = diditData;
+      }
+      return item;
     })
   );
   res.json(list);
 });
+router7.get("/kyc/:userId/didit-details", async (req, res) => {
+  const { userId } = req.params;
+  const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
+  if (!kycDoc.exists) return res.status(404).json({ error: "Verificaci\xF3n KYC no encontrada" });
+  const d = kycDoc.data();
+  const sessionId = d.diditSessionId;
+  if (!sessionId) {
+    return res.json({
+      hasDiditSession: false,
+      message: "Esta verificaci\xF3n no us\xF3 Didit (flujo legacy con upload manual)"
+    });
+  }
+  const diditData = await getDiditSessionDecision(sessionId);
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+  const user = userDoc.exists ? userDoc.data() : null;
+  res.json({
+    hasDiditSession: true,
+    sessionId,
+    didit: diditData,
+    user: user ? { id: userId, email: user.email, firstName: user.firstName, lastName: user.lastName } : null,
+    ourStatus: d.status,
+    rejectionReason: d.rejectionReason
+  });
+});
 router7.patch("/kyc/:userId", async (req, res) => {
   const { userId } = req.params;
-  const { status, rejectionReason } = req.body;
-  if (status !== "APROBADO" && status !== "RECHAZADO") {
-    res.status(400).json({ error: "status debe ser APROBADO o RECHAZADO" });
+  const { status, rejectionReason, sendEmail, comment } = req.body;
+  if (status !== "APROBADO" && status !== "RECHAZADO" && status !== "RESUBMIT") {
+    res.status(400).json({ error: "status debe ser APROBADO, RECHAZADO o RESUBMIT" });
     return;
   }
-  await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).set(
-    {
-      status,
-      rejectionReason: status === "RECHAZADO" ? rejectionReason || "Rechazado por el administrador" : null,
-      reviewedAt: /* @__PURE__ */ new Date(),
-      reviewedBy: req.user.id,
-      updatedAt: /* @__PURE__ */ new Date()
-    },
-    { merge: true }
-  );
   const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
+  if (!kycDoc.exists) return res.status(404).json({ error: "Verificaci\xF3n KYC no encontrada" });
+  const kycData = kycDoc.data();
+  const diditSessionId = kycData.diditSessionId;
+  if (diditSessionId && (status === "APROBADO" || status === "RECHAZADO" || status === "RESUBMIT")) {
+    const diditStatus = status === "APROBADO" ? "Approved" : status === "RECHAZADO" ? "Declined" : "Resubmitted";
+    const userDoc2 = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+    const userEmail = userDoc2.exists ? userDoc2.data()?.email : void 0;
+    const result = await updateDiditSessionStatus(diditSessionId, {
+      new_status: diditStatus,
+      comment: comment || rejectionReason || (status === "APROBADO" ? "Aprobado manualmente" : status === "RECHAZADO" ? "Rechazado por el administrador" : "Reenviar documentaci\xF3n"),
+      send_email: sendEmail === true,
+      email_address: sendEmail ? userEmail : void 0,
+      email_language: "es"
+    });
+    if (!result.ok) {
+      return res.status(500).json({ error: result.error || "Error al actualizar Didit" });
+    }
+  }
+  if (status !== "RESUBMIT") {
+    await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).set(
+      {
+        status: status === "APROBADO" ? "APROBADO" : "RECHAZADO",
+        rejectionReason: status === "RECHAZADO" ? rejectionReason || comment || "Rechazado por el administrador" : null,
+        reviewedAt: /* @__PURE__ */ new Date(),
+        reviewedBy: req.user.id,
+        updatedAt: /* @__PURE__ */ new Date()
+      },
+      { merge: true }
+    );
+  } else {
+    await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).set(
+      { status: "PENDIENTE", rejectionReason: null, updatedAt: /* @__PURE__ */ new Date() },
+      { merge: true }
+    );
+  }
+  const updatedKyc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
   const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
   res.json({
-    ...kycDoc.data(),
+    ...updatedKyc.data(),
     user: userDoc.exists ? { id: userId, email: userDoc.data()?.email } : null
   });
 });
