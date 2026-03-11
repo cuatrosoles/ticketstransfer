@@ -38,9 +38,15 @@ export async function api<T>(
   return data as T;
 }
 
-/** Login se hace con Firebase Auth en el cliente. */
-export async function login(_email: string, _password: string) {
-  throw new Error('Usá Firebase Auth: signInWithEmailAndPassword en AuthContext');
+/** Obtiene el email para login. Si el input es username (sin @), lo resuelve desde la API. */
+export async function getEmailForLogin(emailOrUsername: string): Promise<string> {
+  const q = emailOrUsername.trim();
+  if (!q) throw new Error('Email o usuario requerido');
+  if (q.includes('@')) return q.toLowerCase();
+  const data = await api<{ email: string }>(`/api/auth/email-for-login?q=${encodeURIComponent(q)}`, {
+    token: null,
+  });
+  return data.email;
 }
 
 export async function register(body: Record<string, unknown>) {

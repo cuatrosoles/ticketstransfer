@@ -3,8 +3,10 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "start": "npx react-native start",
-    "android": "npx react-native run-android",
+    "start": "CI=true npx react-native start",
+    "start:reset": "CI=true npx react-native start --reset-cache",
+    "android": "adb reverse tcp:8081 tcp:8081 2>/dev/null; CI=true npx react-native run-android",
+    "android:clean": "lsof -t -i :8081 | xargs kill 2>/dev/null; rm -rf ~/.metro 2>/dev/null; adb reverse tcp:8081 tcp:8081 2>/dev/null; echo 'Listo. Ejecutá pnpm start:reset y luego pnpm android'",
     "ios": "npx react-native run-ios",
     "lint": "eslint .",
     "fix:android": "bash scripts/fix-android-build.sh",

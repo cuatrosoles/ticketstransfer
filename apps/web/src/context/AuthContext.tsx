@@ -7,7 +7,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { signInWithEmailAndPassword, signInWithCustomToken, signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../lib/firebase';
-import { getMe, register as apiRegister } from '../lib/api';
+import { getMe, register as apiRegister, getEmailForLogin } from '../lib/api';
 
 type User = {
   id: string;
@@ -66,7 +66,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsub();
   }, [fetchUser]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (emailOrUsername: string, password: string) => {
+    const email = await getEmailForLogin(emailOrUsername.trim());
     await signInWithEmailAndPassword(auth, email, password);
     const data = await getMe() as User;
     setUser(data);

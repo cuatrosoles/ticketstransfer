@@ -7,7 +7,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { auth } from '../lib/firebase';
-import { api, setTokenGetter } from '../lib/api';
+import { api, setTokenGetter, getEmailForLogin } from '../lib/api';
 import {
   setSecureToken,
   removeSecureToken,
@@ -111,7 +111,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (emailOrUsername: string, password: string) => {
+    const email = await getEmailForLogin(emailOrUsername.trim());
     const credential = await auth().signInWithEmailAndPassword(email, password);
     const userData = credential.user;
     setFirebaseTokenGetter();

@@ -55,7 +55,12 @@ export function LoginScreen() {
         navigation.replace('Main', {});
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al iniciar sesión');
+      const msg = e instanceof Error ? e.message : 'Error al iniciar sesión';
+      const friendly =
+        msg.includes('auth/invalid-credential') || msg.includes('invalid-credential')
+          ? 'Email/usuario o contraseña incorrectos. Verificá que usás el mismo email con el que te registraste.'
+          : msg;
+      setError(friendly);
     } finally {
       setLoading(false);
     }

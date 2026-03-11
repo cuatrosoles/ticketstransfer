@@ -111,12 +111,15 @@ export async function verifyEmailCode(email: string, code: string): Promise<{ ok
   });
 }
 
-export async function login(email: string, password: string) {
-  return api<{ user: unknown; accessToken: string; refreshToken: string }>('/api/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
+/** Obtiene el email para login. Si el input es username (sin @), lo resuelve desde la API. */
+export async function getEmailForLogin(emailOrUsername: string): Promise<string> {
+  const q = emailOrUsername.trim();
+  if (!q) throw new Error('Email o usuario requerido');
+  if (q.includes('@')) return q.toLowerCase();
+  const data = await api<{ email: string }>(`/api/auth/email-for-login?q=${encodeURIComponent(q)}`, {
     token: null,
   });
+  return data.email;
 }
 
 export async function register(body: Record<string, unknown>) {

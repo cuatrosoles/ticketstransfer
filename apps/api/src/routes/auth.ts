@@ -255,6 +255,32 @@ router.get('/username/check', async (req, res) => {
   res.json({ available: false, suggestions });
 });
 
+/** Resolver email o username para login. Si el input contiene @, devuelve el email normalizado. Si no, busca por username en Firestore. */
+router.get('/email-for-login', async (req, res) => {
+  const q = (req.query.q as string)?.trim();
+  if (!q || q.length < 2) {
+    res.status(400).json({ error: 'Ingresá email o usuario (mín. 2 caracteres)' });
+    return;
+  }
+  const usersRef = db().collection(COLLECTIONS.USERS);
+  if (q.includes('@')) {
+    const email = q.toLowerCase();
+    const existing = await usersRef.where('email', '==', email).limit(1).get();
+    if (existing.empty) {
+      res.status(404).json({ error: 'No existe cuenta con ese email' });
+      return;
+    }
+    return res.json({ email });
+  }
+  const byUsername = await usersRef.where('username', '==', q).limit(1).get();
+  if (byUsername.empty) {
+    res.status(404).json({ error: 'No existe cuenta con ese usuario' });
+    return;
+  }
+  const email = byUsername.docs[0].data().email as string;
+  res.json({ email });
+});
+
 /** Login: el cliente usa Firebase Auth signInWithEmailAndPassword. Este endpoint devuelve el usuario si ya tiene token. */
 router.post('/login', async (_req, res) => {
   res.status(400).json({
