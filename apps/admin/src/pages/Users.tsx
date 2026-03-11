@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { downloadCsv } from '../utils/exportCsv';
 import { CreditCard } from 'lucide-react';
@@ -20,6 +21,7 @@ type User = {
 };
 
 export function Users() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -144,8 +146,8 @@ export function Users() {
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.id}>
-                    <td>{u.email}</td>
+                  <tr key={u.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/users/${u.id}`)}>
+                    <td><Link to={`/users/${u.id}`} onClick={(e) => e.stopPropagation()} style={{ color: 'var(--primary)', textDecoration: 'none' }}>{u.email}</Link></td>
                     <td>{[u.firstName, u.lastName].filter(Boolean).join(' ') || '—'}</td>
                     <td>{u.role}</td>
                     <td>
@@ -158,7 +160,7 @@ export function Users() {
                       <button
                         type="button"
                         className="btn btn-sm"
-                        onClick={() => openCardsModal(u)}
+                        onClick={(e) => { e.stopPropagation(); openCardsModal(u); }}
                         title="Ver tarjetas adheridas"
                       >
                         <CreditCard size={16} style={{ marginRight: 4 }} />

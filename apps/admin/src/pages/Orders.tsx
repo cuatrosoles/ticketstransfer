@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { downloadCsv } from '../utils/exportCsv';
 
@@ -24,6 +25,7 @@ const STATUS_OPTIONS = [
 ];
 
 export function Orders() {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -111,8 +113,8 @@ export function Orders() {
             </thead>
             <tbody>
               {orders.map((o) => (
-                <tr key={o.id}>
-                  <td><code>{o.id.slice(0, 8)}…</code></td>
+                <tr key={o.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/orders/${o.id}`)}>
+                  <td><Link to={`/orders/${o.id}`} onClick={(e) => e.stopPropagation()} style={{ color: 'var(--primary)', textDecoration: 'none' }}><code>{o.id.slice(0, 8)}…</code></Link></td>
                   <td>{o.ticketListing.eventName}</td>
                   <td>{o.buyer.email}</td>
                   <td>{o.seller.email}</td>

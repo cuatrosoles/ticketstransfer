@@ -78,6 +78,12 @@ tr:hover { background: rgba(255,255,255,0.03); }
 .config-actions { margin-top: 1.5rem; }
 .text-muted { color: var(--text-muted); }
 
+/* Detalle (UserDetail, OrderDetail) */
+.detail-dl { margin: 0; }
+.detail-dl dt { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-top: 10px; margin-bottom: 2px; }
+.detail-dl dd { margin: 0; font-size: 0.95rem; }
+.detail-dl dd:first-of-type { margin-top: 0; }
+
 /* Modal */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center;

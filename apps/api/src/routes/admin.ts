@@ -156,6 +156,87 @@ router.get('/users', async (req: AuthRequest, res) => {
   res.json({ users: withKyc, total });
 });
 
+/** Detalle completo de un usuario */
+router.get('/users/:userId', async (req: AuthRequest, res) => {
+  const { userId } = req.params;
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+  if (!userDoc.exists) return res.status(404).json({ error: 'Usuario no encontrado' });
+  const d = userDoc.data()!;
+  const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
+  const kyc = kycDoc.exists ? kycDoc.data() : null;
+  const user = {
+    id: userDoc.id,
+    ...d,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+    dateOfBirth: d.dateOfBirth?.toDate?.() ?? d.dateOfBirth,
+    kyc: kyc
+      ? {
+          status: kyc.status,
+          rejectionReason: kyc.rejectionReason,
+          diditSessionId: kyc.diditSessionId,
+          reviewedAt: kyc.reviewedAt?.toDate?.() ?? kyc.reviewedAt,
+          updatedAt: kyc.updatedAt?.toDate?.() ?? kyc.updatedAt,
+        }
+      : null,
+  };
+  res.json(user);
+});
+
+/** Actualizar usuario (campos editables) */
+router.patch('/users/:userId', async (req: AuthRequest, res) => {
+  const { userId } = req.params;
+  const body = req.body as Record<string, unknown>;
+  const docRef = db().collection(COLLECTIONS.USERS).doc(userId);
+  const doc = await docRef.get();
+  if (!doc.exists) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  const allowed = [
+    'firstName', 'lastName', 'username', 'country', 'tipoDocumento', 'documentNumber',
+    'sexo', 'phone', 'city', 'province', 'postalCode', 'role', 'reputationScore',
+  ];
+  for (const key of allowed) {
+    if (body[key] !== undefined) {
+      updates[key] = body[key] === '' || body[key] === null ? null : body[key];
+    }
+  }
+  await docRef.update(updates);
+  const updated = await docRef.get();
+  const d = updated.data()!;
+  const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
+  const kyc = kycDoc.exists ? kycDoc.data() : null;
+  res.json({
+    id: updated.id,
+    ...d,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+    dateOfBirth: d.dateOfBirth?.toDate?.() ?? d.dateOfBirth,
+    kyc: kyc ? { status: kyc.status, rejectionReason: kyc.rejectionReason } : null,
+  });
+});
+
+/** Eliminar usuario (Firebase Auth + Firestore) */
+router.delete('/users/:userId', async (req: AuthRequest, res) => {
+  const { userId } = req.params;
+  if (userId === req.user!.id) {
+    return res.status(400).json({ error: 'No puedes eliminarte a ti mismo' });
+  }
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+  if (!userDoc.exists) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+  const { getAuth } = await import('../lib/firebase-admin.js');
+  try {
+    await getAuth().deleteUser(userId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Error al eliminar de Firebase Auth';
+    return res.status(500).json({ error: msg });
+  }
+  await db().collection(COLLECTIONS.USERS).doc(userId).delete();
+  await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).delete();
+  res.json({ ok: true });
+});
+
 /** Tarjetas adheridas de un usuario (solo metadata) */
 router.get('/users/:userId/cards', async (req: AuthRequest, res) => {
   const { userId } = req.params;
@@ -554,6 +635,87 @@ router.patch('/tickets/:id/reject', async (req: AuthRequest, res) => {
   });
   const updated = await docRef.get();
   res.json(updated.data());
+});
+
+/** Detalle completo de una orden */
+router.get('/orders/:orderId', async (req: AuthRequest, res) => {
+  const { orderId } = req.params;
+  const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
+  if (!orderDoc.exists) return res.status(404).json({ error: 'Orden no encontrada' });
+  const d = orderDoc.data()!;
+  const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
+  const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(d.buyerId).get();
+  const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+  const listing = listingDoc.exists ? { id: listingDoc.id, ...listingDoc.data() } : null;
+  const buyer = buyerDoc.exists ? { id: d.buyerId, ...buyerDoc.data() } : null;
+  const seller = sellerDoc.exists ? { id: d.sellerId, ...sellerDoc.data() } : null;
+  const disputeDoc = await db().collection(COLLECTIONS.DISPUTES).where('orderId', '==', orderId).limit(1).get();
+  const dispute = disputeDoc.empty ? null : { id: disputeDoc.docs[0].id, ...disputeDoc.docs[0].data() };
+  res.json({
+    id: orderDoc.id,
+    ...d,
+    ticketListing: listing,
+    buyer,
+    seller,
+    dispute,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+    transferDeadline: d.transferDeadline?.toDate?.() ?? d.transferDeadline,
+  });
+});
+
+/** Actualizar orden (status y campos editables) */
+router.patch('/orders/:orderId', async (req: AuthRequest, res) => {
+  const { orderId } = req.params;
+  const body = req.body as Record<string, unknown>;
+  const docRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
+  const doc = await docRef.get();
+  if (!doc.exists) return res.status(404).json({ error: 'Orden no encontrada' });
+
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  const allowed = ['status', 'totalAmount', 'commissionAmount'];
+  for (const key of allowed) {
+    if (body[key] !== undefined) {
+      if (key === 'totalAmount' || key === 'commissionAmount') {
+        updates[key] = Number(body[key]);
+      } else {
+        updates[key] = body[key];
+      }
+    }
+  }
+  await docRef.update(updates);
+  const updated = await docRef.get();
+  const d = updated.data()!;
+  const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
+  const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(d.buyerId).get();
+  const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+  res.json({
+    id: updated.id,
+    ...d,
+    ticketListing: listingDoc.exists ? { id: listingDoc.id, ...listingDoc.data() } : null,
+    buyer: buyerDoc.exists ? { email: buyerDoc.data()?.email } : null,
+    seller: sellerDoc.exists ? { email: sellerDoc.data()?.email } : null,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+  });
+});
+
+/** Cancelar/eliminar orden (soft: status -> CANCELADA) */
+router.delete('/orders/:orderId', async (req: AuthRequest, res) => {
+  const { orderId } = req.params;
+  const docRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
+  const doc = await docRef.get();
+  if (!doc.exists) return res.status(404).json({ error: 'Orden no encontrada' });
+  const data = doc.data()!;
+  const status = data.status ?? 'PENDIENTE_PAGO';
+  if (status === 'COMPLETADA') {
+    return res.status(400).json({ error: 'No se puede cancelar una orden completada' });
+  }
+  await docRef.update({
+    status: 'CANCELADA',
+    updatedAt: new Date(),
+  });
+  res.json({ ok: true });
 });
 
 router.get('/orders', async (req: AuthRequest, res) => {

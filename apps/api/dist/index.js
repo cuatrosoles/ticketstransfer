@@ -32,6 +32,71 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
+// src/lib/firebase-admin.ts
+var firebase_admin_exports = {};
+__export(firebase_admin_exports, {
+  getAuth: () => getAuth,
+  getFirebaseAdmin: () => getFirebaseAdmin,
+  getFirestore: () => getFirestore,
+  getMessaging: () => getMessaging,
+  getStorage: () => getStorage
+});
+import admin from "firebase-admin";
+function initFirebase() {
+  if (admin.apps.length > 0) {
+    app = admin.app();
+    return app;
+  }
+  const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  const jsonCred = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (jsonCred) {
+    try {
+      const cred = JSON.parse(jsonCred);
+      const bucket = process.env.FIREBASE_STORAGE_BUCKET;
+      app = admin.initializeApp({
+        credential: admin.credential.cert(cred),
+        ...bucket && { storageBucket: bucket }
+      });
+    } catch (e) {
+      console.error("FIREBASE_SERVICE_ACCOUNT_JSON inv\xE1lido:", e);
+      throw new Error("Configuraci\xF3n de Firebase inv\xE1lida");
+    }
+  } else if (credPath) {
+    const bucket = process.env.FIREBASE_STORAGE_BUCKET;
+    app = admin.initializeApp({
+      credential: admin.credential.applicationDefault(),
+      ...bucket && { storageBucket: bucket }
+    });
+  } else {
+    throw new Error(
+      "Firebase no configurado. Defin\xED GOOGLE_APPLICATION_CREDENTIALS (ruta al JSON) o FIREBASE_SERVICE_ACCOUNT_JSON (contenido JSON)."
+    );
+  }
+  return app;
+}
+function getFirebaseAdmin() {
+  if (!app) initFirebase();
+  return admin;
+}
+function getAuth() {
+  return getFirebaseAdmin().auth();
+}
+function getFirestore() {
+  return getFirebaseAdmin().firestore();
+}
+function getStorage() {
+  return getFirebaseAdmin().storage();
+}
+function getMessaging() {
+  return getFirebaseAdmin().messaging();
+}
+var app;
+var init_firebase_admin = __esm({
+  "src/lib/firebase-admin.ts"() {
+    "use strict";
+  }
+});
+
 // ../../node_modules/.pnpm/postal-mime@2.7.3/node_modules/postal-mime/src/decode-strings.js
 function decodeBase64(base64) {
   let bufferLength = Math.ceil(base64.length / 4) * 3;
@@ -13419,62 +13484,9 @@ var init_sms = __esm({
 });
 
 // src/index.ts
+init_firebase_admin();
 import "dotenv/config";
 import express from "express";
-
-// src/lib/firebase-admin.ts
-import admin from "firebase-admin";
-var app;
-function initFirebase() {
-  if (admin.apps.length > 0) {
-    app = admin.app();
-    return app;
-  }
-  const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  const jsonCred = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (jsonCred) {
-    try {
-      const cred = JSON.parse(jsonCred);
-      const bucket = process.env.FIREBASE_STORAGE_BUCKET;
-      app = admin.initializeApp({
-        credential: admin.credential.cert(cred),
-        ...bucket && { storageBucket: bucket }
-      });
-    } catch (e) {
-      console.error("FIREBASE_SERVICE_ACCOUNT_JSON inv\xE1lido:", e);
-      throw new Error("Configuraci\xF3n de Firebase inv\xE1lida");
-    }
-  } else if (credPath) {
-    const bucket = process.env.FIREBASE_STORAGE_BUCKET;
-    app = admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
-      ...bucket && { storageBucket: bucket }
-    });
-  } else {
-    throw new Error(
-      "Firebase no configurado. Defin\xED GOOGLE_APPLICATION_CREDENTIALS (ruta al JSON) o FIREBASE_SERVICE_ACCOUNT_JSON (contenido JSON)."
-    );
-  }
-  return app;
-}
-function getFirebaseAdmin() {
-  if (!app) initFirebase();
-  return admin;
-}
-function getAuth() {
-  return getFirebaseAdmin().auth();
-}
-function getFirestore() {
-  return getFirebaseAdmin().firestore();
-}
-function getStorage() {
-  return getFirebaseAdmin().storage();
-}
-function getMessaging() {
-  return getFirebaseAdmin().messaging();
-}
-
-// src/index.ts
 import path4 from "path";
 import { fileURLToPath as fileURLToPath3 } from "url";
 import cors from "cors";
@@ -13482,10 +13494,12 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 
 // src/routes/auth.ts
+init_firebase_admin();
 import { createHash } from "crypto";
 import { Router } from "express";
 
 // src/lib/firestore.ts
+init_firebase_admin();
 var db = () => getFirestore();
 var COLLECTIONS = {
   USERS: "users",
@@ -17632,6 +17646,7 @@ var pixelateRegionSchema = external_exports.object({
 var pixelateRegionsSchema = external_exports.array(pixelateRegionSchema).optional();
 
 // src/middleware/auth.ts
+init_firebase_admin();
 async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -17944,8 +17959,10 @@ var authRouter = router;
 // src/routes/users.ts
 import { Router as Router2 } from "express";
 import multer from "multer";
+init_firebase_admin();
 
 // src/lib/firebase-storage.ts
+init_firebase_admin();
 import { writeFileSync, mkdirSync as mkdirSync2, existsSync as existsSync2 } from "fs";
 import path2 from "path";
 
@@ -18679,6 +18696,7 @@ var usersRouter = router2;
 // src/routes/tickets.ts
 import { Router as Router3 } from "express";
 import multer2 from "multer";
+init_firebase_admin();
 
 // src/lib/image-redaction.ts
 import { Jimp } from "jimp";
@@ -19467,6 +19485,7 @@ import { Router as Router6 } from "express";
 import { FieldValue } from "firebase-admin/firestore";
 
 // src/lib/firebase-messaging.ts
+init_firebase_admin();
 var INVALID_TOKEN_CODES = [
   "messaging/registration-token-not-registered",
   "messaging/invalid-registration-token"
@@ -19844,6 +19863,88 @@ router7.get("/users", async (req, res) => {
   );
   res.json({ users: withKyc, total });
 });
+router7.get("/users/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+  if (!userDoc.exists) return res.status(404).json({ error: "Usuario no encontrado" });
+  const d = userDoc.data();
+  const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
+  const kyc = kycDoc.exists ? kycDoc.data() : null;
+  const user = {
+    id: userDoc.id,
+    ...d,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+    dateOfBirth: d.dateOfBirth?.toDate?.() ?? d.dateOfBirth,
+    kyc: kyc ? {
+      status: kyc.status,
+      rejectionReason: kyc.rejectionReason,
+      diditSessionId: kyc.diditSessionId,
+      reviewedAt: kyc.reviewedAt?.toDate?.() ?? kyc.reviewedAt,
+      updatedAt: kyc.updatedAt?.toDate?.() ?? kyc.updatedAt
+    } : null
+  };
+  res.json(user);
+});
+router7.patch("/users/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const body = req.body;
+  const docRef = db().collection(COLLECTIONS.USERS).doc(userId);
+  const doc = await docRef.get();
+  if (!doc.exists) return res.status(404).json({ error: "Usuario no encontrado" });
+  const updates = { updatedAt: /* @__PURE__ */ new Date() };
+  const allowed = [
+    "firstName",
+    "lastName",
+    "username",
+    "country",
+    "tipoDocumento",
+    "documentNumber",
+    "sexo",
+    "phone",
+    "city",
+    "province",
+    "postalCode",
+    "role",
+    "reputationScore"
+  ];
+  for (const key of allowed) {
+    if (body[key] !== void 0) {
+      updates[key] = body[key] === "" || body[key] === null ? null : body[key];
+    }
+  }
+  await docRef.update(updates);
+  const updated = await docRef.get();
+  const d = updated.data();
+  const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
+  const kyc = kycDoc.exists ? kycDoc.data() : null;
+  res.json({
+    id: updated.id,
+    ...d,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+    dateOfBirth: d.dateOfBirth?.toDate?.() ?? d.dateOfBirth,
+    kyc: kyc ? { status: kyc.status, rejectionReason: kyc.rejectionReason } : null
+  });
+});
+router7.delete("/users/:userId", async (req, res) => {
+  const { userId } = req.params;
+  if (userId === req.user.id) {
+    return res.status(400).json({ error: "No puedes eliminarte a ti mismo" });
+  }
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+  if (!userDoc.exists) return res.status(404).json({ error: "Usuario no encontrado" });
+  const { getAuth: getAuth2 } = await Promise.resolve().then(() => (init_firebase_admin(), firebase_admin_exports));
+  try {
+    await getAuth2().deleteUser(userId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error al eliminar de Firebase Auth";
+    return res.status(500).json({ error: msg });
+  }
+  await db().collection(COLLECTIONS.USERS).doc(userId).delete();
+  await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).delete();
+  res.json({ ok: true });
+});
 router7.get("/users/:userId/cards", async (req, res) => {
   const { userId } = req.params;
   const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
@@ -20179,6 +20280,80 @@ router7.patch("/tickets/:id/reject", async (req, res) => {
   const updated = await docRef.get();
   res.json(updated.data());
 });
+router7.get("/orders/:orderId", async (req, res) => {
+  const { orderId } = req.params;
+  const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
+  if (!orderDoc.exists) return res.status(404).json({ error: "Orden no encontrada" });
+  const d = orderDoc.data();
+  const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
+  const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(d.buyerId).get();
+  const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+  const listing = listingDoc.exists ? { id: listingDoc.id, ...listingDoc.data() } : null;
+  const buyer = buyerDoc.exists ? { id: d.buyerId, ...buyerDoc.data() } : null;
+  const seller = sellerDoc.exists ? { id: d.sellerId, ...sellerDoc.data() } : null;
+  const disputeDoc = await db().collection(COLLECTIONS.DISPUTES).where("orderId", "==", orderId).limit(1).get();
+  const dispute = disputeDoc.empty ? null : { id: disputeDoc.docs[0].id, ...disputeDoc.docs[0].data() };
+  res.json({
+    id: orderDoc.id,
+    ...d,
+    ticketListing: listing,
+    buyer,
+    seller,
+    dispute,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+    transferDeadline: d.transferDeadline?.toDate?.() ?? d.transferDeadline
+  });
+});
+router7.patch("/orders/:orderId", async (req, res) => {
+  const { orderId } = req.params;
+  const body = req.body;
+  const docRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
+  const doc = await docRef.get();
+  if (!doc.exists) return res.status(404).json({ error: "Orden no encontrada" });
+  const updates = { updatedAt: /* @__PURE__ */ new Date() };
+  const allowed = ["status", "totalAmount", "commissionAmount"];
+  for (const key of allowed) {
+    if (body[key] !== void 0) {
+      if (key === "totalAmount" || key === "commissionAmount") {
+        updates[key] = Number(body[key]);
+      } else {
+        updates[key] = body[key];
+      }
+    }
+  }
+  await docRef.update(updates);
+  const updated = await docRef.get();
+  const d = updated.data();
+  const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
+  const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(d.buyerId).get();
+  const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+  res.json({
+    id: updated.id,
+    ...d,
+    ticketListing: listingDoc.exists ? { id: listingDoc.id, ...listingDoc.data() } : null,
+    buyer: buyerDoc.exists ? { email: buyerDoc.data()?.email } : null,
+    seller: sellerDoc.exists ? { email: sellerDoc.data()?.email } : null,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt
+  });
+});
+router7.delete("/orders/:orderId", async (req, res) => {
+  const { orderId } = req.params;
+  const docRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
+  const doc = await docRef.get();
+  if (!doc.exists) return res.status(404).json({ error: "Orden no encontrada" });
+  const data = doc.data();
+  const status = data.status ?? "PENDIENTE_PAGO";
+  if (status === "COMPLETADA") {
+    return res.status(400).json({ error: "No se puede cancelar una orden completada" });
+  }
+  await docRef.update({
+    status: "CANCELADA",
+    updatedAt: /* @__PURE__ */ new Date()
+  });
+  res.json({ ok: true });
+});
 router7.get("/orders", async (req, res) => {
   const { page = "1", limit = "20", status } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
@@ -20209,6 +20384,7 @@ router7.get("/orders", async (req, res) => {
 var adminRouter = router7;
 
 // src/routes/health.ts
+init_firebase_admin();
 import { Router as Router8 } from "express";
 var healthRouter = Router8();
 healthRouter.get("/", async (_req, res) => {
