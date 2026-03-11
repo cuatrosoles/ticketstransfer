@@ -274,13 +274,23 @@ router.get('/users/:userId/cards', async (req: AuthRequest, res) => {
 });
 
 router.get('/kyc/pending', async (_req, res) => {
-  const snap = await db()
-    .collection(COLLECTIONS.KYC_VERIFICATIONS)
-    .where('status', '==', 'EN_REVISION')
-    .get();
+  const [enRevisionSnap, pendienteSnap] = await Promise.all([
+    db().collection(COLLECTIONS.KYC_VERIFICATIONS).where('status', '==', 'EN_REVISION').get(),
+    db().collection(COLLECTIONS.KYC_VERIFICATIONS).where('status', '==', 'PENDIENTE').get(),
+  ]);
+
+  const allDocs = [...enRevisionSnap.docs, ...pendienteSnap.docs];
+  const filteredDocs = allDocs.filter((doc) => {
+    const d = doc.data();
+    if (d.status === 'EN_REVISION') return true;
+    if (d.status === 'PENDIENTE') {
+      return !!(d.diditSessionId || d.dniFrontUrl || d.dniBackUrl || d.selfieUrl);
+    }
+    return false;
+  });
 
   const list = await Promise.all(
-    snap.docs.map(async (doc) => {
+    filteredDocs.map(async (doc) => {
       const d = doc.data();
       const userDoc = await db().collection(COLLECTIONS.USERS).doc(d.userId || doc.id).get();
       const user = userDoc.data();
@@ -300,30 +310,35 @@ router.get('/kyc/pending', async (_req, res) => {
   res.json(list);
 });
 
-/** Detalle Didit de una verificación KYC (por userId o sessionId) */
-router.get('/kyc/:userId/didit-details', async (req: AuthRequest, res) => {
+/** Detalle completo de una verificación KYC (Didit + legacy). Usado por pantalla KycDetail. */
+router.get('/kyc/:userId/detail', async (req: AuthRequest, res) => {
   const { userId } = req.params;
   const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
   if (!kycDoc.exists) return res.status(404).json({ error: 'Verificación KYC no encontrada' });
   const d = kycDoc.data()!;
   const sessionId = d.diditSessionId;
-  if (!sessionId) {
-    return res.json({
-      hasDiditSession: false,
-      message: 'Esta verificación no usó Didit (flujo legacy con upload manual)',
-    });
-  }
-  const diditData = await getDiditSessionDecision(sessionId);
   const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
   const user = userDoc.exists ? userDoc.data() : null;
-  res.json({
-    hasDiditSession: true,
-    sessionId,
-    didit: diditData,
+
+  const base = {
+    id: userId,
+    status: d.status || 'PENDIENTE',
+    rejectionReason: d.rejectionReason ?? null,
+    dniFrontUrl: d.dniFrontUrl ?? null,
+    dniBackUrl: d.dniBackUrl ?? null,
+    selfieUrl: d.selfieUrl ?? null,
+    diditSessionId: sessionId ?? null,
+    reviewedAt: d.reviewedAt?.toDate?.() ?? d.reviewedAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
     user: user ? { id: userId, email: user.email, firstName: user.firstName, lastName: user.lastName } : null,
-    ourStatus: d.status,
-    rejectionReason: d.rejectionReason,
-  });
+  };
+
+  if (!sessionId) {
+    return res.json({ ...base, hasDiditSession: false, didit: null });
+  }
+
+  const diditData = await getDiditSessionDecision(sessionId);
+  res.json({ ...base, hasDiditSession: true, didit: diditData });
 });
 
 router.patch('/kyc/:userId', async (req: AuthRequest, res) => {

@@ -7,6 +7,7 @@ import { Configuracion } from './pages/Configuracion';
 import { Users } from './pages/Users';
 import { UserDetail } from './pages/UserDetail';
 import { Kyc } from './pages/Kyc';
+import { KycDetail } from './pages/KycDetail';
 import { Disputes } from './pages/Disputes';
 import { DisputeDetail } from './pages/DisputeDetail';
 import { Conversations } from './pages/Conversations';
@@ -31,6 +32,7 @@ export function App() {
         <Route path="users" element={<Users />} />
         <Route path="users/:id" element={<UserDetail />} />
         <Route path="kyc" element={<Kyc />} />
+        <Route path="kyc/:id" element={<KycDetail />} />
         <Route path="disputes" element={<Disputes />} />
         <Route path="disputes/:id" element={<DisputeDetail />} />
         <Route path="conversations" element={<Conversations />} />

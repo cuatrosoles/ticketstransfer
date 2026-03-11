@@ -1,12 +1,13 @@
 /**
  * KYC – Verificaciones pendientes con integración Didit.
- * Muestra detalles de Didit (imágenes, datos extraídos), aprobación/rechazo manual vía API Didit.
+ * Cada tarjeta es clicable y lleva a la pantalla de detalle KycDetail.
  */
 
 import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { downloadCsv } from '../utils/exportCsv';
-import { ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { ExternalLink, ChevronRight } from 'lucide-react';
 
 type DiditIdVerification = {
   front_image?: string;
@@ -17,9 +18,6 @@ type DiditIdVerification = {
   first_name?: string;
   last_name?: string;
   full_name?: string;
-  date_of_birth?: string;
-  address?: string;
-  status?: string;
 };
 
 type DiditSession = {
@@ -27,7 +25,7 @@ type DiditSession = {
   status?: string;
   session_url?: string;
   id_verifications?: DiditIdVerification[];
-  liveness_verifications?: Array<{ status?: string; liveness_score?: number; selfie_image?: string }>;
+  liveness_verifications?: Array<{ selfie_image?: string }>;
 };
 
 type KycItem = {
@@ -42,18 +40,25 @@ type KycItem = {
 };
 
 export function Kyc() {
+  const navigate = useNavigate();
   const [list, setList] = useState<KycItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [rejectModal, setRejectModal] = useState<{ user: KycItem; reason: string; sendEmail: boolean } | null>(null);
   const [resubmitModal, setResubmitModal] = useState<KycItem | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
   const load = () => {
     setLoading(true);
+    setError(null);
     api<KycItem[]>('/api/admin/kyc/pending')
-      .then(setList)
-      .catch(() => setList([]))
+      .then((data) => {
+        setList(Array.isArray(data) ? data : []);
+      })
+      .catch((e) => {
+        setList([]);
+        setError(e instanceof Error ? e.message : 'Error al cargar las verificaciones');
+      })
       .finally(() => setLoading(false));
   };
 
@@ -122,17 +127,33 @@ export function Kyc() {
           </button>
         )}
       </div>
-      {list.length === 0 ? (
+      {error ? (
+        <div className="card" style={{ borderColor: 'var(--danger)', background: 'rgba(220, 53, 69, 0.08)' }}>
+          <p style={{ margin: 0, color: 'var(--danger)' }}>{error}</p>
+          <p style={{ margin: '8px 0 0', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+            Verificá que la API esté desplegada y que VITE_API_URL apunte a la URL correcta.
+          </p>
+          <button type="button" className="btn btn-primary btn-sm" onClick={load} style={{ marginTop: 12 }}>
+            Reintentar
+          </button>
+        </div>
+      ) : list.length === 0 ? (
         <div className="card">No hay verificaciones pendientes.</div>
       ) : (
         list.map((k) => {
           const images = getImages(k);
           const hasDidit = !!k.diditSessionId;
-          const diditData = k.diditSession?.id_verifications?.[0];
-          const isExpanded = expandedId === k.id;
 
           return (
-            <div key={k.id} className="card">
+            <div
+              key={k.id}
+              className="card"
+              style={{ cursor: 'pointer', transition: 'background 0.15s' }}
+              onClick={() => navigate(`/kyc/${k.user.id}`)}
+              onKeyDown={(e) => e.key === 'Enter' && navigate(`/kyc/${k.user.id}`)}
+              role="button"
+              tabIndex={0}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
                 <div>
                   <strong>{k.user?.email}</strong>
@@ -146,33 +167,48 @@ export function Kyc() {
                   )}
                   <div style={{ marginTop: 8, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                     {images.front && (
-                      <a href={images.front} target="_blank" rel="noopener noreferrer">
+                      <a href={images.front} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                         DNI frente
                       </a>
                     )}
                     {images.back && (
-                      <a href={images.back} target="_blank" rel="noopener noreferrer">
+                      <a href={images.back} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                         DNI dorso
                       </a>
                     )}
                     {images.selfie && (
-                      <a href={images.selfie} target="_blank" rel="noopener noreferrer">
+                      <a href={images.selfie} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                         Selfie
                       </a>
                     )}
                     {k.diditSession?.session_url && (
-                      <a href={k.diditSession.session_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <a
+                        href={k.diditSession.session_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <ExternalLink size={14} />
                         Sesión Didit
                       </a>
                     )}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <Link
+                    to={`/kyc/${k.user.id}`}
+                    className="btn btn-primary btn-sm"
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
+                  >
+                    Ver detalle
+                    <ChevronRight size={16} />
+                  </Link>
                   <button
                     type="button"
                     className="btn btn-primary btn-sm"
-                    onClick={() => resolve(k.user.id, 'APROBADO')}
+                    onClick={(e) => { e.stopPropagation(); resolve(k.user.id, 'APROBADO'); }}
                     disabled={actionLoading}
                   >
                     Aprobar
@@ -180,7 +216,7 @@ export function Kyc() {
                   <button
                     type="button"
                     className="btn btn-danger btn-sm"
-                    onClick={() => setRejectModal({ user: k, reason: '', sendEmail: false })}
+                    onClick={(e) => { e.stopPropagation(); setRejectModal({ user: k, reason: '', sendEmail: false }); }}
                     disabled={actionLoading}
                   >
                     Rechazar
@@ -190,60 +226,14 @@ export function Kyc() {
                       type="button"
                       className="btn btn-sm"
                       style={{ background: 'var(--border)', color: 'var(--text)' }}
-                      onClick={() => setResubmitModal(k)}
+                      onClick={(e) => { e.stopPropagation(); setResubmitModal(k); }}
                       disabled={actionLoading}
                     >
                       Solicitar reenvío
                     </button>
                   )}
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    style={{ background: 'transparent', color: 'var(--text-muted)' }}
-                    onClick={() => setExpandedId(isExpanded ? null : k.id)}
-                  >
-                    {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                  </button>
                 </div>
               </div>
-
-              {isExpanded && (
-                <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-                  <h4 style={{ margin: '0 0 12px', fontSize: '0.95rem' }}>Detalles Didit</h4>
-                  {diditData ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-                      <p><strong>Tipo doc:</strong> {diditData.document_type || '—'}</p>
-                      <p><strong>Nº doc:</strong> {diditData.document_number || '—'}</p>
-                      <p><strong>Nombre:</strong> {diditData.full_name || [diditData.first_name, diditData.last_name].filter(Boolean).join(' ') || '—'}</p>
-                      <p><strong>Nacimiento:</strong> {diditData.date_of_birth || '—'}</p>
-                      <p><strong>Dirección:</strong> {diditData.address || '—'}</p>
-                      <p><strong>Estado Didit:</strong> {k.diditSession?.status || '—'}</p>
-                    </div>
-                  ) : (
-                    <p className="text-muted">Sin datos Didit (verificación legacy o sesión sin completar)</p>
-                  )}
-                  {images.front && (
-                    <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
-                      <div>
-                        <p style={{ fontSize: '0.8rem', marginBottom: 4 }}>Documento frente</p>
-                        <img src={images.front} alt="DNI frente" style={{ maxWidth: 200, borderRadius: 8, border: '1px solid var(--border)' }} />
-                      </div>
-                      {images.back && (
-                        <div>
-                          <p style={{ fontSize: '0.8rem', marginBottom: 4 }}>Documento dorso</p>
-                          <img src={images.back} alt="DNI dorso" style={{ maxWidth: 200, borderRadius: 8, border: '1px solid var(--border)' }} />
-                        </div>
-                      )}
-                      {images.selfie && (
-                        <div>
-                          <p style={{ fontSize: '0.8rem', marginBottom: 4 }}>Selfie</p>
-                          <img src={images.selfie} alt="Selfie" style={{ maxWidth: 150, borderRadius: 8, border: '1px solid var(--border)' }} />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           );
         })
