@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import { ExternalLink, RotateCcw } from 'lucide-react';
+import { ExternalLink, RotateCcw, RefreshCw } from 'lucide-react';
 
 type DiditIdVerification = {
   front_image?: string;
@@ -67,6 +67,7 @@ export function KycDetail() {
   const [rejectReason, setRejectReason] = useState('');
   const [rejectSendEmail, setRejectSendEmail] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
 
   const load = () => {
     if (!id) return;
@@ -106,6 +107,19 @@ export function KycDetail() {
       alert(e instanceof Error ? e.message : 'Error');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const syncWithDidit = async () => {
+    if (!id) return;
+    setSyncLoading(true);
+    try {
+      await api(`/api/admin/kyc/${id}/sync-didit`, { method: 'POST' });
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Error al sincronizar con Didit');
+    } finally {
+      setSyncLoading(false);
     }
   };
 
@@ -154,7 +168,20 @@ export function KycDetail() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           {statusBadge(data.status)}
           {data.hasDiditSession && (
-            <span className="badge badge-open">Didit</span>
+            <>
+              <span className="badge badge-open">Didit</span>
+              <button
+                type="button"
+                className="btn btn-sm"
+                style={{ background: 'var(--primary)', color: 'white' }}
+                onClick={syncWithDidit}
+                disabled={syncLoading}
+                title="Traer estado actual desde Didit (útil si el webhook no actualizó)"
+              >
+                <RefreshCw size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                {syncLoading ? 'Sincronizando…' : 'Sincronizar con Didit'}
+              </button>
+            </>
           )}
           {canApproveReject && (
             <>
