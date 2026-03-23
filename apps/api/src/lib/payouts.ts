@@ -77,6 +77,7 @@ export async function createPayoutToSeller(params: {
       updatedAt: now,
     });
 
+  const cbuCvu = params.cbuCvu.replace(/\D/g, '');
   if (!cbuCvu || cbuCvu.length !== 22) {
     await updateTransferStatus(transferId, 'PENDIENTE_MANUAL', null, 'Vendedor sin CBU/CVU registrado');
     return { success: false, transferId, error: 'Vendedor sin CBU/CVU. Realizar transferencia manual.' };
