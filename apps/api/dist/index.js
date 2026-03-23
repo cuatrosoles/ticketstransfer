@@ -18103,15 +18103,28 @@ async function createDiditSession(params) {
   return data;
 }
 async function getDiditSessionDecision(sessionId) {
-  if (!DIDIT_API_KEY) return null;
-  if (!sessionId) return null;
-  const res = await fetch(`${DIDIT_BASE}/v3/session/${sessionId}/decision/`, {
+  if (!DIDIT_API_KEY) {
+    return { ok: false, status: 0, message: "DIDIT_API_KEY no configurado" };
+  }
+  if (!sessionId?.trim()) {
+    return { ok: false, status: 0, message: "sessionId vac\xEDo" };
+  }
+  const url = `${DIDIT_BASE}/v3/session/${encodeURIComponent(sessionId.trim())}/decision/`;
+  const res = await fetch(url, {
     method: "GET",
     headers: { "X-Api-Key": DIDIT_API_KEY }
   });
-  if (!res.ok) return null;
-  const data = await res.json().catch(() => null);
-  return data;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const detail = data.detail ?? data.message ?? JSON.stringify(data);
+    return {
+      ok: false,
+      status: res.status,
+      message: res.status === 401 ? "API key inv\xE1lida (401). Verific\xE1 DIDIT_API_KEY en Vercel." : res.status === 404 ? `Sesi\xF3n no encontrada en Didit (404). Session ID: ${sessionId.slice(0, 8)}...` : `Didit respondi\xF3 ${res.status}: ${String(detail).slice(0, 200)}`,
+      detail: String(detail).slice(0, 300)
+    };
+  }
+  return { ok: true, data };
 }
 async function updateDiditSessionStatus(sessionId, params) {
   if (!DIDIT_API_KEY) {
@@ -20290,8 +20303,8 @@ router7.get("/kyc/pending", async (_req, res) => {
         updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt
       };
       if (d.diditSessionId) {
-        const diditData = await getDiditSessionDecision(d.diditSessionId);
-        item.diditSession = diditData;
+        const result = await getDiditSessionDecision(d.diditSessionId);
+        item.diditSession = result.ok ? result.data : null;
       }
       return item;
     })
@@ -20321,8 +20334,8 @@ router7.get("/kyc/:userId/detail", async (req, res) => {
   if (!sessionId) {
     return res.json({ ...base, hasDiditSession: false, didit: null });
   }
-  const diditData = await getDiditSessionDecision(sessionId);
-  res.json({ ...base, hasDiditSession: true, didit: diditData });
+  const result = await getDiditSessionDecision(sessionId);
+  res.json({ ...base, hasDiditSession: true, didit: result.ok ? result.data : null });
 });
 router7.post("/kyc/:userId/sync-didit", async (req, res) => {
   const { userId } = req.params;
@@ -20333,11 +20346,12 @@ router7.post("/kyc/:userId/sync-didit", async (req, res) => {
   if (!sessionId) {
     return res.status(400).json({ error: "Esta verificaci\xF3n no tiene sesi\xF3n Didit" });
   }
-  const diditData = await getDiditSessionDecision(sessionId);
-  if (!diditData) {
-    return res.status(502).json({ error: "No se pudo obtener el estado de Didit. Revis\xE1 DIDIT_API_KEY." });
+  const result = await getDiditSessionDecision(sessionId);
+  if (!result.ok) {
+    const status2 = result.status >= 400 ? result.status : 502;
+    return res.status(status2).json({ error: result.message });
   }
-  const status = diditData.status ?? "";
+  const status = result.data.status ?? "";
   const mapStatus = (s) => {
     if (s === "Approved") return "APROBADO";
     if (s === "Declined") return "RECHAZADO";

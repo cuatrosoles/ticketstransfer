@@ -108,19 +108,44 @@ export type DiditSessionDecision = {
   }>;
 };
 
-/** Obtener detalles completos de una sesión Didit */
-export async function getDiditSessionDecision(sessionId: string): Promise<DiditSessionDecision | null> {
-  if (!DIDIT_API_KEY) return null;
-  if (!sessionId) return null;
+export type GetDiditSessionResult =
+  | { ok: true; data: DiditSessionDecision }
+  | { ok: false; status: number; message: string; detail?: string };
 
-  const res = await fetch(`${DIDIT_BASE}/v3/session/${sessionId}/decision/`, {
+/** Obtener detalles completos de una sesión Didit. Retorna error detallado en lugar de null. */
+export async function getDiditSessionDecision(
+  sessionId: string
+): Promise<GetDiditSessionResult> {
+  if (!DIDIT_API_KEY) {
+    return { ok: false, status: 0, message: 'DIDIT_API_KEY no configurado' };
+  }
+  if (!sessionId?.trim()) {
+    return { ok: false, status: 0, message: 'sessionId vacío' };
+  }
+
+  const url = `${DIDIT_BASE}/v3/session/${encodeURIComponent(sessionId.trim())}/decision/`;
+  const res = await fetch(url, {
     method: 'GET',
     headers: { 'X-Api-Key': DIDIT_API_KEY },
   });
 
-  if (!res.ok) return null;
-  const data = await res.json().catch(() => null);
-  return data as DiditSessionDecision;
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    const detail = (data.detail as string) ?? (data.message as string) ?? JSON.stringify(data);
+    return {
+      ok: false,
+      status: res.status,
+      message:
+        res.status === 401
+          ? 'API key inválida (401). Verificá DIDIT_API_KEY en Vercel.'
+          : res.status === 404
+            ? `Sesión no encontrada en Didit (404). Session ID: ${sessionId.slice(0, 8)}...`
+            : `Didit respondió ${res.status}: ${String(detail).slice(0, 200)}`,
+      detail: String(detail).slice(0, 300),
+    };
+  }
+
+  return { ok: true, data: data as DiditSessionDecision };
 }
 
 /** Actualizar estado de sesión Didit (aprobación/rechazo manual, resubmit) */

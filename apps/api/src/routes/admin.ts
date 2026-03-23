@@ -314,8 +314,8 @@ router.get('/kyc/pending', async (_req, res) => {
         updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
       };
       if (d.diditSessionId) {
-        const diditData = await getDiditSessionDecision(d.diditSessionId);
-        item.diditSession = diditData;
+        const result = await getDiditSessionDecision(d.diditSessionId);
+        item.diditSession = result.ok ? result.data : null;
       }
       return item;
     })
@@ -350,8 +350,8 @@ router.get('/kyc/:userId/detail', async (req: AuthRequest, res) => {
     return res.json({ ...base, hasDiditSession: false, didit: null });
   }
 
-  const diditData = await getDiditSessionDecision(sessionId);
-  res.json({ ...base, hasDiditSession: true, didit: diditData });
+  const result = await getDiditSessionDecision(sessionId);
+  res.json({ ...base, hasDiditSession: true, didit: result.ok ? result.data : null });
 });
 
 /** Sincronizar estado KYC desde Didit (cuando el webhook falla o no llega) */
@@ -365,12 +365,13 @@ router.post('/kyc/:userId/sync-didit', async (req: AuthRequest, res) => {
     return res.status(400).json({ error: 'Esta verificación no tiene sesión Didit' });
   }
 
-  const diditData = await getDiditSessionDecision(sessionId);
-  if (!diditData) {
-    return res.status(502).json({ error: 'No se pudo obtener el estado de Didit. Revisá DIDIT_API_KEY.' });
+  const result = await getDiditSessionDecision(sessionId);
+  if (!result.ok) {
+    const status = result.status >= 400 ? result.status : 502;
+    return res.status(status).json({ error: result.message });
   }
 
-  const status = diditData.status ?? '';
+  const status = result.data.status ?? '';
   const mapStatus = (s: string): 'PENDIENTE' | 'EN_REVISION' | 'APROBADO' | 'RECHAZADO' => {
     if (s === 'Approved') return 'APROBADO';
     if (s === 'Declined') return 'RECHAZADO';
