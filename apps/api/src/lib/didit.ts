@@ -162,6 +162,37 @@ export async function updateDiditSessionStatus(
   return { ok: true };
 }
 
+function shortenFloats(data: unknown): unknown {
+  if (Array.isArray(data)) {
+    return data.map(shortenFloats);
+  }
+  if (data !== null && typeof data === 'object') {
+    return Object.fromEntries(
+      Object.entries(data).map(([k, v]) => [k, shortenFloats(v)])
+    );
+  }
+  if (typeof data === 'number' && !Number.isInteger(data) && data % 1 === 0) {
+    return Math.trunc(data);
+  }
+  return data;
+}
+
+function sortKeys(obj: unknown): unknown {
+  if (Array.isArray(obj)) {
+    return obj.map(sortKeys);
+  }
+  if (obj !== null && typeof obj === 'object') {
+    return Object.keys(obj)
+      .sort()
+      .reduce((acc: Record<string, unknown>, key) => {
+        acc[key] = sortKeys((obj as Record<string, unknown>)[key]);
+        return acc;
+      }, {});
+  }
+  return obj;
+}
+
+/** Verifica X-Signature (raw body) - requiere raw body exacto */
 export async function verifyDiditWebhookSignature(
   rawBody: string,
   signature: string | undefined,
@@ -177,7 +208,71 @@ export async function verifyDiditWebhookSignature(
 
   const crypto = await import('crypto');
   const hmac = crypto.createHmac('sha256', secretKey);
-  const expectedSignature = hmac.update(rawBody).digest('hex');
+  const expectedSignature = hmac.update(rawBody, 'utf8').digest('hex');
+
+  try {
+    const expectedBuf = Buffer.from(expectedSignature, 'utf8');
+    const providedBuf = Buffer.from(signature, 'utf8');
+    return expectedBuf.length === providedBuf.length && crypto.timingSafeEqual(expectedBuf, providedBuf);
+  } catch {
+    return false;
+  }
+}
+
+/** Verifica X-Signature-V2 (recomendado por Didit - soporta re-encoding de middleware) */
+export async function verifyDiditWebhookSignatureV2(
+  jsonBody: Record<string, unknown>,
+  signature: string | undefined,
+  timestamp: string | undefined,
+  secretKey: string
+): Promise<boolean> {
+  if (!signature || !timestamp || !secretKey) return false;
+
+  const WEBHOOK_MAX_AGE_SEC = 300;
+  const currentTime = Math.floor(Date.now() / 1000);
+  const incomingTime = parseInt(timestamp, 10);
+  if (Math.abs(currentTime - incomingTime) > WEBHOOK_MAX_AGE_SEC) return false;
+
+  const processed = shortenFloats(jsonBody) as Record<string, unknown>;
+  const canonical = JSON.stringify(sortKeys(processed));
+
+  const crypto = await import('crypto');
+  const hmac = crypto.createHmac('sha256', secretKey);
+  const expectedSignature = hmac.update(canonical, 'utf8').digest('hex');
+
+  try {
+    const expectedBuf = Buffer.from(expectedSignature, 'utf8');
+    const providedBuf = Buffer.from(signature, 'utf8');
+    return expectedBuf.length === providedBuf.length && crypto.timingSafeEqual(expectedBuf, providedBuf);
+  } catch {
+    return false;
+  }
+}
+
+/** Verifica X-Signature-Simple (fallback - verifica solo campos core) */
+export async function verifyDiditWebhookSignatureSimple(
+  jsonBody: Record<string, unknown>,
+  signature: string | undefined,
+  timestamp: string | undefined,
+  secretKey: string
+): Promise<boolean> {
+  if (!signature || !timestamp || !secretKey) return false;
+
+  const WEBHOOK_MAX_AGE_SEC = 300;
+  const currentTime = Math.floor(Date.now() / 1000);
+  const incomingTime = parseInt(timestamp, 10);
+  if (Math.abs(currentTime - incomingTime) > WEBHOOK_MAX_AGE_SEC) return false;
+
+  const canonical = [
+    String(jsonBody.timestamp ?? ''),
+    String(jsonBody.session_id ?? ''),
+    String(jsonBody.status ?? ''),
+    String(jsonBody.webhook_type ?? ''),
+  ].join(':');
+
+  const crypto = await import('crypto');
+  const hmac = crypto.createHmac('sha256', secretKey);
+  const expectedSignature = hmac.update(canonical, 'utf8').digest('hex');
 
   try {
     const expectedBuf = Buffer.from(expectedSignature, 'utf8');

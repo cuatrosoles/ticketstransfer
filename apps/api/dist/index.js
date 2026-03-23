@@ -18139,6 +18139,32 @@ async function updateDiditSessionStatus(sessionId, params) {
   }
   return { ok: true };
 }
+function shortenFloats(data) {
+  if (Array.isArray(data)) {
+    return data.map(shortenFloats);
+  }
+  if (data !== null && typeof data === "object") {
+    return Object.fromEntries(
+      Object.entries(data).map(([k, v]) => [k, shortenFloats(v)])
+    );
+  }
+  if (typeof data === "number" && !Number.isInteger(data) && data % 1 === 0) {
+    return Math.trunc(data);
+  }
+  return data;
+}
+function sortKeys(obj) {
+  if (Array.isArray(obj)) {
+    return obj.map(sortKeys);
+  }
+  if (obj !== null && typeof obj === "object") {
+    return Object.keys(obj).sort().reduce((acc, key) => {
+      acc[key] = sortKeys(obj[key]);
+      return acc;
+    }, {});
+  }
+  return obj;
+}
 async function verifyDiditWebhookSignature(rawBody, signature, timestamp, secretKey) {
   if (!signature || !timestamp || !secretKey) return false;
   const WEBHOOK_MAX_AGE_SEC = 300;
@@ -18147,7 +18173,49 @@ async function verifyDiditWebhookSignature(rawBody, signature, timestamp, secret
   if (Math.abs(currentTime - incomingTime) > WEBHOOK_MAX_AGE_SEC) return false;
   const crypto6 = await import("crypto");
   const hmac = crypto6.createHmac("sha256", secretKey);
-  const expectedSignature = hmac.update(rawBody).digest("hex");
+  const expectedSignature = hmac.update(rawBody, "utf8").digest("hex");
+  try {
+    const expectedBuf = Buffer.from(expectedSignature, "utf8");
+    const providedBuf = Buffer.from(signature, "utf8");
+    return expectedBuf.length === providedBuf.length && crypto6.timingSafeEqual(expectedBuf, providedBuf);
+  } catch {
+    return false;
+  }
+}
+async function verifyDiditWebhookSignatureV2(jsonBody, signature, timestamp, secretKey) {
+  if (!signature || !timestamp || !secretKey) return false;
+  const WEBHOOK_MAX_AGE_SEC = 300;
+  const currentTime = Math.floor(Date.now() / 1e3);
+  const incomingTime = parseInt(timestamp, 10);
+  if (Math.abs(currentTime - incomingTime) > WEBHOOK_MAX_AGE_SEC) return false;
+  const processed = shortenFloats(jsonBody);
+  const canonical = JSON.stringify(sortKeys(processed));
+  const crypto6 = await import("crypto");
+  const hmac = crypto6.createHmac("sha256", secretKey);
+  const expectedSignature = hmac.update(canonical, "utf8").digest("hex");
+  try {
+    const expectedBuf = Buffer.from(expectedSignature, "utf8");
+    const providedBuf = Buffer.from(signature, "utf8");
+    return expectedBuf.length === providedBuf.length && crypto6.timingSafeEqual(expectedBuf, providedBuf);
+  } catch {
+    return false;
+  }
+}
+async function verifyDiditWebhookSignatureSimple(jsonBody, signature, timestamp, secretKey) {
+  if (!signature || !timestamp || !secretKey) return false;
+  const WEBHOOK_MAX_AGE_SEC = 300;
+  const currentTime = Math.floor(Date.now() / 1e3);
+  const incomingTime = parseInt(timestamp, 10);
+  if (Math.abs(currentTime - incomingTime) > WEBHOOK_MAX_AGE_SEC) return false;
+  const canonical = [
+    String(jsonBody.timestamp ?? ""),
+    String(jsonBody.session_id ?? ""),
+    String(jsonBody.status ?? ""),
+    String(jsonBody.webhook_type ?? "")
+  ].join(":");
+  const crypto6 = await import("crypto");
+  const hmac = crypto6.createHmac("sha256", secretKey);
+  const expectedSignature = hmac.update(canonical, "utf8").digest("hex");
   try {
     const expectedBuf = Buffer.from(expectedSignature, "utf8");
     const providedBuf = Buffer.from(signature, "utf8");
@@ -18528,7 +18596,7 @@ router2.post("/profile/avatar", upload.single("avatar"), async (req, res) => {
 });
 router2.patch("/profile", async (req, res) => {
   const body = req.body || {};
-  const { username, firstName, lastName, phone, city, province, postalCode, address, fcmToken, cbuCvu: cbuCvu2, bankName } = body;
+  const { username, firstName, lastName, phone, city, province, postalCode, address, fcmToken, cbuCvu, bankName } = body;
   const updateData = { updatedAt: /* @__PURE__ */ new Date() };
   if (firstName !== void 0) updateData.firstName = firstName;
   if (lastName !== void 0) updateData.lastName = lastName;
@@ -18538,8 +18606,8 @@ router2.patch("/profile", async (req, res) => {
   if (postalCode !== void 0) updateData.postalCode = postalCode;
   if (address !== void 0) updateData.address = typeof address === "string" ? address.trim() || null : null;
   if (fcmToken !== void 0) updateData.fcmToken = fcmToken;
-  if (cbuCvu2 !== void 0) {
-    const val = typeof cbuCvu2 === "string" ? cbuCvu2.replace(/\D/g, "").trim() || null : null;
+  if (cbuCvu !== void 0) {
+    const val = typeof cbuCvu === "string" ? cbuCvu.replace(/\D/g, "").trim() || null : null;
     updateData.cbuCvu = val && val.length === 22 ? val : null;
   }
   if (bankName !== void 0) updateData.bankName = typeof bankName === "string" ? bankName.trim() || null : null;
@@ -19848,6 +19916,7 @@ async function createPayoutToSeller(params) {
     createdAt: now,
     updatedAt: now
   });
+  const cbuCvu = params.cbuCvu.replace(/\D/g, "");
   if (!cbuCvu || cbuCvu.length !== 22) {
     await updateTransferStatus(transferId, "PENDIENTE_MANUAL", null, "Vendedor sin CBU/CVU registrado");
     return { success: false, transferId, error: "Vendedor sin CBU/CVU. Realizar transferencia manual." };
@@ -19940,8 +20009,8 @@ async function retryTransfer(transferId) {
   }
   const userDoc = await db().collection(COLLECTIONS.USERS).doc(t.sellerId).get();
   const userData = userDoc.data();
-  const cbuCvu2 = userData?.cbuCvu;
-  if (!cbuCvu2 || typeof cbuCvu2 !== "string") {
+  const cbuCvu = userData?.cbuCvu;
+  if (!cbuCvu || typeof cbuCvu !== "string") {
     return { success: false, error: "El vendedor no tiene CBU/CVU registrado" };
   }
   const result = await createPayoutToSeller({
@@ -19949,7 +20018,7 @@ async function retryTransfer(transferId) {
     sellerId: t.sellerId,
     amount: t.amount,
     currency: t.currency || "ARS",
-    cbuCvu: cbuCvu2,
+    cbuCvu,
     accountHolderName: userData?.firstName && userData?.lastName ? `${userData.firstName} ${userData.lastName}` : void 0,
     idempotencyKey: generateIdempotencyKey(t.orderId)
   });
@@ -20254,6 +20323,42 @@ router7.get("/kyc/:userId/detail", async (req, res) => {
   }
   const diditData = await getDiditSessionDecision(sessionId);
   res.json({ ...base, hasDiditSession: true, didit: diditData });
+});
+router7.post("/kyc/:userId/sync-didit", async (req, res) => {
+  const { userId } = req.params;
+  const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
+  if (!kycDoc.exists) return res.status(404).json({ error: "Verificaci\xF3n KYC no encontrada" });
+  const kycData = kycDoc.data();
+  const sessionId = kycData.diditSessionId;
+  if (!sessionId) {
+    return res.status(400).json({ error: "Esta verificaci\xF3n no tiene sesi\xF3n Didit" });
+  }
+  const diditData = await getDiditSessionDecision(sessionId);
+  if (!diditData) {
+    return res.status(502).json({ error: "No se pudo obtener el estado de Didit. Revis\xE1 DIDIT_API_KEY." });
+  }
+  const status = diditData.status ?? "";
+  const mapStatus = (s) => {
+    if (s === "Approved") return "APROBADO";
+    if (s === "Declined") return "RECHAZADO";
+    if (s === "In Review") return "EN_REVISION";
+    return "PENDIENTE";
+  };
+  const ourStatus = mapStatus(status);
+  await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).set(
+    {
+      status: ourStatus,
+      ...ourStatus === "APROBADO" || ourStatus === "RECHAZADO" ? { reviewedAt: /* @__PURE__ */ new Date() } : {},
+      updatedAt: /* @__PURE__ */ new Date()
+    },
+    { merge: true }
+  );
+  res.json({
+    ok: true,
+    status: ourStatus,
+    diditStatus: status,
+    message: `Sincronizado desde Didit: ${ourStatus}`
+  });
 });
 router7.patch("/kyc/:userId", async (req, res) => {
   const { userId } = req.params;
@@ -20624,13 +20729,13 @@ router7.patch("/orders/:orderId", async (req, res) => {
     if (existingTransfer.empty && sellerAmount > 0) {
       const sellerDoc2 = await db().collection(COLLECTIONS.USERS).doc(sellerId).get();
       const sellerData = sellerDoc2.data();
-      const cbuCvu2 = sellerData?.cbuCvu;
+      const cbuCvu = sellerData?.cbuCvu;
       const result = await createPayoutToSeller({
         orderId,
         sellerId,
         amount: sellerAmount,
         currency,
-        cbuCvu: (cbuCvu2 && typeof cbuCvu2 === "string" ? cbuCvu2 : "") || "",
+        cbuCvu: (cbuCvu && typeof cbuCvu === "string" ? cbuCvu : "") || "",
         accountHolderName: sellerData?.firstName && sellerData?.lastName ? `${sellerData.firstName} ${sellerData.lastName}` : void 0,
         idempotencyKey: generateIdempotencyKey(orderId),
         performedBy: req.user.id
@@ -20804,29 +20909,47 @@ function mapDiditStatus(status) {
 }
 router8.post("/didit", async (req, res) => {
   const rawBody = req.rawBody;
-  if (!rawBody) {
-    return res.status(400).json({ error: "Raw body no disponible" });
+  let body;
+  try {
+    body = rawBody ? JSON.parse(rawBody) : req.body;
+  } catch {
+    body = req.body;
+  }
+  if (!body || typeof body !== "object") {
+    return res.status(400).json({ error: "JSON inv\xE1lido" });
   }
   const signature = req.get("x-signature") ?? req.get("X-Signature");
+  const signatureV2 = req.get("x-signature-v2") ?? req.get("X-Signature-V2");
+  const signatureSimple = req.get("x-signature-simple") ?? req.get("X-Signature-Simple");
   const timestamp = req.get("x-timestamp") ?? req.get("X-Timestamp");
   if (!WEBHOOK_SECRET) {
     console.error("DIDIT_WEBHOOK_SECRET_KEY no configurado");
     return res.status(500).json({ error: "Webhook no configurado" });
   }
-  const isValid2 = await verifyDiditWebhookSignature(rawBody, signature, timestamp, WEBHOOK_SECRET);
+  if (!timestamp) {
+    return res.status(401).json({ error: "Header X-Timestamp requerido" });
+  }
+  let isValid2 = false;
+  if (rawBody && signature && await verifyDiditWebhookSignature(rawBody, signature, timestamp, WEBHOOK_SECRET)) {
+    isValid2 = true;
+  } else if (signatureV2 && await verifyDiditWebhookSignatureV2(body, signatureV2, timestamp, WEBHOOK_SECRET)) {
+    isValid2 = true;
+  } else if (signatureSimple && await verifyDiditWebhookSignatureSimple(body, signatureSimple, timestamp, WEBHOOK_SECRET)) {
+    isValid2 = true;
+  }
   if (!isValid2) {
     return res.status(401).json({ error: "Firma inv\xE1lida" });
   }
-  let body;
-  try {
-    body = JSON.parse(rawBody);
-  } catch {
-    return res.status(400).json({ error: "JSON inv\xE1lido" });
+  const { status, vendor_data, session_id } = body;
+  let userId = vendor_data ?? null;
+  if (!userId && session_id) {
+    const bySession = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).where("diditSessionId", "==", session_id).limit(1).get();
+    if (!bySession.empty) {
+      userId = bySession.docs[0].id;
+    }
   }
-  const { status, vendor_data } = body;
-  const userId = vendor_data;
   if (!userId) {
-    return res.status(400).json({ error: "vendor_data requerido" });
+    return res.status(400).json({ error: "vendor_data o session_id no encontrado" });
   }
   const ourStatus = mapDiditStatus(status || "");
   const rejectionReason = status === "Declined" && body.decision?.kyc ? "Verificaci\xF3n rechazada por Didit" : null;

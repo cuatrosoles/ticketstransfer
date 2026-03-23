@@ -4,7 +4,11 @@
 
 import { Router, type Request, type Response } from 'express';
 import { db, COLLECTIONS } from '../lib/firestore.js';
-import { verifyDiditWebhookSignature } from '../lib/didit.js';
+import {
+  verifyDiditWebhookSignature,
+  verifyDiditWebhookSignatureV2,
+  verifyDiditWebhookSignatureSimple,
+} from '../lib/didit.js';
 import {
   isMercadoPagoConfigured,
   getPaymentById,
@@ -34,11 +38,19 @@ function mapDiditStatus(status: string): 'PENDIENTE' | 'EN_REVISION' | 'APROBADO
 
 router.post('/didit', async (req: Request, res: Response) => {
   const rawBody = (req as Request & { rawBody?: string }).rawBody;
-  if (!rawBody) {
-    return res.status(400).json({ error: 'Raw body no disponible' });
+  let body: { session_id?: string; status?: string; vendor_data?: string; decision?: { kyc?: { status?: string } }; timestamp?: string; webhook_type?: string };
+  try {
+    body = rawBody ? JSON.parse(rawBody) : (req.body as typeof body);
+  } catch {
+    body = req.body as typeof body;
+  }
+  if (!body || typeof body !== 'object') {
+    return res.status(400).json({ error: 'JSON inválido' });
   }
 
   const signature = req.get('x-signature') ?? req.get('X-Signature');
+  const signatureV2 = req.get('x-signature-v2') ?? req.get('X-Signature-V2');
+  const signatureSimple = req.get('x-signature-simple') ?? req.get('X-Signature-Simple');
   const timestamp = req.get('x-timestamp') ?? req.get('X-Timestamp');
 
   if (!WEBHOOK_SECRET) {
@@ -46,23 +58,39 @@ router.post('/didit', async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'Webhook no configurado' });
   }
 
-  const isValid = await verifyDiditWebhookSignature(rawBody, signature, timestamp, WEBHOOK_SECRET);
+  if (!timestamp) {
+    return res.status(401).json({ error: 'Header X-Timestamp requerido' });
+  }
+
+  let isValid = false;
+  if (rawBody && signature && (await verifyDiditWebhookSignature(rawBody, signature, timestamp, WEBHOOK_SECRET))) {
+    isValid = true;
+  } else if (signatureV2 && (await verifyDiditWebhookSignatureV2(body, signatureV2, timestamp, WEBHOOK_SECRET))) {
+    isValid = true;
+  } else if (signatureSimple && (await verifyDiditWebhookSignatureSimple(body, signatureSimple, timestamp, WEBHOOK_SECRET))) {
+    isValid = true;
+  }
+
   if (!isValid) {
     return res.status(401).json({ error: 'Firma inválida' });
   }
 
-  let body: { session_id?: string; status?: string; vendor_data?: string; decision?: { kyc?: { status?: string } } };
-  try {
-    body = JSON.parse(rawBody);
-  } catch {
-    return res.status(400).json({ error: 'JSON inválido' });
+  const { status, vendor_data, session_id } = body;
+  let userId: string | null = vendor_data ?? null;
+
+  if (!userId && session_id) {
+    const bySession = await db()
+      .collection(COLLECTIONS.KYC_VERIFICATIONS)
+      .where('diditSessionId', '==', session_id)
+      .limit(1)
+      .get();
+    if (!bySession.empty) {
+      userId = bySession.docs[0].id;
+    }
   }
 
-  const { status, vendor_data } = body;
-  const userId = vendor_data;
-
   if (!userId) {
-    return res.status(400).json({ error: 'vendor_data requerido' });
+    return res.status(400).json({ error: 'vendor_data o session_id no encontrado' });
   }
 
   const ourStatus = mapDiditStatus(status || '');

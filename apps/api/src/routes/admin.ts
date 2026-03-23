@@ -354,6 +354,48 @@ router.get('/kyc/:userId/detail', async (req: AuthRequest, res) => {
   res.json({ ...base, hasDiditSession: true, didit: diditData });
 });
 
+/** Sincronizar estado KYC desde Didit (cuando el webhook falla o no llega) */
+router.post('/kyc/:userId/sync-didit', async (req: AuthRequest, res) => {
+  const { userId } = req.params;
+  const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
+  if (!kycDoc.exists) return res.status(404).json({ error: 'Verificación KYC no encontrada' });
+  const kycData = kycDoc.data()!;
+  const sessionId = kycData.diditSessionId;
+  if (!sessionId) {
+    return res.status(400).json({ error: 'Esta verificación no tiene sesión Didit' });
+  }
+
+  const diditData = await getDiditSessionDecision(sessionId);
+  if (!diditData) {
+    return res.status(502).json({ error: 'No se pudo obtener el estado de Didit. Revisá DIDIT_API_KEY.' });
+  }
+
+  const status = diditData.status ?? '';
+  const mapStatus = (s: string): 'PENDIENTE' | 'EN_REVISION' | 'APROBADO' | 'RECHAZADO' => {
+    if (s === 'Approved') return 'APROBADO';
+    if (s === 'Declined') return 'RECHAZADO';
+    if (s === 'In Review') return 'EN_REVISION';
+    return 'PENDIENTE';
+  };
+  const ourStatus = mapStatus(status);
+
+  await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).set(
+    {
+      status: ourStatus,
+      ...(ourStatus === 'APROBADO' || ourStatus === 'RECHAZADO' ? { reviewedAt: new Date() } : {}),
+      updatedAt: new Date(),
+    },
+    { merge: true }
+  );
+
+  res.json({
+    ok: true,
+    status: ourStatus,
+    diditStatus: status,
+    message: `Sincronizado desde Didit: ${ourStatus}`,
+  });
+});
+
 router.patch('/kyc/:userId', async (req: AuthRequest, res) => {
   const { userId } = req.params;
   const { status, rejectionReason, sendEmail, comment } = req.body as {
