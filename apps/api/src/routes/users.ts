@@ -101,6 +101,8 @@ router.get('/profile', async (req: AuthRequest, res) => {
     address: data.address ?? null,
     reputationScore: data.reputationScore ?? null,
     profileImageUrl: data.profileImageUrl ?? null,
+    cbuCvu: data.cbuCvu ?? null,
+    bankName: data.bankName ?? null,
     kyc: kyc ? { status: kyc.status, rejectionReason: kyc.rejectionReason ?? null } : { status: 'PENDIENTE', rejectionReason: null },
   });
 });
@@ -180,7 +182,7 @@ router.post('/profile/avatar', upload.single('avatar'), async (req: AuthRequest,
 
 router.patch('/profile', async (req: AuthRequest, res) => {
   const body = req.body || {};
-  const { username, firstName, lastName, phone, city, province, postalCode, address, fcmToken } = body;
+  const { username, firstName, lastName, phone, city, province, postalCode, address, fcmToken, cbuCvu, bankName } = body;
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (firstName !== undefined) updateData.firstName = firstName;
   if (lastName !== undefined) updateData.lastName = lastName;
@@ -190,6 +192,11 @@ router.patch('/profile', async (req: AuthRequest, res) => {
   if (postalCode !== undefined) updateData.postalCode = postalCode;
   if (address !== undefined) updateData.address = typeof address === 'string' ? address.trim() || null : null;
   if (fcmToken !== undefined) updateData.fcmToken = fcmToken;
+  if (cbuCvu !== undefined) {
+    const val = typeof cbuCvu === 'string' ? cbuCvu.replace(/\D/g, '').trim() || null : null;
+    updateData.cbuCvu = val && val.length === 22 ? val : null;
+  }
+  if (bankName !== undefined) updateData.bankName = typeof bankName === 'string' ? bankName.trim() || null : null;
 
   if (username !== undefined) {
     const usernameVal = typeof username === 'string' ? username.trim() : '';

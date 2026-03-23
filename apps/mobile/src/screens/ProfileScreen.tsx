@@ -86,6 +86,8 @@ export function ProfileScreen() {
     province: '',
     postalCode: '',
     address: '',
+    cbuCvu: '',
+    bankName: '',
   });
 
   const loadProfile = async () => {
@@ -103,6 +105,8 @@ export function ProfileScreen() {
         province: data.province ?? '',
         postalCode: data.postalCode ?? '',
         address: data.address ?? '',
+        cbuCvu: data.cbuCvu ?? '',
+        bankName: data.bankName ?? '',
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar el perfil');
@@ -132,6 +136,8 @@ export function ProfileScreen() {
         province: form.province || undefined,
         postalCode: form.postalCode?.trim() || undefined,
         address: form.address?.trim() || undefined,
+        cbuCvu: form.cbuCvu?.replace(/\D/g, '').slice(0, 22) || undefined,
+        bankName: form.bankName?.trim() || undefined,
       };
       await updateProfile(payload);
       await loadProfile();
@@ -155,6 +161,8 @@ export function ProfileScreen() {
         province: profile.province ?? '',
         postalCode: profile.postalCode ?? '',
         address: profile.address ?? '',
+        cbuCvu: profile.cbuCvu ?? '',
+        bankName: profile.bankName ?? '',
       });
     }
     setEditing(false);
@@ -342,6 +350,8 @@ export function ProfileScreen() {
                 )}
               </View>
             </View>
+            <ProfileField label="CBU/CVU (para recibir pagos)" value={profile.cbuCvu ? `****${profile.cbuCvu.slice(-4)}` : '—'} />
+            <ProfileField label="Banco" value={profile.bankName || '—'} />
             <ProfileField label="Domicilio" value={profile.address || '—'} />
             <ProfileField label="Ciudad" value={profile.city || '—'} />
             <ProfileField
@@ -426,6 +436,24 @@ export function ProfileScreen() {
               placeholderTextColor={colors.textMuted}
               value={form.postalCode}
               onChangeText={(t) => setForm((f) => ({ ...f, postalCode: t }))}
+            />
+            <Text style={styles.label}>CBU/CVU (22 dígitos, para recibir pagos)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="0000000000000000000000"
+              placeholderTextColor={colors.textMuted}
+              value={form.cbuCvu}
+              onChangeText={(t) => setForm((f) => ({ ...f, cbuCvu: t.replace(/\D/g, '').slice(0, 22) }))}
+              keyboardType="numeric"
+              maxLength={22}
+            />
+            <Text style={styles.label}>Nombre del banco (opcional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ej: Banco Nación"
+              placeholderTextColor={colors.textMuted}
+              value={form.bankName}
+              onChangeText={(t) => setForm((f) => ({ ...f, bankName: t }))}
             />
             <View style={styles.formActions}>
               <TouchableOpacity style={styles.secondaryButton} onPress={handleCancel} disabled={saving}>

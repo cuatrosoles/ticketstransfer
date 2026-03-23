@@ -8,6 +8,13 @@ import { requireAuth, requireAdmin, type AuthRequest } from '../middleware/auth.
 import { getPlatformSettings, invalidateSettingsCache } from '../lib/settings.js';
 import { getOrCreateCustomer, listCustomerCards } from '../lib/mercadopago.js';
 import { getDiditSessionDecision, updateDiditSessionStatus } from '../lib/didit.js';
+import {
+  createPayoutToSeller,
+  getSellerAmount,
+  generateIdempotencyKey,
+  markTransferAsManualComplete,
+  retryTransfer,
+} from '../lib/payouts.js';
 
 const router = Router();
 
@@ -196,10 +203,16 @@ router.patch('/users/:userId', async (req: AuthRequest, res) => {
   const allowed = [
     'firstName', 'lastName', 'username', 'country', 'tipoDocumento', 'documentNumber',
     'sexo', 'phone', 'city', 'province', 'postalCode', 'role', 'reputationScore',
+    'cbuCvu', 'bankName',
   ];
   for (const key of allowed) {
     if (body[key] !== undefined) {
-      updates[key] = body[key] === '' || body[key] === null ? null : body[key];
+      if (key === 'cbuCvu') {
+        const val = typeof body[key] === 'string' ? (body[key] as string).replace(/\D/g, '').trim() || null : null;
+        updates[key] = val && val.length === 22 ? val : null;
+      } else {
+        updates[key] = body[key] === '' || body[key] === null ? null : body[key];
+      }
     }
   }
   await docRef.update(updates);
@@ -754,6 +767,10 @@ router.patch('/orders/:orderId', async (req: AuthRequest, res) => {
   const doc = await docRef.get();
   if (!doc.exists) return res.status(404).json({ error: 'Orden no encontrada' });
 
+  const prevData = doc.data()!;
+  const newStatus = body.status as string | undefined;
+  const statusBecomesCompleted = newStatus === 'COMPLETADA' && prevData.status !== 'COMPLETADA';
+
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   const allowed = ['status', 'totalAmount', 'commissionAmount'];
   for (const key of allowed) {
@@ -768,6 +785,40 @@ router.patch('/orders/:orderId', async (req: AuthRequest, res) => {
   await docRef.update(updates);
   const updated = await docRef.get();
   const d = updated.data()!;
+
+  if (statusBecomesCompleted) {
+    const totalAmount = d.totalAmount ?? 0;
+    const commissionAmount = d.commissionAmount ?? 0;
+    const sellerAmount = getSellerAmount(totalAmount, commissionAmount);
+    const sellerId = d.sellerId;
+    const currency = d.currency || 'ARS';
+
+    const existingTransfer = await db()
+      .collection(COLLECTIONS.SELLER_TRANSFERS)
+      .where('orderId', '==', orderId)
+      .where('status', 'in', ['ENVIADO', 'COMPLETADO', 'ENVIADO_MANUAL'])
+      .limit(1)
+      .get();
+
+    if (existingTransfer.empty && sellerAmount > 0) {
+      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(sellerId).get();
+      const sellerData = sellerDoc.data();
+      const cbuCvu = sellerData?.cbuCvu;
+      const result = await createPayoutToSeller({
+        orderId,
+        sellerId,
+        amount: sellerAmount,
+        currency,
+        cbuCvu: (cbuCvu && typeof cbuCvu === 'string' ? cbuCvu : '') || '',
+        accountHolderName: sellerData?.firstName && sellerData?.lastName ? `${sellerData.firstName} ${sellerData.lastName}` : undefined,
+        idempotencyKey: generateIdempotencyKey(orderId),
+        performedBy: req.user!.id,
+      });
+      if (result.success) {
+        await docRef.update({ sellerTransferId: result.transferId });
+      }
+    }
+  }
   const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
   const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(d.buyerId).get();
   const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
@@ -798,6 +849,99 @@ router.delete('/orders/:orderId', async (req: AuthRequest, res) => {
     updatedAt: new Date(),
   });
   res.json({ ok: true });
+});
+
+/** Listar transferencias a vendedores (para dashboard y transferencia manual) */
+router.get('/transfers', async (req: AuthRequest, res) => {
+  const { page = '1', limit = '30', status } = req.query;
+  const pageNum = Number(page);
+  const limitNum = Math.min(Number(limit), 100);
+  const skip = (pageNum - 1) * limitNum;
+
+  let query = db().collection(COLLECTIONS.SELLER_TRANSFERS).orderBy('createdAt', 'desc');
+  if (typeof status === 'string' && status) {
+    query = query.where('status', '==', status) as FirebaseFirestore.Query;
+  }
+  const snap = await query.limit(skip + limitNum).get();
+
+  const transfers = await Promise.all(
+    snap.docs.slice(skip, skip + limitNum).map(async (doc) => {
+      const d = doc.data();
+      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+      const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(d.orderId).get();
+      return {
+        id: doc.id,
+        ...d,
+        seller: sellerDoc.exists ? { id: d.sellerId, email: sellerDoc.data()?.email, firstName: sellerDoc.data()?.firstName, lastName: sellerDoc.data()?.lastName, cbuCvu: sellerDoc.data()?.cbuCvu } : null,
+        order: orderDoc.exists ? { id: d.orderId, totalAmount: orderDoc.data()?.totalAmount } : null,
+        createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+        updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+        completedAt: d.completedAt?.toDate?.() ?? d.completedAt,
+      };
+    })
+  );
+  res.json({ transfers, total: snap.size });
+});
+
+/** Marcar transferencia como enviada manualmente (admin realizó la transferencia fuera de la plataforma) */
+router.post('/transfers/:transferId/manual-complete', async (req: AuthRequest, res) => {
+  const { transferId } = req.params;
+  await markTransferAsManualComplete(transferId, req.user!.id);
+  res.json({ ok: true });
+});
+
+/** Reintentar transferencia fallida o pendiente manual */
+router.post('/transfers/:transferId/retry', async (req: AuthRequest, res) => {
+  const { transferId } = req.params;
+  const result = await retryTransfer(transferId);
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+  res.json({ ok: true });
+});
+
+/** Transferencia manual: crear registro para una orden y marcar como pendiente (admin hará la transferencia fuera) */
+router.post('/orders/:orderId/transfer-manual', async (req: AuthRequest, res) => {
+  const { orderId } = req.params;
+  const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
+  if (!orderDoc.exists) return res.status(404).json({ error: 'Orden no encontrada' });
+  const orderData = orderDoc.data()!;
+  if (orderData.status !== 'COMPLETADA') {
+    return res.status(400).json({ error: 'Solo se puede crear transferencia manual para órdenes completadas' });
+  }
+
+  const existing = await db()
+    .collection(COLLECTIONS.SELLER_TRANSFERS)
+    .where('orderId', '==', orderId)
+    .limit(1)
+    .get();
+  if (!existing.empty) {
+    const t = existing.docs[0].data();
+    if (['ENVIADO', 'COMPLETADO', 'ENVIADO_MANUAL'].includes(t.status)) {
+      return res.status(400).json({ error: 'Ya existe una transferencia completada para esta orden' });
+    }
+  }
+
+  const totalAmount = orderData.totalAmount ?? 0;
+  const commissionAmount = orderData.commissionAmount ?? 0;
+  const sellerAmount = getSellerAmount(totalAmount, commissionAmount);
+  const transferId = db().collection(COLLECTIONS.SELLER_TRANSFERS).doc().id;
+
+  await db()
+    .collection(COLLECTIONS.SELLER_TRANSFERS)
+    .doc(transferId)
+    .set({
+      orderId,
+      sellerId: orderData.sellerId,
+      amount: sellerAmount,
+      currency: orderData.currency || 'ARS',
+      status: 'PENDIENTE_MANUAL',
+      idempotencyKey: generateIdempotencyKey(orderId),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+  res.status(201).json({ transferId, amount: sellerAmount, currency: orderData.currency || 'ARS' });
 });
 
 router.get('/orders', async (req: AuthRequest, res) => {

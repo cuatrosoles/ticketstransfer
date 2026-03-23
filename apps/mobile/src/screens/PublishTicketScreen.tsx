@@ -21,7 +21,7 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import Clipboard from '@react-native-clipboard/clipboard';
-import { createTicketListing, getProfile, type Profile } from '../lib/api';
+import { createTicketListing, getProfile, getCommissionPercentage, type Profile } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
@@ -31,7 +31,7 @@ import { TICKETERA_LOGOS, APP_BOLETOS_LOGOS } from '../data/serviceLogos';
 const TIPOS_ENTRADA = ['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO'];
 const TICKETERAS = ['TICKETEK', 'ALLACCESS', 'TICKET_PLUS', 'OTRA'];
 const APPS_BOLETOS = ['QUENTRO', 'ENIGMA', 'OTRA'];
-const COMISION_PORCENTAJE = 5;
+const COMISION_PORCENTAJE_FALLBACK = 5;
 
 type ImageAsset = { uri: string; fileName?: string; type?: string };
 
@@ -98,11 +98,15 @@ export function PublishTicketScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [commissionPercentage, setCommissionPercentage] = useState(COMISION_PORCENTAJE_FALLBACK);
 
   useFocusEffect(
     React.useCallback(() => {
-      getProfile()
-        .then(setProfile)
+      Promise.all([getProfile(), getCommissionPercentage()])
+        .then(([p, c]) => {
+          setProfile(p);
+          setCommissionPercentage(c);
+        })
         .catch(() => setProfile(null))
         .finally(() => setProfileLoading(false));
     }, [])
@@ -285,7 +289,7 @@ export function PublishTicketScreen() {
   };
 
   const priceNum = parseFloat(price.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
-  const comision = priceNum * (COMISION_PORCENTAJE / 100);
+  const comision = priceNum * (commissionPercentage / 100);
   const montoVendedor = priceNum - comision;
 
   if (profileLoading) {
@@ -393,7 +397,7 @@ export function PublishTicketScreen() {
       <TextInput style={styles.input} placeholder="15000" placeholderTextColor={colors.textMuted} value={price} onChangeText={setPrice} keyboardType="numeric" />
       {priceNum > 0 && (
         <Text style={styles.montoVendedor}>
-          Comisión por transferencia {COMISION_PORCENTAJE}%. Usted recibirá: ARS ${montoVendedor.toLocaleString('es-AR')}
+          Comisión por transferencia {commissionPercentage}%. Usted recibirá: ARS ${montoVendedor.toLocaleString('es-AR')}
         </Text>
       )}
 

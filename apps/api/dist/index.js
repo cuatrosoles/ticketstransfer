@@ -13395,6 +13395,7 @@ var init_dist = __esm({
 // src/lib/email.ts
 var email_exports = {};
 __export(email_exports, {
+  sendTransferCompleteEmail: () => sendTransferCompleteEmail,
   sendVerificationCodeEmail: () => sendVerificationCodeEmail
 });
 async function sendVerificationCodeEmail(to, code) {
@@ -13420,6 +13421,33 @@ async function sendVerificationCodeEmail(to, code) {
   });
   if (error) {
     console.error("[Email] Error al enviar:", error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+async function sendTransferCompleteEmail(to, params) {
+  if (!resend) {
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[DEV] Notificaci\xF3n de pago liberado para", to, params);
+    }
+    return { ok: true };
+  }
+  const { data, error } = await resend.emails.send({
+    from: FROM_EMAIL,
+    to: [to],
+    subject: "Pago liberado - Tickets Transfer",
+    html: `
+      <div style="font-family: sans-serif; max-width: 400px; margin: 0 auto;">
+        <h2 style="color: #1e293b;">Pago liberado</h2>
+        <p>Se realiz\xF3 la transferencia del pago de tu venta (orden ${params.orderId}).</p>
+        <p style="font-size: 20px; font-weight: bold; color: #22c55e;">${params.currency} ${params.amount.toLocaleString("es-AR")}</p>
+        <p style="color: #64748b; font-size: 14px;">El dinero deber\xEDa acreditarse en tu cuenta en 1-3 d\xEDas h\xE1biles.</p>
+        <p style="color: #64748b; font-size: 12px;">\u2014 Tickets Transfer</p>
+      </div>
+    `
+  });
+  if (error) {
+    console.error("[Email] Error al enviar notificaci\xF3n de transferencia:", error);
     return { ok: false, error: error.message };
   }
   return { ok: true };
@@ -13513,7 +13541,8 @@ var COLLECTIONS = {
   DISPUTE_MESSAGES: "disputeMessages",
   CONVERSATIONS: "conversations",
   MESSAGES: "messages",
-  PLATFORM_SETTINGS: "platformSettings"
+  PLATFORM_SETTINGS: "platformSettings",
+  SELLER_TRANSFERS: "sellerTransfers"
 };
 
 // ../../packages/shared/src/constants.ts
@@ -18425,6 +18454,8 @@ router2.get("/profile", async (req, res) => {
     address: data.address ?? null,
     reputationScore: data.reputationScore ?? null,
     profileImageUrl: data.profileImageUrl ?? null,
+    cbuCvu: data.cbuCvu ?? null,
+    bankName: data.bankName ?? null,
     kyc: kyc ? { status: kyc.status, rejectionReason: kyc.rejectionReason ?? null } : { status: "PENDIENTE", rejectionReason: null }
   });
 });
@@ -18497,7 +18528,7 @@ router2.post("/profile/avatar", upload.single("avatar"), async (req, res) => {
 });
 router2.patch("/profile", async (req, res) => {
   const body = req.body || {};
-  const { username, firstName, lastName, phone, city, province, postalCode, address, fcmToken } = body;
+  const { username, firstName, lastName, phone, city, province, postalCode, address, fcmToken, cbuCvu: cbuCvu2, bankName } = body;
   const updateData = { updatedAt: /* @__PURE__ */ new Date() };
   if (firstName !== void 0) updateData.firstName = firstName;
   if (lastName !== void 0) updateData.lastName = lastName;
@@ -18507,6 +18538,11 @@ router2.patch("/profile", async (req, res) => {
   if (postalCode !== void 0) updateData.postalCode = postalCode;
   if (address !== void 0) updateData.address = typeof address === "string" ? address.trim() || null : null;
   if (fcmToken !== void 0) updateData.fcmToken = fcmToken;
+  if (cbuCvu2 !== void 0) {
+    const val = typeof cbuCvu2 === "string" ? cbuCvu2.replace(/\D/g, "").trim() || null : null;
+    updateData.cbuCvu = val && val.length === 22 ? val : null;
+  }
+  if (bankName !== void 0) updateData.bankName = typeof bankName === "string" ? bankName.trim() || null : null;
   if (username !== void 0) {
     const usernameVal = typeof username === "string" ? username.trim() : "";
     if (usernameVal) {
@@ -19787,6 +19823,143 @@ var messagesRouter = router6;
 
 // src/routes/admin.ts
 import { Router as Router7 } from "express";
+
+// src/lib/payouts.ts
+init_email();
+function getSellerAmount(totalAmount, commissionAmount) {
+  return Math.round((totalAmount - commissionAmount) * 100) / 100;
+}
+function generateIdempotencyKey(orderId) {
+  return `tt-payout-${orderId}-${Date.now()}`;
+}
+async function createPayoutToSeller(params) {
+  const transferId = db().collection(COLLECTIONS.SELLER_TRANSFERS).doc().id;
+  const record = {
+    orderId: params.orderId,
+    sellerId: params.sellerId,
+    amount: params.amount,
+    currency: params.currency,
+    status: "PENDIENTE",
+    idempotencyKey: params.idempotencyKey
+  };
+  const now = /* @__PURE__ */ new Date();
+  await db().collection(COLLECTIONS.SELLER_TRANSFERS).doc(transferId).set({
+    ...record,
+    createdAt: now,
+    updatedAt: now
+  });
+  if (!cbuCvu || cbuCvu.length !== 22) {
+    await updateTransferStatus(transferId, "PENDIENTE_MANUAL", null, "Vendedor sin CBU/CVU registrado");
+    return { success: false, transferId, error: "Vendedor sin CBU/CVU. Realizar transferencia manual." };
+  }
+  try {
+    const settings = await getPlatformSettings();
+    const token = settings.mercadopago.accessToken || process.env.MERCADOPAGO_ACCESS_TOKEN;
+    if (!token) {
+      await updateTransferStatus(transferId, "PENDIENTE_MANUAL", null, "MercadoPago no configurado");
+      return { success: false, transferId, error: "MercadoPago no configurado" };
+    }
+    const body = {
+      amount: params.amount,
+      currency_id: params.currency,
+      external_reference: params.orderId,
+      description: `Pago al vendedor - Orden ${params.orderId}`,
+      beneficiary: {
+        entity_type: "individual",
+        bank_account: {
+          account_holder_name: params.accountHolderName || "Vendedor",
+          cbu: cbuCvu
+        }
+      }
+    };
+    const response = await fetch("https://api.mercadopago.com/v1/payouts", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "X-Idempotency-Key": params.idempotencyKey
+      },
+      body: JSON.stringify(body)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.ok && data.id) {
+      await updateTransferStatus(transferId, "ENVIADO", data.id);
+      await notifySellerTransferComplete(transferId, params.orderId, params.amount, params.currency);
+      return { success: true, transferId, payoutId: data.id };
+    }
+    const errorMsg = data.message || data.cause?.[0]?.description || `HTTP ${response.status}`;
+    await updateTransferStatus(transferId, "FALLIDO", null, errorMsg);
+    return { success: false, transferId, error: errorMsg };
+  } catch (e) {
+    const errorMsg = e instanceof Error ? e.message : "Error inesperado";
+    await updateTransferStatus(transferId, "PENDIENTE_MANUAL", null, errorMsg);
+    return { success: false, transferId, error: errorMsg };
+  }
+}
+async function updateTransferStatus(transferId, status, payoutId, errorMessage) {
+  const updates = {
+    status,
+    updatedAt: /* @__PURE__ */ new Date()
+  };
+  if (payoutId) updates.payoutId = payoutId;
+  if (errorMessage !== void 0) updates.errorMessage = errorMessage || null;
+  if (status === "COMPLETADO" || status === "ENVIADO" || status === "ENVIADO_MANUAL") {
+    updates.completedAt = /* @__PURE__ */ new Date();
+  }
+  await db().collection(COLLECTIONS.SELLER_TRANSFERS).doc(transferId).update(updates);
+}
+async function markTransferAsManualComplete(transferId, adminUserId) {
+  const doc = await db().collection(COLLECTIONS.SELLER_TRANSFERS).doc(transferId).get();
+  const t = doc.exists ? doc.data() : null;
+  await db().collection(COLLECTIONS.SELLER_TRANSFERS).doc(transferId).update({
+    status: "ENVIADO_MANUAL",
+    completedAt: /* @__PURE__ */ new Date(),
+    completedBy: adminUserId,
+    updatedAt: /* @__PURE__ */ new Date()
+  });
+  if (t) {
+    await notifySellerTransferComplete(transferId, t.orderId, t.amount, t.currency || "ARS");
+  }
+}
+async function notifySellerTransferComplete(transferId, orderId, amount, currency) {
+  const doc = await db().collection(COLLECTIONS.SELLER_TRANSFERS).doc(transferId).get();
+  const sellerId = doc.exists ? doc.data()?.sellerId : null;
+  if (!sellerId) return;
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(sellerId).get();
+  const email = userDoc.exists ? userDoc.data()?.email : null;
+  if (email) {
+    await sendTransferCompleteEmail(email, { orderId, amount, currency });
+  }
+}
+async function retryTransfer(transferId) {
+  const doc = await db().collection(COLLECTIONS.SELLER_TRANSFERS).doc(transferId).get();
+  if (!doc.exists) return { success: false, error: "Transferencia no encontrada" };
+  const t = doc.data();
+  if (t.status !== "FALLIDO" && t.status !== "PENDIENTE_MANUAL") {
+    return { success: false, error: "Solo se pueden reintentar transferencias fallidas o pendientes manual" };
+  }
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(t.sellerId).get();
+  const userData = userDoc.data();
+  const cbuCvu2 = userData?.cbuCvu;
+  if (!cbuCvu2 || typeof cbuCvu2 !== "string") {
+    return { success: false, error: "El vendedor no tiene CBU/CVU registrado" };
+  }
+  const result = await createPayoutToSeller({
+    orderId: t.orderId,
+    sellerId: t.sellerId,
+    amount: t.amount,
+    currency: t.currency || "ARS",
+    cbuCvu: cbuCvu2,
+    accountHolderName: userData?.firstName && userData?.lastName ? `${userData.firstName} ${userData.lastName}` : void 0,
+    idempotencyKey: generateIdempotencyKey(t.orderId)
+  });
+  if (result.success) {
+    return { success: true };
+  }
+  return { success: false, error: result.error };
+}
+
+// src/routes/admin.ts
 var router7 = Router7();
 router7.use(requireAuth);
 router7.use(requireAdmin);
@@ -19943,11 +20116,18 @@ router7.patch("/users/:userId", async (req, res) => {
     "province",
     "postalCode",
     "role",
-    "reputationScore"
+    "reputationScore",
+    "cbuCvu",
+    "bankName"
   ];
   for (const key of allowed) {
     if (body[key] !== void 0) {
-      updates[key] = body[key] === "" || body[key] === null ? null : body[key];
+      if (key === "cbuCvu") {
+        const val = typeof body[key] === "string" ? body[key].replace(/\D/g, "").trim() || null : null;
+        updates[key] = val && val.length === 22 ? val : null;
+      } else {
+        updates[key] = body[key] === "" || body[key] === null ? null : body[key];
+      }
     }
   }
   await docRef.update(updates);
@@ -20016,9 +20196,21 @@ router7.get("/users/:userId/cards", async (req, res) => {
   }
 });
 router7.get("/kyc/pending", async (_req, res) => {
-  const snap = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).where("status", "==", "EN_REVISION").get();
+  const [enRevisionSnap, pendienteSnap] = await Promise.all([
+    db().collection(COLLECTIONS.KYC_VERIFICATIONS).where("status", "==", "EN_REVISION").get(),
+    db().collection(COLLECTIONS.KYC_VERIFICATIONS).where("status", "==", "PENDIENTE").get()
+  ]);
+  const allDocs = [...enRevisionSnap.docs, ...pendienteSnap.docs];
+  const filteredDocs = allDocs.filter((doc) => {
+    const d = doc.data();
+    if (d.status === "EN_REVISION") return true;
+    if (d.status === "PENDIENTE") {
+      return !!(d.diditSessionId || d.dniFrontUrl || d.dniBackUrl || d.selfieUrl);
+    }
+    return false;
+  });
   const list = await Promise.all(
-    snap.docs.map(async (doc) => {
+    filteredDocs.map(async (doc) => {
       const d = doc.data();
       const userDoc = await db().collection(COLLECTIONS.USERS).doc(d.userId || doc.id).get();
       const user = userDoc.data();
@@ -20037,29 +20229,31 @@ router7.get("/kyc/pending", async (_req, res) => {
   );
   res.json(list);
 });
-router7.get("/kyc/:userId/didit-details", async (req, res) => {
+router7.get("/kyc/:userId/detail", async (req, res) => {
   const { userId } = req.params;
   const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
   if (!kycDoc.exists) return res.status(404).json({ error: "Verificaci\xF3n KYC no encontrada" });
   const d = kycDoc.data();
   const sessionId = d.diditSessionId;
-  if (!sessionId) {
-    return res.json({
-      hasDiditSession: false,
-      message: "Esta verificaci\xF3n no us\xF3 Didit (flujo legacy con upload manual)"
-    });
-  }
-  const diditData = await getDiditSessionDecision(sessionId);
   const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
   const user = userDoc.exists ? userDoc.data() : null;
-  res.json({
-    hasDiditSession: true,
-    sessionId,
-    didit: diditData,
-    user: user ? { id: userId, email: user.email, firstName: user.firstName, lastName: user.lastName } : null,
-    ourStatus: d.status,
-    rejectionReason: d.rejectionReason
-  });
+  const base = {
+    id: userId,
+    status: d.status || "PENDIENTE",
+    rejectionReason: d.rejectionReason ?? null,
+    dniFrontUrl: d.dniFrontUrl ?? null,
+    dniBackUrl: d.dniBackUrl ?? null,
+    selfieUrl: d.selfieUrl ?? null,
+    diditSessionId: sessionId ?? null,
+    reviewedAt: d.reviewedAt?.toDate?.() ?? d.reviewedAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+    user: user ? { id: userId, email: user.email, firstName: user.firstName, lastName: user.lastName } : null
+  };
+  if (!sessionId) {
+    return res.json({ ...base, hasDiditSession: false, didit: null });
+  }
+  const diditData = await getDiditSessionDecision(sessionId);
+  res.json({ ...base, hasDiditSession: true, didit: diditData });
 });
 router7.patch("/kyc/:userId", async (req, res) => {
   const { userId } = req.params;
@@ -20403,6 +20597,9 @@ router7.patch("/orders/:orderId", async (req, res) => {
   const docRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
   const doc = await docRef.get();
   if (!doc.exists) return res.status(404).json({ error: "Orden no encontrada" });
+  const prevData = doc.data();
+  const newStatus = body.status;
+  const statusBecomesCompleted = newStatus === "COMPLETADA" && prevData.status !== "COMPLETADA";
   const updates = { updatedAt: /* @__PURE__ */ new Date() };
   const allowed = ["status", "totalAmount", "commissionAmount"];
   for (const key of allowed) {
@@ -20417,6 +20614,32 @@ router7.patch("/orders/:orderId", async (req, res) => {
   await docRef.update(updates);
   const updated = await docRef.get();
   const d = updated.data();
+  if (statusBecomesCompleted) {
+    const totalAmount = d.totalAmount ?? 0;
+    const commissionAmount = d.commissionAmount ?? 0;
+    const sellerAmount = getSellerAmount(totalAmount, commissionAmount);
+    const sellerId = d.sellerId;
+    const currency = d.currency || "ARS";
+    const existingTransfer = await db().collection(COLLECTIONS.SELLER_TRANSFERS).where("orderId", "==", orderId).where("status", "in", ["ENVIADO", "COMPLETADO", "ENVIADO_MANUAL"]).limit(1).get();
+    if (existingTransfer.empty && sellerAmount > 0) {
+      const sellerDoc2 = await db().collection(COLLECTIONS.USERS).doc(sellerId).get();
+      const sellerData = sellerDoc2.data();
+      const cbuCvu2 = sellerData?.cbuCvu;
+      const result = await createPayoutToSeller({
+        orderId,
+        sellerId,
+        amount: sellerAmount,
+        currency,
+        cbuCvu: (cbuCvu2 && typeof cbuCvu2 === "string" ? cbuCvu2 : "") || "",
+        accountHolderName: sellerData?.firstName && sellerData?.lastName ? `${sellerData.firstName} ${sellerData.lastName}` : void 0,
+        idempotencyKey: generateIdempotencyKey(orderId),
+        performedBy: req.user.id
+      });
+      if (result.success) {
+        await docRef.update({ sellerTransferId: result.transferId });
+      }
+    }
+  }
   const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(d.ticketListingId).get();
   const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(d.buyerId).get();
   const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
@@ -20445,6 +20668,78 @@ router7.delete("/orders/:orderId", async (req, res) => {
     updatedAt: /* @__PURE__ */ new Date()
   });
   res.json({ ok: true });
+});
+router7.get("/transfers", async (req, res) => {
+  const { page = "1", limit = "30", status } = req.query;
+  const pageNum = Number(page);
+  const limitNum = Math.min(Number(limit), 100);
+  const skip = (pageNum - 1) * limitNum;
+  let query = db().collection(COLLECTIONS.SELLER_TRANSFERS).orderBy("createdAt", "desc");
+  if (typeof status === "string" && status) {
+    query = query.where("status", "==", status);
+  }
+  const snap = await query.limit(skip + limitNum).get();
+  const transfers = await Promise.all(
+    snap.docs.slice(skip, skip + limitNum).map(async (doc) => {
+      const d = doc.data();
+      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+      const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(d.orderId).get();
+      return {
+        id: doc.id,
+        ...d,
+        seller: sellerDoc.exists ? { id: d.sellerId, email: sellerDoc.data()?.email, firstName: sellerDoc.data()?.firstName, lastName: sellerDoc.data()?.lastName, cbuCvu: sellerDoc.data()?.cbuCvu } : null,
+        order: orderDoc.exists ? { id: d.orderId, totalAmount: orderDoc.data()?.totalAmount } : null,
+        createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+        updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+        completedAt: d.completedAt?.toDate?.() ?? d.completedAt
+      };
+    })
+  );
+  res.json({ transfers, total: snap.size });
+});
+router7.post("/transfers/:transferId/manual-complete", async (req, res) => {
+  const { transferId } = req.params;
+  await markTransferAsManualComplete(transferId, req.user.id);
+  res.json({ ok: true });
+});
+router7.post("/transfers/:transferId/retry", async (req, res) => {
+  const { transferId } = req.params;
+  const result = await retryTransfer(transferId);
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+  res.json({ ok: true });
+});
+router7.post("/orders/:orderId/transfer-manual", async (req, res) => {
+  const { orderId } = req.params;
+  const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
+  if (!orderDoc.exists) return res.status(404).json({ error: "Orden no encontrada" });
+  const orderData = orderDoc.data();
+  if (orderData.status !== "COMPLETADA") {
+    return res.status(400).json({ error: "Solo se puede crear transferencia manual para \xF3rdenes completadas" });
+  }
+  const existing = await db().collection(COLLECTIONS.SELLER_TRANSFERS).where("orderId", "==", orderId).limit(1).get();
+  if (!existing.empty) {
+    const t = existing.docs[0].data();
+    if (["ENVIADO", "COMPLETADO", "ENVIADO_MANUAL"].includes(t.status)) {
+      return res.status(400).json({ error: "Ya existe una transferencia completada para esta orden" });
+    }
+  }
+  const totalAmount = orderData.totalAmount ?? 0;
+  const commissionAmount = orderData.commissionAmount ?? 0;
+  const sellerAmount = getSellerAmount(totalAmount, commissionAmount);
+  const transferId = db().collection(COLLECTIONS.SELLER_TRANSFERS).doc().id;
+  await db().collection(COLLECTIONS.SELLER_TRANSFERS).doc(transferId).set({
+    orderId,
+    sellerId: orderData.sellerId,
+    amount: sellerAmount,
+    currency: orderData.currency || "ARS",
+    status: "PENDIENTE_MANUAL",
+    idempotencyKey: generateIdempotencyKey(orderId),
+    createdAt: /* @__PURE__ */ new Date(),
+    updatedAt: /* @__PURE__ */ new Date()
+  });
+  res.status(201).json({ transferId, amount: sellerAmount, currency: orderData.currency || "ARS" });
 });
 router7.get("/orders", async (req, res) => {
   const { page = "1", limit = "20", status } = req.query;
@@ -20597,13 +20892,20 @@ router8.post("/mercadopago", async (req, res) => {
   if (!orderId) {
     return res.status(200).json({ received: true });
   }
-  if (payment.status === "approved") {
-    const orderRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
-    const orderDoc = await orderRef.get();
-    if (orderDoc.exists && orderDoc.data()?.status === "PENDIENTE_PAGO") {
+  const orderRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
+  const orderDoc = await orderRef.get();
+  if (orderDoc.exists && orderDoc.data()?.status === "PENDIENTE_PAGO") {
+    if (payment.status === "approved") {
       await orderRef.update({
         status: "ESPERANDO_TRANSFERENCIA",
         paymentIntentId: paymentId,
+        mercadopagoPaymentId: paymentId,
+        updatedAt: /* @__PURE__ */ new Date()
+      });
+    } else if (payment.status === "pending" || payment.status === "in_process") {
+      await orderRef.update({
+        mercadopagoPaymentId: paymentId,
+        mercadopagoPaymentStatus: payment.status,
         updatedAt: /* @__PURE__ */ new Date()
       });
     }
@@ -20641,6 +20943,42 @@ router9.get("/card-form", (_req, res) => {
   res.sendFile(path3.join(__dirname2, "..", "public", "card-form.html"));
 });
 var mercadopagoRouter = router9;
+
+// src/routes/settings.ts
+import { Router as Router11 } from "express";
+var settingsRouter = Router11();
+settingsRouter.get("/commission", requireAuth, async (_req, res) => {
+  const commissionPercentage = await getCommissionPercentage();
+  res.json({ commissionPercentage });
+});
+
+// src/routes/cron.ts
+import { Router as Router12 } from "express";
+var router10 = Router12();
+var CRON_SECRET = process.env.CRON_SECRET;
+function isAuthorized(req) {
+  if (!CRON_SECRET) return false;
+  const auth = req.get("Authorization") || req.get("authorization");
+  return auth === `Bearer ${CRON_SECRET}`;
+}
+router10.get("/retry-failed-transfers", async (req, res) => {
+  if (!isAuthorized(req)) {
+    return res.status(401).json({ error: "No autorizado" });
+  }
+  const limit = 5;
+  const snap = await db().collection(COLLECTIONS.SELLER_TRANSFERS).where("status", "==", "FALLIDO").orderBy("createdAt", "asc").limit(limit).get();
+  const results = [];
+  for (const doc of snap.docs) {
+    const r = await retryTransfer(doc.id);
+    results.push({ id: doc.id, success: r.success, error: r.error });
+  }
+  res.json({
+    ok: true,
+    processed: results.length,
+    results
+  });
+});
+var cronRouter = router10;
 
 // src/index.ts
 var isVercel = Boolean(process.env.VERCEL);
@@ -20702,6 +21040,8 @@ app2.use("/api/health", healthRouter);
 app2.use("/api/auth", authRouter);
 app2.use("/api/webhooks", webhooksRouter);
 app2.use("/api/mercadopago", mercadopagoRouter);
+app2.use("/api/settings", settingsRouter);
+app2.use("/api/cron", cronRouter);
 app2.use("/api/users", usersRouter);
 app2.use("/api/tickets", ticketsRouter);
 app2.use("/api/orders", ordersRouter);

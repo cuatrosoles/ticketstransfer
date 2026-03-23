@@ -134,6 +134,12 @@ export async function getMe() {
   return api<Record<string, unknown>>('/api/auth/me');
 }
 
+/** Porcentaje de comisión de la plataforma (para cálculos de precio) */
+export async function getCommissionPercentage(): Promise<number> {
+  const data = await api<{ commissionPercentage: number }>('/api/settings/commission');
+  return data.commissionPercentage ?? 5;
+}
+
 /** Perfil */
 export type Profile = {
   id: string;
@@ -154,6 +160,8 @@ export type Profile = {
   address: string | null;
   reputationScore: number | null;
   profileImageUrl: string | null;
+  cbuCvu: string | null;
+  bankName: string | null;
   kyc: { status: string; rejectionReason: string | null } | null;
 };
 
@@ -167,6 +175,8 @@ export type ProfileUpdate = {
   postalCode?: string;
   address?: string;
   fcmToken?: string;
+  cbuCvu?: string;
+  bankName?: string;
 };
 
 export async function getProfile(): Promise<Profile> {

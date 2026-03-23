@@ -23,6 +23,8 @@ import { adminRouter } from './routes/admin.js';
 import { healthRouter } from './routes/health.js';
 import { webhooksRouter } from './routes/webhooks.js';
 import { mercadopagoRouter } from './routes/mercadopago.js';
+import { settingsRouter } from './routes/settings.js';
+import { cronRouter } from './routes/cron.js';
 import { invalidateSettingsCache } from './lib/settings.js';
 import { uploadsDir, ensureUploadsDir } from './lib/uploads.js';
 
@@ -104,6 +106,8 @@ app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api/mercadopago', mercadopagoRouter);
+app.use('/api/settings', settingsRouter);
+app.use('/api/cron', cronRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/tickets', ticketsRouter);
 app.use('/api/orders', ordersRouter);

@@ -85,6 +85,8 @@ export type Profile = {
   city: string | null;
   province: string | null;
   postalCode: string | null;
+  cbuCvu: string | null;
+  bankName: string | null;
   reputationScore: number | null;
   kyc: { status: string; rejectionReason: string | null } | null;
 };
@@ -100,6 +102,8 @@ export type ProfileUpdate = {
   city?: string;
   province?: string;
   postalCode?: string;
+  cbuCvu?: string;
+  bankName?: string;
 };
 
 export async function updateProfile(data: ProfileUpdate): Promise<Profile> {

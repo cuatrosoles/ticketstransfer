@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getProfile, updateProfile, type Profile, type ProfileUpdate } from '../lib/api';
 import { PROVINCIAS_ARGENTINA, CIUDADES_POR_PROVINCIA } from '../data/provinciasArgentina';
-import { User, Mail, Phone, MapPin, Shield, Pencil, X, Check } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Shield, Pencil, X, Check, CreditCard } from 'lucide-react';
 
 function formatDate(value: string | null): string {
   if (!value) return '—';
@@ -49,6 +49,8 @@ export function Perfil() {
     city: '',
     province: '',
     postalCode: '',
+    cbuCvu: '',
+    bankName: '',
   });
 
   const loadProfile = async () => {
@@ -64,6 +66,8 @@ export function Perfil() {
         city: data.city ?? '',
         province: data.province ?? '',
         postalCode: data.postalCode ?? '',
+        cbuCvu: data.cbuCvu ?? '',
+        bankName: data.bankName ?? '',
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar el perfil');
@@ -87,6 +91,8 @@ export function Perfil() {
         city: form.city?.trim() || undefined,
         province: form.province || undefined,
         postalCode: form.postalCode?.trim() || undefined,
+        cbuCvu: form.cbuCvu?.replace(/\D/g, '').slice(0, 22) || undefined,
+        bankName: form.bankName?.trim() || undefined,
       });
       await loadProfile();
       await fetchUser();
@@ -107,6 +113,8 @@ export function Perfil() {
         city: profile.city ?? '',
         province: profile.province ?? '',
         postalCode: profile.postalCode ?? '',
+        cbuCvu: profile.cbuCvu ?? '',
+        bankName: profile.bankName ?? '',
       });
     }
     setEditing(false);
@@ -207,6 +215,13 @@ export function Perfil() {
               <div>
                 <span className="perfil-field-label">Código postal</span>
                 <span className="perfil-field-value">{profile.postalCode || '—'}</span>
+              </div>
+            </div>
+            <div className="perfil-field">
+              <CreditCard size={18} className="perfil-field-icon" />
+              <div>
+                <span className="perfil-field-label">CBU/CVU (para recibir pagos)</span>
+                <span className="perfil-field-value">{profile.cbuCvu ? `****${profile.cbuCvu.slice(-4)}` : '—'}</span>
               </div>
             </div>
             {profile.dateOfBirth ? (
@@ -318,6 +333,28 @@ export function Perfil() {
                 placeholder="Código postal"
                 value={form.postalCode}
                 onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))}
+              />
+            </div>
+            <div className="input-wrap">
+              <label>CBU/CVU (22 dígitos, para recibir pagos de ventas)</label>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="0000000000000000000000"
+                value={form.cbuCvu}
+                maxLength={22}
+                onChange={(e) => setForm((f) => ({ ...f, cbuCvu: e.target.value.replace(/\D/g, '').slice(0, 22) }))}
+              />
+              <p className="form-hint">Indispensable para recibir el dinero de tus ventas. Solo números.</p>
+            </div>
+            <div className="input-wrap">
+              <label>Nombre del banco (opcional)</label>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="Ej: Banco Nación"
+                value={form.bankName}
+                onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))}
               />
             </div>
             <div className="perfil-form-actions">

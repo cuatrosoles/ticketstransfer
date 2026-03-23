@@ -28,6 +28,8 @@ type UserDetailType = {
   emailVerified: boolean;
   reputationScore: number;
   profileImageUrl: string | null;
+  cbuCvu: string | null;
+  bankName: string | null;
   createdAt: string | Date;
   updatedAt: string | Date;
   kyc: {
@@ -80,6 +82,8 @@ export function UserDetail() {
           postalCode: u.postalCode ?? '',
           role: u.role,
           reputationScore: u.reputationScore ?? 0,
+          cbuCvu: u.cbuCvu ?? '',
+          bankName: u.bankName ?? '',
         });
       })
       .catch(() => setUser(null))
@@ -206,6 +210,14 @@ export function UserDetail() {
         </div>
 
         <div className="card">
+          <h3 style={{ marginTop: 0, marginBottom: 12 }}>Datos bancarios (para recibir pagos)</h3>
+          <dl className="detail-dl">
+            <dt>CBU/CVU</dt><dd>{user.cbuCvu ? `****${user.cbuCvu.slice(-4)} (22 dígitos)` : '—'}</dd>
+            <dt>Banco</dt><dd>{user.bankName || '—'}</dd>
+          </dl>
+        </div>
+
+        <div className="card">
           <h3 style={{ marginTop: 0, marginBottom: 12 }}>Cuenta y verificación</h3>
           <dl className="detail-dl">
             <dt>Rol</dt><dd>{user.role}</dd>
@@ -287,6 +299,14 @@ export function UserDetail() {
               <div className="form-group">
                 <label>Reputación</label>
                 <input type="number" value={form.reputationScore ?? 0} onChange={(e) => setForm((f) => ({ ...f, reputationScore: Number(e.target.value) }))} className="input" />
+              </div>
+              <div className="form-group">
+                <label>CBU/CVU (22 dígitos, para recibir pagos)</label>
+                <input value={form.cbuCvu ?? ''} onChange={(e) => setForm((f) => ({ ...f, cbuCvu: e.target.value.replace(/\D/g, '').slice(0, 22) }))} className="input" placeholder="0000000000000000000000" maxLength={22} />
+              </div>
+              <div className="form-group">
+                <label>Nombre del banco</label>
+                <input value={form.bankName ?? ''} onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))} className="input" placeholder="Opcional" />
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>

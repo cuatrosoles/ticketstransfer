@@ -140,13 +140,20 @@ router.post('/mercadopago', async (req: Request, res: Response) => {
     return res.status(200).json({ received: true });
   }
 
-  if (payment.status === 'approved') {
-    const orderRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
-    const orderDoc = await orderRef.get();
-    if (orderDoc.exists && orderDoc.data()?.status === 'PENDIENTE_PAGO') {
+  const orderRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
+  const orderDoc = await orderRef.get();
+  if (orderDoc.exists && orderDoc.data()?.status === 'PENDIENTE_PAGO') {
+    if (payment.status === 'approved') {
       await orderRef.update({
         status: 'ESPERANDO_TRANSFERENCIA',
         paymentIntentId: paymentId,
+        mercadopagoPaymentId: paymentId,
+        updatedAt: new Date(),
+      });
+    } else if (payment.status === 'pending' || payment.status === 'in_process') {
+      await orderRef.update({
+        mercadopagoPaymentId: paymentId,
+        mercadopagoPaymentStatus: payment.status,
         updatedAt: new Date(),
       });
     }
