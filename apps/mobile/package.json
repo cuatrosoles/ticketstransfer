@@ -12,8 +12,9 @@
     "fix:android": "bash scripts/fix-android-build.sh",
     "postinstall": "node -e \"process.exit(0)\"",
     "apk:debug": "cd android && ./gradlew assembleDebug && cd ..",
-    "apk:release": "cd android && ./gradlew assembleRelease && cd ..",
-    "apk:release:no-daemon": "cd android && ./gradlew --stop && ./gradlew assembleRelease --no-daemon && cd .."
+    "apk:release": "NODE_OPTIONS='--max-old-space-size=4096' cd android && ./gradlew assembleRelease --no-daemon && cd ..",
+    "apk:release:clean": "rm -rf node_modules/.cache ~/.metro android/app/build/generated 2>/dev/null; pnpm apk:release",
+    "apk:release:no-daemon": "cd android && ./gradlew --stop && cd .. && pnpm apk:release"
   },
   "dependencies": {
     "@babel/runtime": "^7.23.7",
