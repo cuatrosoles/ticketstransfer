@@ -9,9 +9,9 @@ type Order = {
   totalAmount: number;
   currency: string;
   createdAt: string;
-  ticketListing: { eventName: string; price: number };
-  buyer: { email: string };
-  seller: { email: string };
+  ticketListing: { eventName?: string; price?: number } | null;
+  buyer: { email?: string } | null;
+  seller: { email?: string } | null;
 };
 
 const STATUS_OPTIONS = [
@@ -60,9 +60,9 @@ export function Orders() {
       const data = await api<{ orders: Order[] }>(`/api/admin/orders?${p.toString()}`);
       const rows = data.orders.map((o) => [
         o.id,
-        o.ticketListing.eventName,
-        o.buyer.email,
-        o.seller.email,
+        o.ticketListing?.eventName ?? '',
+        o.buyer?.email ?? '',
+        o.seller?.email ?? '',
         o.totalAmount,
         o.currency,
         o.status,
@@ -115,9 +115,9 @@ export function Orders() {
               {orders.map((o) => (
                 <tr key={o.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/orders/${o.id}`)}>
                   <td><Link to={`/orders/${o.id}`} onClick={(e) => e.stopPropagation()} style={{ color: 'var(--primary)', textDecoration: 'none' }}><code>{o.id.slice(0, 8)}…</code></Link></td>
-                  <td>{o.ticketListing.eventName}</td>
-                  <td>{o.buyer.email}</td>
-                  <td>{o.seller.email}</td>
+                  <td>{o.ticketListing?.eventName ?? '—'}</td>
+                  <td>{o.buyer?.email ?? '—'}</td>
+                  <td>{o.seller?.email ?? '—'}</td>
                   <td>{o.totalAmount} {o.currency}</td>
                   <td><span className="badge badge-pending">{o.status}</span></td>
                   <td>{new Date(o.createdAt).toLocaleString()}</td>
