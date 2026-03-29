@@ -2,24 +2,37 @@
 /**
  * Build de la API con esbuild: empaqueta el código de la API + @tickets-transfer/shared
  * en un solo dist/index.js para que en Railway no dependa de la resolución del workspace.
+ *
+ * Importante: se empaqueta el **dist** de shared (salida de `tsc`), no `src/index.ts`.
+ * Así esbuild ve las exportaciones reales y el orden `pnpm -r build` no deja shared desactualizado.
  */
 import * as esbuild from 'esbuild';
+import { execSync } from 'child_process';
 import { mkdirSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outDir = join(__dirname, 'dist');
-const sharedSrc = join(__dirname, '../../packages/shared/src/index.ts');
+const sharedRoot = join(__dirname, '../../packages/shared');
+const sharedEntry = join(sharedRoot, 'dist/index.js');
 
 if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
 
-// Resolver @tickets-transfer/shared desde el código fuente para empaquetarlo sin depender de dist/
+// Garantizar artefactos de shared (tsc) antes de bundlear; evita dist viejo o inexistente al compilar la API primero.
+execSync('pnpm run build', { cwd: sharedRoot, stdio: 'inherit' });
+
+if (!existsSync(sharedEntry)) {
+  console.error('Missing', sharedEntry, 'after building @tickets-transfer/shared');
+  process.exit(1);
+}
+
+// Resolver @tickets-transfer/shared hacia dist/index.js (misma entrada que `"exports"` del package).
 const sharedPlugin = {
-  name: 'shared-source',
+  name: 'shared-dist',
   setup(build) {
     build.onResolve({ filter: /^@tickets-transfer\/shared$/ }, () => ({
-      path: sharedSrc,
+      path: sharedEntry,
     }));
   },
 };
