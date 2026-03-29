@@ -16,21 +16,28 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const outDir = join(__dirname, 'dist');
 const sharedRoot = join(__dirname, '../../packages/shared');
 const sharedEntry = join(sharedRoot, 'dist/index.js');
+const sharedSchemas = join(sharedRoot, 'dist/schemas.js');
 
 if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
 
 // Garantizar artefactos de shared (tsc) antes de bundlear; evita dist viejo o inexistente al compilar la API primero.
 execSync('pnpm run build', { cwd: sharedRoot, stdio: 'inherit' });
 
-if (!existsSync(sharedEntry)) {
-  console.error('Missing', sharedEntry, 'after building @tickets-transfer/shared');
+if (!existsSync(sharedEntry) || !existsSync(sharedSchemas)) {
+  console.error('Missing shared dist after build:', { sharedEntry, sharedSchemas });
   process.exit(1);
 }
 
-// Resolver @tickets-transfer/shared hacia dist/index.js (misma entrada que `"exports"` del package).
+/**
+ * Forzar entradas de dist (no barrel re-exports): esbuild en CI a veces no resuelve
+ * `export { x } from './schemas.js'` en index.js y falla con "No matching export".
+ */
 const sharedPlugin = {
   name: 'shared-dist',
   setup(build) {
+    build.onResolve({ filter: /^@tickets-transfer\/shared\/schemas$/ }, () => ({
+      path: sharedSchemas,
+    }));
     build.onResolve({ filter: /^@tickets-transfer\/shared$/ }, () => ({
       path: sharedEntry,
     }));

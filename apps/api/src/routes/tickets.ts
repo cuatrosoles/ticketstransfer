@@ -9,7 +9,7 @@ import { getAuth } from '../lib/firebase-admin.js';
 import { uploadFile } from '../lib/firebase-storage.js';
 import { redactImage, parsePixelateRegionsFromBody } from '../lib/image-redaction.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
-import { createTicketListingSchema, updateTicketListingSchema } from '@tickets-transfer/shared';
+import { createTicketListingSchema, updateTicketListingSchema } from '@tickets-transfer/shared/schemas';
 
 const router = Router();
 const upload = multer({
