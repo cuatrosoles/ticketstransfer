@@ -55,6 +55,45 @@ function extractMpError(e: unknown): string | null {
 }
 
 const router = Router();
+
+/** Fecha de nacimiento desde Firestore / JSON para el cliente (YYYY-MM-DD o null) */
+function profileDateOfBirthToApi(val: unknown): string | null {
+  if (val == null) return null;
+  if (val instanceof Date && !Number.isNaN(val.getTime())) return val.toISOString().slice(0, 10);
+  if (typeof val === 'string') {
+    const s = val.trim();
+    if (!s) return null;
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+  }
+  const ts = val as { toDate?: () => Date; seconds?: number; _seconds?: number };
+  if (typeof ts.toDate === 'function') {
+    const d = ts.toDate();
+    return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+  }
+  const sec = ts.seconds ?? ts._seconds;
+  if (typeof sec === 'number') {
+    const d = new Date(sec * 1000);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
+function profileAddressToApi(data: Record<string, unknown>): string | null {
+  const direct =
+    typeof data.address === 'string'
+      ? data.address.trim()
+      : typeof data.domicilio === 'string'
+        ? data.domicilio.trim()
+        : '';
+  if (direct) return direct;
+  const parts = [data.street, data.streetNumber, data.calle, data.altura]
+    .map((p) => (typeof p === 'string' ? p.trim() : ''))
+    .filter(Boolean);
+  return parts.length ? parts.join(' ') : null;
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -81,6 +120,7 @@ router.get('/profile', async (req: AuthRequest, res) => {
   const kyc = kycDoc.exists ? kycDoc.data() : null;
   const phone = data.phone?.replace(/\+549\s*\+549/, '+549') ?? data.phone;
   const emailVerified = data.emailVerified ?? firebaseUser?.emailVerified ?? false;
+  const raw = data as Record<string, unknown>;
 
   res.json({
     id: req.user!.id,
@@ -94,11 +134,11 @@ router.get('/profile', async (req: AuthRequest, res) => {
     phone,
     phoneVerified: data.phoneVerified ?? false,
     emailVerified,
-    dateOfBirth: data.dateOfBirth ?? null,
+    dateOfBirth: profileDateOfBirthToApi(data.dateOfBirth),
     city: data.city ?? null,
     province: data.province ?? null,
     postalCode: data.postalCode ?? null,
-    address: data.address ?? null,
+    address: profileAddressToApi(raw),
     reputationScore: data.reputationScore ?? null,
     profileImageUrl: data.profileImageUrl ?? null,
     cbuCvu: data.cbuCvu ?? null,
@@ -182,7 +222,7 @@ router.post('/profile/avatar', upload.single('avatar'), async (req: AuthRequest,
 
 router.patch('/profile', async (req: AuthRequest, res) => {
   const body = req.body || {};
-  const { username, firstName, lastName, phone, city, province, postalCode, address, fcmToken, cbuCvu, bankName } = body;
+  const { username, firstName, lastName, phone, city, province, postalCode, address, domicilio, fcmToken, cbuCvu, bankName } = body;
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (firstName !== undefined) updateData.firstName = firstName;
   if (lastName !== undefined) updateData.lastName = lastName;
@@ -190,7 +230,15 @@ router.patch('/profile', async (req: AuthRequest, res) => {
   if (city !== undefined) updateData.city = city;
   if (province !== undefined) updateData.province = province;
   if (postalCode !== undefined) updateData.postalCode = postalCode;
-  if (address !== undefined) updateData.address = typeof address === 'string' ? address.trim() || null : null;
+  if (address !== undefined || domicilio !== undefined) {
+    const raw =
+      typeof address === 'string'
+        ? address
+        : typeof domicilio === 'string'
+          ? domicilio
+          : '';
+    updateData.address = raw.trim() || null;
+  }
   if (fcmToken !== undefined) updateData.fcmToken = fcmToken;
   if (cbuCvu !== undefined) {
     const val = typeof cbuCvu === 'string' ? cbuCvu.replace(/\D/g, '').trim() || null : null;

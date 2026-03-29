@@ -86,7 +86,12 @@ export async function createCheckoutPreference(params: CreatePreferenceParams): 
         ? getCustomerEmailForMp(params.payerUserId, params.payerEmail, true)
         : params.payerEmail;
 
-  const backBase = settings.mercadopago.backUrlBase || process.env.WEB_URL || process.env.APP_DEEP_LINK_SCHEME || 'http://localhost:5173';
+  const backBase =
+    settings.mercadopago.backUrlBase ||
+    process.env.MOBILE_DEEP_LINK_BASE ||
+    process.env.APP_DEEP_LINK_SCHEME ||
+    process.env.WEB_URL ||
+    'ticketTransfer://';
   const basePath = backBase.replace(/\/$/, '');
 
   const isDeepLink = basePath.includes('://') && !basePath.startsWith('http');

@@ -9,7 +9,7 @@ import { getAuth } from '../lib/firebase-admin.js';
 import { uploadFile } from '../lib/firebase-storage.js';
 import { redactImage, parsePixelateRegionsFromBody } from '../lib/image-redaction.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
-import { createTicketListingSchema } from '@tickets-transfer/shared';
+import { createTicketListingSchema, updateTicketListingSchema } from '@tickets-transfer/shared';
 
 const router = Router();
 const upload = multer({
@@ -245,7 +245,7 @@ router.post(
       appBoletos: parsed.data.appBoletos,
       orderRef: parsed.data.orderRef ?? null,
       category: parsed.data.category ?? 'OTRO',
-      status: 'PENDIENTE_VERIFICACION',
+      status: 'DISPONIBLE',
       captureTicketUrl: captureTicketUrl ?? null,
       captureOwnershipUrl: captureOwnershipUrl ?? null,
       publicationPassword,
@@ -281,6 +281,82 @@ router.get('/my/listings', requireAuth, async (req: AuthRequest, res) => {
     };
   });
   res.json(listings);
+});
+
+router.get('/mine/:listingId', requireAuth, async (req: AuthRequest, res) => {
+  const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).get();
+  if (!doc.exists || doc.data()?.sellerId !== req.user!.id) {
+    return res.status(404).json({ error: 'No encontrado' });
+  }
+  const d = doc.data()!;
+  res.json({
+    id: doc.id,
+    ...d,
+    publicationPassword: d.publicationPassword ?? null,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+    eventDate: d.eventDate?.toDate?.() ?? d.eventDate,
+  });
+});
+
+router.patch('/mine/:listingId', requireAuth, async (req: AuthRequest, res) => {
+  const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).get();
+  if (!doc.exists || doc.data()?.sellerId !== req.user!.id) {
+    return res.status(404).json({ error: 'No encontrado' });
+  }
+  const parsed = updateTicketListingSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const flat = parsed.error.flatten();
+    const msg = flat.formErrors[0] || 'Datos inválidos';
+    return res.status(400).json({ error: msg, details: flat });
+  }
+  const payload = parsed.data;
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (payload.eventName !== undefined) updates.eventName = payload.eventName;
+  if (payload.eventPlace !== undefined) updates.eventPlace = payload.eventPlace ?? null;
+  if (payload.sector !== undefined) updates.sector = payload.sector ?? null;
+  if (payload.row !== undefined) updates.row = payload.row ?? null;
+  if (payload.seat !== undefined) updates.seat = payload.seat ?? null;
+  if (payload.orderRef !== undefined) updates.orderRef = payload.orderRef ?? null;
+  if (payload.ticketera !== undefined) updates.ticketera = payload.ticketera;
+  if (payload.appBoletos !== undefined) updates.appBoletos = payload.appBoletos;
+  if (payload.tipoEntrada !== undefined) updates.tipoEntrada = payload.tipoEntrada;
+  if (payload.currency !== undefined) updates.currency = payload.currency;
+  if (payload.category !== undefined) updates.category = payload.category ?? null;
+  if (payload.ticketeraOtra !== undefined) updates.ticketeraOtra = payload.ticketeraOtra ?? null;
+  if (payload.appBoletosOtra !== undefined) updates.appBoletosOtra = payload.appBoletosOtra ?? null;
+  if (payload.tipoEntradaOtro !== undefined) updates.tipoEntradaOtro = payload.tipoEntradaOtro ?? null;
+  if (payload.eventDate !== undefined) updates.eventDate = new Date(payload.eventDate);
+  if (payload.price !== undefined) updates.price = payload.price;
+  if (payload.quantityEntries !== undefined) {
+    updates.quantityEntries =
+      payload.quantityEntries === '' || payload.quantityEntries == null
+        ? null
+        : String(payload.quantityEntries);
+  }
+  if (payload.publicationPassword !== undefined) {
+    updates.publicationPassword =
+      payload.publicationPassword == null || payload.publicationPassword === ''
+        ? null
+        : String(payload.publicationPassword);
+  }
+
+  const keys = Object.keys(updates).filter((k) => k !== 'updatedAt');
+  if (keys.length === 0) {
+    return res.status(400).json({ error: 'Ningún campo para actualizar' });
+  }
+
+  await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).update(updates);
+  const refreshed = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).get();
+  const d = refreshed.data()!;
+  res.json({
+    id: refreshed.id,
+    ...d,
+    publicationPassword: d.publicationPassword ?? null,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+    eventDate: d.eventDate?.toDate?.() ?? d.eventDate,
+  });
 });
 
 router.patch('/:id/pause', requireAuth, async (req: AuthRequest, res) => {

@@ -67,6 +67,7 @@ router.get('/conversations', async (req: AuthRequest, res) => {
           lastName: other?.lastName,
           username: other?.username,
           numeroId: other?.numeroId,
+          profileImageUrl: other?.profileImageUrl ?? null,
         },
         lastMessage: lastMsg
           ? {
@@ -195,8 +196,39 @@ router.post('/conversations', async (req: AuthRequest, res) => {
       lastName: otherUserData.lastName,
       username: otherUserData.username,
       numeroId: otherUserData.numeroId,
+      profileImageUrl: otherUserData.profileImageUrl ?? null,
     },
     createdAt: convData.createdAt?.toDate?.() ?? convData.createdAt,
+  });
+});
+
+router.get('/conversations/:id', async (req: AuthRequest, res) => {
+  const convId = req.params.id;
+  const userId = req.user!.id;
+  const convDoc = await db().collection(COLLECTIONS.CONVERSATIONS).doc(convId).get();
+  if (!convDoc.exists) {
+    res.status(404).json({ error: 'Conversación no encontrada' });
+    return;
+  }
+  const conv = convDoc.data()!;
+  if (conv.user1Id !== userId && conv.user2Id !== userId) {
+    res.status(403).json({ error: 'No tenés acceso a esta conversación' });
+    return;
+  }
+  const otherId = conv.user1Id === userId ? conv.user2Id : conv.user1Id;
+  const otherDoc = await db().collection(COLLECTIONS.USERS).doc(otherId).get();
+  const other = otherDoc.data();
+  res.json({
+    id: convId,
+    otherUser: {
+      id: otherId,
+      email: other?.email,
+      firstName: other?.firstName,
+      lastName: other?.lastName,
+      username: other?.username,
+      numeroId: other?.numeroId,
+      profileImageUrl: other?.profileImageUrl ?? null,
+    },
   });
 });
 

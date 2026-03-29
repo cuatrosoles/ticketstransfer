@@ -22,10 +22,15 @@ export async function sendPushNotification(
   if (!fcmToken || fcmToken.length < 10) return { success: false };
   try {
     const messaging = getMessaging();
+    const dataPayload =
+      data &&
+      Object.fromEntries(
+        Object.entries(data).map(([k, v]) => [k, v === undefined || v === null ? '' : String(v)])
+      );
     const message: Message = {
       token: fcmToken,
       notification: { title, body },
-      data: data || {},
+      data: dataPayload || {},
       android: { priority: 'high' },
       apns: { payload: { aps: { sound: 'default' } } },
     };
