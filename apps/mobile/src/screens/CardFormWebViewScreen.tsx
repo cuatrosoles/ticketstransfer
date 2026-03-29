@@ -14,7 +14,10 @@ import {
   TouchableOpacity,
   useWindowDimensions,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/types';
 import { WebView } from 'react-native-webview';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -27,7 +30,10 @@ const USER_AGENT =
   'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
 export function CardFormWebViewScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'CardFormWebView'>>();
+  const returnTo = route.params?.returnTo;
+  const orderId = route.params?.orderId;
   const { height } = useWindowDimensions();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -47,7 +53,11 @@ export function CardFormWebViewScreen() {
         setError(null);
         try {
           await addUserCard(parsed.token);
-          navigation.goBack();
+          if (returnTo === 'OrderPago' && orderId) {
+            navigation.navigate('OrderPago', { orderId });
+          } else {
+            navigation.goBack();
+          }
         } catch (e) {
           setError(e instanceof Error ? e.message : 'Error al guardar la tarjeta');
           setSubmitting(false);

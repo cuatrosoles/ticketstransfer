@@ -1,3 +1,32 @@
+# Error INSTALL_PARSE_FAILED_NO_CERTIFICATES (SHA-256 digest did not verify)
+
+Si al ejecutar `pnpm android` ves:
+
+```
+INSTALL_PARSE_FAILED_NO_CERTIFICATES: Failed to collect certificates... SHA-256 digest of contents did not verify
+```
+
+Probá en este orden:
+
+```bash
+# 1. Desinstalar la app del emulador (quita instalación anterior corrupta)
+adb uninstall com.ticketstransfer.app
+# Si falla con DELETE_FAILED_INTERNAL_ERROR, probá:
+# adb shell pm uninstall --user 0 com.ticketstransfer.app
+
+# 2. Limpiar build y caché
+cd v2/apps/mobile/android
+./gradlew clean
+cd ../..
+
+# 3. Volver a compilar e instalar
+pnpm android
+```
+
+Si sigue fallando: en AVD Manager → menú del emulador → "Wipe Data" o crear un AVD nuevo.
+
+---
+
 # Error al instalar en el emulador: "Can't find service: package"
 
 Si el build compila bien pero falla al instalar en el emulador, prueba:
@@ -59,6 +88,14 @@ pnpm start
 
 Dejá Metro corriendo. Sirve el JS y permite hot reload.
 
+**Si ves `EADDRINUSE: address already in use :::8081`:** ya hay otro Metro (u otra app) usando el puerto. Cerrá esa terminal o liberá el puerto en macOS:
+
+```bash
+lsof -i :8081 -t | xargs kill
+```
+
+Luego volvé a ejecutar `pnpm start`. Alternativa: `pnpm start -- --port 8082` y en la app indicá el puerto nuevo si hace falta.
+
 ## 2. Ejecutar la app en el emulador
 
 Con el emulador encendido, en **otra terminal**:
@@ -80,6 +117,16 @@ pnpm android
 ```
 
 O compilar sin daemon: `cd android && ./gradlew assembleDebug --no-daemon && cd ..`
+
+**Si falla `checkDebugAarMetadata` con "Immutable workspace contents have been modified"** (caché de Gradle corrupta):
+
+```bash
+./gradlew --stop
+rm -rf ~/.gradle/caches/transforms-4
+cd v2/apps/mobile && pnpm android
+```
+
+Gradle volverá a generar esas carpetas en el primer build (puede tardar un poco más).
 
 ## 3. Menú de desarrollo (Dev Menu)
 

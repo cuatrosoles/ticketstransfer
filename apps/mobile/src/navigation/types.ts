@@ -11,17 +11,30 @@ export type RootStackParamList = {
   Home: undefined;
   Kyc: undefined;
   KycWebView: { sessionUrl: string };
-  Publish: undefined;
+  Publish: { editListingId?: string };
   ComprarTicket: undefined;
+  ComprarTicketDetalle: { listingId: string; password: string };
+  MyListingDetail: { listingId: string };
   OrderPago: { orderId: string; checkoutUrl?: string };
   MyPurchases: undefined;
   MySales: undefined;
   Profile: undefined;
   TarjetasAdheridas: undefined;
-  CardFormWebView: undefined;
+  CardFormWebView: { returnTo?: 'OrderPago'; orderId?: string } | undefined;
   ChatSoporte: undefined;
   Mensajes: undefined;
-  MensajesConversation: { conversationId: string; otherUser: { id: string; email: string; firstName?: string | null; lastName?: string | null; username?: string | null; numeroId?: string | null } };
+  MensajesConversation: {
+    conversationId: string;
+    otherUser: {
+      id: string;
+      email: string;
+      firstName?: string | null;
+      lastName?: string | null;
+      username?: string | null;
+      numeroId?: string | null;
+      profileImageUrl?: string | null;
+    };
+  };
   Acerca: undefined;
   PoliticaPrivacidad: undefined;
   TerminosYCondiciones: undefined;

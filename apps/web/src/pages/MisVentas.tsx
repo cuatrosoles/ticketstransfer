@@ -3,7 +3,22 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { getMySales, getMyListings, type OrderItem, type TicketListingItem } from '../lib/api';
+
+function formatListingDate(value: string | undefined): string {
+  if (!value) return '—';
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('es-AR');
+  }
+  try {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('es-AR');
+  } catch {
+    return '—';
+  }
+}
 
 const ORDER_STATUS: Record<string, string> = {
   PENDIENTE_PAGO: 'Pendiente de pago',
@@ -102,41 +117,53 @@ export function MisVentas() {
             {listings.map((item) => {
               const isApproved = item.status === 'DISPONIBLE';
               return (
-                <div key={item.id} className="glass" style={{ padding: 16, borderRadius: 12 }}>
-                  <div style={{ fontWeight: 600 }}>{item.eventName}</div>
-                  <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 4 }}>
-                    {item.price} {item.currency} · {new Date(item.eventDate).toLocaleDateString('es-AR')}
-                  </div>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      padding: '4px 10px',
-                      borderRadius: 8,
-                      marginTop: 8,
-                      background: isApproved ? 'rgba(34, 197, 94, 0.2)' : 'rgba(234, 179, 8, 0.2)',
-                      color: isApproved ? '#16a34a' : '#ca8a04',
-                    }}
-                  >
-                    {LISTING_STATUS[item.status] ?? item.status}
-                  </span>
-                  {isApproved && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 12 }}>
-                      <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Código:</span>
-                      <code style={{ fontSize: 13, padding: '4px 8px', background: 'rgba(0,0,0,0.2)', borderRadius: 6 }}>
-                        {item.id}
-                      </code>
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        style={{ padding: '6px 12px', fontSize: 14 }}
-                        onClick={() => handleCopyId(item.id)}
-                      >
-                        {copyFeedback === item.id ? 'Copiado' : 'Copiar al portapapeles'}
-                      </button>
+                <div key={item.id} className="venta-ticket-wrap">
+                  <div className="venta-ticket-cut venta-ticket-cut-left" aria-hidden />
+                  <div className="venta-ticket-cut venta-ticket-cut-right" aria-hidden />
+                  <div className="venta-ticket-inner glass" style={{ padding: 16, borderRadius: 12 }}>
+                    <div style={{ fontWeight: 600 }}>{item.eventName}</div>
+                    <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 4 }}>
+                      {item.price} {item.currency} · {formatListingDate(item.eventDate)}
                     </div>
-                  )}
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        padding: '4px 10px',
+                        borderRadius: 8,
+                        marginTop: 8,
+                        background: isApproved ? 'rgba(34, 197, 94, 0.2)' : 'rgba(234, 179, 8, 0.2)',
+                        color: isApproved ? '#16a34a' : '#ca8a04',
+                      }}
+                    >
+                      {LISTING_STATUS[item.status] ?? item.status}
+                    </span>
+                    {isApproved && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Código:</span>
+                        <code style={{ fontSize: 13, padding: '4px 8px', background: 'rgba(0,0,0,0.2)', borderRadius: 6 }}>
+                          {item.id}
+                        </code>
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          style={{ padding: '6px 12px', fontSize: 14 }}
+                          onClick={() => handleCopyId(item.id)}
+                        >
+                          {copyFeedback === item.id ? 'Copiado' : 'Copiar al portapapeles'}
+                        </button>
+                      </div>
+                    )}
+                    <div className="venta-ticket-actions">
+                      <Link to={`/mis-ventas/publicacion/${encodeURIComponent(item.id)}`} className="btn-secondary">
+                        Ver
+                      </Link>
+                      <Link to={`/publicar?editar=${encodeURIComponent(item.id)}`} className="btn-primary">
+                        Editar
+                      </Link>
+                    </div>
+                  </div>
                 </div>
               );
             })}

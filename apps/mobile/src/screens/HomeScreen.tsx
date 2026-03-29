@@ -73,7 +73,7 @@ export function HomeScreen() {
           <Text style={styles.cardTitle}>Verificación KYC</Text>
           <Text style={styles.cardSubtitle}>Verificar identidad con DNI y selfie</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.card, glassCard]} onPress={() => navigation.navigate('Publish')}>
+        <TouchableOpacity style={[styles.card, glassCard]} onPress={() => navigation.navigate('Publish', {})}>
           <Text style={styles.cardTitle}>Publicar ticket</Text>
           <Text style={styles.cardSubtitle}>Vender o intercambiar tu entrada</Text>
         </TouchableOpacity>

@@ -35,12 +35,24 @@ import { colors, spacing, radius, glassCard } from '../theme';
 
 function formatDate(value: string | null): string {
   if (!value) return '—';
-  try {
-    const d = new Date(value);
-    return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  } catch {
-    return value;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [y, m, d] = value.split('-').map(Number);
+    const local = new Date(y, m - 1, d);
+    if (!Number.isNaN(local.getTime())) {
+      return local.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
   }
+  const raw = value as unknown as { seconds?: number; _seconds?: number };
+  if (typeof raw.seconds === 'number' || typeof raw._seconds === 'number') {
+    const sec = raw.seconds ?? raw._seconds!;
+    const d = new Date(sec * 1000);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function KycBadge({ status }: { status: string }) {
@@ -359,7 +371,10 @@ export function ProfileScreen() {
               value={profile.province ? (PROVINCIAS_ARGENTINA.find((p) => p.id === profile!.province)?.nombre ?? profile.province) : '—'}
             />
             <ProfileField label="Código postal" value={profile.postalCode || '—'} />
-            {profile.dateOfBirth ? <ProfileField label="Fecha de nacimiento" value={formatDate(profile.dateOfBirth)} /> : null}
+            <ProfileField
+              label="Fecha de nacimiento"
+              value={profile.dateOfBirth ? formatDate(profile.dateOfBirth) : '—'}
+            />
             <View style={styles.kycRow}>
               <Text style={styles.label}>Verificación KYC</Text>
               <KycBadge status={profile.kyc?.status ?? 'PENDIENTE'} />

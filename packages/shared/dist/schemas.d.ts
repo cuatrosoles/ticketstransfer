@@ -239,6 +239,66 @@ export declare const createTicketListingSchema: z.ZodObject<{
     orderRef?: string | undefined;
     category?: "" | "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
 }>;
+/** Actualización parcial de publicación (vendedor); imágenes no se modifican por esta vía */
+export declare const updateTicketListingSchema: z.ZodObject<{
+    eventName: z.ZodOptional<z.ZodString>;
+    eventDate: z.ZodOptional<z.ZodEffects<z.ZodString, string, unknown>>;
+    eventPlace: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>>;
+    sector: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>>;
+    row: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>>;
+    seat: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>>;
+    quantityEntries: z.ZodOptional<z.ZodOptional<z.ZodUnion<[z.ZodString, z.ZodNumber]>>>;
+    tipoEntrada: z.ZodOptional<z.ZodEnum<["GENERAL", "CAMPO", "PLATEA", "VIP", "OTRO"]>>;
+    price: z.ZodOptional<z.ZodNumber>;
+    currency: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+    ticketera: z.ZodOptional<z.ZodEnum<["TICKETEK", "ALLACCESS", "TICKET_PLUS", "OTRA"]>>;
+    appBoletos: z.ZodOptional<z.ZodEnum<["QUENTRO", "ENIGMA", "OTRA"]>>;
+    orderRef: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>>;
+    category: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodUnion<[z.ZodEnum<["MUSICA", "DEPORTES", "TEATRO", "FESTIVALES", "OTRO"]>, z.ZodLiteral<"">]>>, "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined, "" | "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined>>;
+} & {
+    publicationPassword: z.ZodEffects<z.ZodOptional<z.ZodNullable<z.ZodString>>, string | null | undefined, string | null | undefined>;
+    ticketeraOtra: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
+    appBoletosOtra: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
+    tipoEntradaOtro: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
+}, "strip", z.ZodTypeAny, {
+    eventName?: string | undefined;
+    eventDate?: string | undefined;
+    eventPlace?: string | undefined;
+    sector?: string | undefined;
+    row?: string | undefined;
+    seat?: string | undefined;
+    quantityEntries?: string | number | undefined;
+    tipoEntrada?: "OTRO" | "GENERAL" | "CAMPO" | "PLATEA" | "VIP" | undefined;
+    price?: number | undefined;
+    currency?: string | undefined;
+    ticketera?: "TICKETEK" | "ALLACCESS" | "TICKET_PLUS" | "OTRA" | undefined;
+    appBoletos?: "OTRA" | "QUENTRO" | "ENIGMA" | undefined;
+    orderRef?: string | undefined;
+    category?: "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
+    publicationPassword?: string | null | undefined;
+    ticketeraOtra?: string | undefined;
+    appBoletosOtra?: string | undefined;
+    tipoEntradaOtro?: string | undefined;
+}, {
+    eventName?: string | undefined;
+    eventDate?: unknown;
+    eventPlace?: string | undefined;
+    sector?: string | undefined;
+    row?: string | undefined;
+    seat?: string | undefined;
+    quantityEntries?: string | number | undefined;
+    tipoEntrada?: "OTRO" | "GENERAL" | "CAMPO" | "PLATEA" | "VIP" | undefined;
+    price?: number | undefined;
+    currency?: string | undefined;
+    ticketera?: "TICKETEK" | "ALLACCESS" | "TICKET_PLUS" | "OTRA" | undefined;
+    appBoletos?: "OTRA" | "QUENTRO" | "ENIGMA" | undefined;
+    orderRef?: string | undefined;
+    category?: "" | "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
+    publicationPassword?: string | null | undefined;
+    ticketeraOtra?: string | undefined;
+    appBoletosOtra?: string | undefined;
+    tipoEntradaOtro?: string | undefined;
+}>;
 export declare const createOrderSchema: z.ZodObject<{
     ticketListingId: z.ZodString;
     paymentMethod: z.ZodEnum<["mercadopago", "stripe"]>;

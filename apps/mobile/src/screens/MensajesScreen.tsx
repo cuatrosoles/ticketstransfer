@@ -38,7 +38,9 @@ import { colors, spacing, radius, glassCard } from '../theme';
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Mensajes'>;
 
 function formatTime(iso: string): string {
+  if (!iso) return '';
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
   const now = new Date();
   const diff = now.getTime() - d.getTime();
   if (diff < 86400000) return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
@@ -46,10 +48,11 @@ function formatTime(iso: string): string {
   return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
 }
 
-function otherUserLabel(u: ConversationItem['otherUser']): string {
+function otherUserLabel(u: ConversationItem['otherUser'] | null | undefined): string {
+  if (!u) return 'Usuario desconocido';
   if (u.username) return u.username;
-  if (u.firstName || u.lastName) return [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email;
-  return u.email;
+  if (u.firstName || u.lastName) return [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Usuario';
+  return u.email || 'Sin email';
 }
 
 export function MensajesScreen() {
@@ -68,7 +71,7 @@ export function MensajesScreen() {
     setError(null);
     try {
       const list = await getConversations();
-      setConversations(list);
+      setConversations(Array.isArray(list) ? list.filter((c) => c != null && c.id) : []);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error al cargar conversaciones';
       setError(msg);
@@ -136,41 +139,56 @@ export function MensajesScreen() {
     }
   };
 
-  const renderConversation = ({ item }: { item: ConversationItem }) => (
-    <TouchableOpacity
-      style={[styles.convItem, glassCard]}
-      onPress={() =>
-        navigation.navigate('MensajesConversation', {
-          conversationId: item.id,
-          otherUser: item.otherUser,
-        })
-      }
-      activeOpacity={0.8}
-    >
-      <View style={styles.convAvatar}>
-        <Text style={styles.convAvatarText}>
-          {(item.otherUser.firstName?.[0] || item.otherUser.email[0] || '?').toUpperCase()}
-        </Text>
-      </View>
-      <View style={styles.convBody}>
-        <Text style={styles.convName} numberOfLines={1}>
-          {otherUserLabel(item.otherUser)}
-        </Text>
-        <Text style={styles.convMeta} numberOfLines={1}>
-          {item.otherUser.numeroId ? `ID: ${item.otherUser.numeroId}` : item.otherUser.email}
-        </Text>
-        {item.lastMessage && (
-          <Text style={styles.convPreview} numberOfLines={1}>
-            {item.lastMessage.isFromMe ? 'Vos: ' : ''}{item.lastMessage.content}
+  const renderConversation = ({ item }: { item: ConversationItem }) => {
+    const other = item?.otherUser;
+    if (!item || !item.id || !other) return null;
+    const initial = other.firstName?.[0] || other.email?.[0] || '?';
+    return (
+    <View style={styles.convCardWrap}>
+      {item.hasUnread ? <View style={styles.unreadDot} /> : null}
+      <TouchableOpacity
+        style={[styles.convItem, glassCard]}
+        onPress={() =>
+          navigation.navigate('MensajesConversation', {
+            conversationId: item.id,
+            otherUser: {
+              id: other.id,
+              email: other.email,
+              firstName: other.firstName,
+              lastName: other.lastName,
+              username: other.username,
+              numeroId: other.numeroId,
+              profileImageUrl: other.profileImageUrl,
+            },
+          })
+        }
+        activeOpacity={0.8}
+      >
+        <View style={styles.convAvatar}>
+          <Text style={styles.convAvatarText}>
+            {initial.toUpperCase()}
           </Text>
-        )}
-      </View>
-      <View style={styles.convRight}>
-        {item.hasUnread ? <View style={styles.unreadDot} /> : null}
-        <Text style={styles.convTime}>{formatTime(item.updatedAt)}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+        </View>
+        <View style={styles.convBody}>
+          <Text style={styles.convName} numberOfLines={1}>
+            {otherUserLabel(other)}
+          </Text>
+          <Text style={styles.convMeta} numberOfLines={1}>
+            {other.numeroId ? `ID: ${other.numeroId}` : other.email || ''}
+          </Text>
+          {item.lastMessage && (
+            <Text style={styles.convPreview} numberOfLines={1}>
+              {item.lastMessage.isFromMe ? 'Vos: ' : ''}{item.lastMessage.content ?? ''}
+            </Text>
+          )}
+        </View>
+        <View style={styles.convRight}>
+          <Text style={styles.convTime}>{formatTime(item.updatedAt ?? '')}</Text>
+        </View>
+      </TouchableOpacity>
+    </View>
+    );
+  };
 
   const listHeader = (
     <>
@@ -329,11 +347,26 @@ const styles = StyleSheet.create({
   newBtnIcon: { fontSize: 24, color: colors.primaryLight, fontWeight: '600' },
   newBtnText: { fontSize: 16, color: colors.text, fontWeight: '600' },
   list: { paddingBottom: spacing.xl * 2 },
+  convCardWrap: {
+    position: 'relative',
+    marginBottom: spacing.sm,
+  },
+  unreadDot: {
+    position: 'absolute',
+    top: 10,
+    right: 14,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#ffffff',
+    zIndex: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(15, 23, 42, 0.35)',
+  },
   convItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.md,
-    marginBottom: spacing.sm,
     borderRadius: radius,
     gap: spacing.md,
   },
@@ -351,7 +384,6 @@ const styles = StyleSheet.create({
   convMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   convPreview: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
   convRight: { alignItems: 'flex-end', gap: 4 },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primaryLight },
   convTime: { fontSize: 12, color: colors.textMuted },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   empty: {

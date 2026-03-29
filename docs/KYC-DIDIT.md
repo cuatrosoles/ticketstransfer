@@ -52,11 +52,17 @@ WEB_URL="https://tu-dominio-web.com"   # Para callback web
 
 ### 3. Webhook en Didit
 
-En la consola de Didit, configurar la URL del webhook:
+En la consola de Didit (API & Webhooks), configurar:
 
-```
-https://tu-api.com/api/webhooks/didit
-```
+1. **URL del webhook** (debe ser la API en producción):
+   ```
+   https://ticketstransfer-api.vercel.app/api/webhooks/didit
+   ```
+   *(Reemplazá por tu URL de API si es distinta.)*
+
+2. **Webhook Secret Key**: Copiá la clave que muestra Didit y configurala en Vercel como `DIDIT_WEBHOOK_SECRET_KEY`. Si no coincide, las firmas fallarán y el webhook responderá 401.
+
+**Importante:** Si migraste de Railway a Vercel, actualizá la URL del webhook en Didit para que apunte a la API en Vercel. Si sigue apuntando a Railway, las notificaciones de aprobación no llegarán.
 
 ### 4. Callback URL en Didit
 
@@ -91,6 +97,14 @@ cd apps/api && pnpm db:push
 
 - **Android**: `intent-filter` con scheme `ticketTransfer`, host `kyc`, path `/callback` (ya configurado)
 - **iOS**: `CFBundleURLTypes` con scheme `ticketTransfer` (ya configurado)
+
+## Sincronización manual
+
+Si el webhook no actualiza el estado (ej. Didit muestra "Aprobado" pero el panel sigue "Pendiente"):
+
+1. **Verificá la URL del webhook** en Didit → API & Webhooks → debe apuntar a tu API en Vercel.
+2. **Verificá DIDIT_WEBHOOK_SECRET_KEY** en Vercel → debe ser idéntica a la de Didit.
+3. **Usá el botón "Sincronizar con Didit"** en el detalle KYC del admin: trae el estado actual desde la API de Didit y actualiza Firestore sin depender del webhook.
 
 ## Dependencias
 

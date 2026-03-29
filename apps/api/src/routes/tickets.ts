@@ -4,12 +4,25 @@
 
 import { Router } from 'express';
 import multer from 'multer';
+import { z } from 'zod';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { getAuth } from '../lib/firebase-admin.js';
 import { uploadFile } from '../lib/firebase-storage.js';
 import { redactImage, parsePixelateRegionsFromBody } from '../lib/image-redaction.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
-import { createTicketListingSchema, updateTicketListingSchema } from '@tickets-transfer/shared/schemas';
+import { createTicketListingSchema } from '@tickets-transfer/shared';
+
+/** PATCH /mine/:id — mismo criterio que en shared/schemas (evita import roto si no se pushea packages/shared). */
+const updateTicketListingSchema = createTicketListingSchema.partial().extend({
+  publicationPassword: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((s) => (s === '' ? null : s)),
+  ticketeraOtra: z.string().optional().transform((s) => (s === '' ? undefined : s)),
+  appBoletosOtra: z.string().optional().transform((s) => (s === '' ? undefined : s)),
+  tipoEntradaOtro: z.string().optional().transform((s) => (s === '' ? undefined : s)),
+});
 
 const router = Router();
 const upload = multer({

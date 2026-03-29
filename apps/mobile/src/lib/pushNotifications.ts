@@ -40,10 +40,29 @@ export async function getFcmToken(): Promise<string | null> {
   }
 }
 
-export function onMessage(callback: (remoteMessage: { notification?: { title?: string; body?: string }; data?: Record<string, string> }) => void) {
-  return messaging().onMessage(callback);
+function stringifyData(data: Record<string, string | object> | undefined): Record<string, string> | undefined {
+  if (!data) return undefined;
+  return Object.fromEntries(Object.entries(data).map(([k, v]) => [k, typeof v === 'string' ? v : String(v ?? '')]));
+}
+
+export function onMessage(
+  callback: (remoteMessage: { notification?: { title?: string; body?: string }; data?: Record<string, string> }) => void
+) {
+  return messaging().onMessage((msg) => {
+    callback({
+      notification: msg.notification,
+      data: stringifyData(msg.data as Record<string, string | object> | undefined),
+    });
+  });
 }
 
 export function onNotificationOpenedApp(callback: (remoteMessage: { data?: Record<string, string> }) => void) {
-  return messaging().onNotificationOpenedApp(callback);
+  return messaging().onNotificationOpenedApp((msg) => {
+    callback({ data: stringifyData(msg.data as Record<string, string | object> | undefined) });
+  });
+}
+
+/** Notificación que abrió la app desde cerrada (para deep link al chat). */
+export function getInitialNotification() {
+  return messaging().getInitialNotification();
 }

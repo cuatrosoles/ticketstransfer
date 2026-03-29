@@ -9,13 +9,25 @@ import { getProfile, updateProfile, type Profile, type ProfileUpdate } from '../
 import { PROVINCIAS_ARGENTINA, CIUDADES_POR_PROVINCIA } from '../data/provinciasArgentina';
 import { User, Mail, Phone, MapPin, Shield, Pencil, X, Check, CreditCard } from 'lucide-react';
 
-function formatDate(value: string | null): string {
-  if (!value) return '—';
+function formatDate(value: string | null | undefined): string {
+  if (value == null || value === '') return '—';
+  if (typeof value === 'object' && value !== null && '_seconds' in value) {
+    const sec = (value as { _seconds: number })._seconds;
+    const d = new Date(sec * 1000);
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+  const s = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, day] = s.split('-').map(Number);
+    const d = new Date(y, m - 1, day);
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
   try {
-    const d = new Date(value);
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return '—';
     return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   } catch {
-    return value;
+    return '—';
   }
 }
 
@@ -43,12 +55,14 @@ export function Perfil() {
   const [error, setError] = useState('');
 
   const [form, setForm] = useState<ProfileUpdate>({
+    username: '',
     firstName: '',
     lastName: '',
     phone: '',
     city: '',
     province: '',
     postalCode: '',
+    address: '',
     cbuCvu: '',
     bankName: '',
   });
@@ -60,12 +74,14 @@ export function Perfil() {
       const data = await getProfile();
       setProfile(data);
       setForm({
+        username: data.username ?? '',
         firstName: data.firstName ?? '',
         lastName: data.lastName ?? '',
         phone: data.phone ?? '',
         city: data.city ?? '',
         province: data.province ?? '',
         postalCode: data.postalCode ?? '',
+        address: data.address ?? '',
         cbuCvu: data.cbuCvu ?? '',
         bankName: data.bankName ?? '',
       });
@@ -85,12 +101,14 @@ export function Perfil() {
     setError('');
     try {
       await updateProfile({
+        username: form.username?.trim() || undefined,
         firstName: form.firstName?.trim() || undefined,
         lastName: form.lastName?.trim() || undefined,
         phone: form.phone?.trim() || undefined,
         city: form.city?.trim() || undefined,
         province: form.province || undefined,
         postalCode: form.postalCode?.trim() || undefined,
+        address: form.address?.trim() || undefined,
         cbuCvu: form.cbuCvu?.replace(/\D/g, '').slice(0, 22) || undefined,
         bankName: form.bankName?.trim() || undefined,
       });
@@ -107,12 +125,14 @@ export function Perfil() {
   const handleCancel = () => {
     if (profile) {
       setForm({
+        username: profile.username ?? '',
         firstName: profile.firstName ?? '',
         lastName: profile.lastName ?? '',
         phone: profile.phone ?? '',
         city: profile.city ?? '',
         province: profile.province ?? '',
         postalCode: profile.postalCode ?? '',
+        address: profile.address ?? '',
         cbuCvu: profile.cbuCvu ?? '',
         bankName: profile.bankName ?? '',
       });
@@ -176,6 +196,13 @@ export function Perfil() {
             <div className="perfil-field">
               <User size={18} className="perfil-field-icon" />
               <div>
+                <span className="perfil-field-label">Usuario</span>
+                <span className="perfil-field-value">{profile.username || '—'}</span>
+              </div>
+            </div>
+            <div className="perfil-field">
+              <User size={18} className="perfil-field-icon" />
+              <div>
                 <span className="perfil-field-label">Nombre</span>
                 <span className="perfil-field-value">{profile.firstName || '—'}</span>
               </div>
@@ -215,6 +242,13 @@ export function Perfil() {
               <div>
                 <span className="perfil-field-label">Código postal</span>
                 <span className="perfil-field-value">{profile.postalCode || '—'}</span>
+              </div>
+            </div>
+            <div className="perfil-field">
+              <MapPin size={18} className="perfil-field-icon" />
+              <div>
+                <span className="perfil-field-label">Domicilio</span>
+                <span className="perfil-field-value">{profile.address || '—'}</span>
               </div>
             </div>
             <div className="perfil-field">
@@ -267,6 +301,16 @@ export function Perfil() {
                 readOnly
               />
               <p className="form-hint">El email no se puede modificar desde aquí.</p>
+            </div>
+            <div className="input-wrap">
+              <label>Usuario</label>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="Nombre de usuario"
+                value={form.username}
+                onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+              />
             </div>
             <div className="input-wrap">
               <label>Nombre</label>
@@ -333,6 +377,16 @@ export function Perfil() {
                 placeholder="Código postal"
                 value={form.postalCode}
                 onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))}
+              />
+            </div>
+            <div className="input-wrap">
+              <label>Domicilio</label>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="Calle, número, piso/depto"
+                value={form.address}
+                onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
               />
             </div>
             <div className="input-wrap">

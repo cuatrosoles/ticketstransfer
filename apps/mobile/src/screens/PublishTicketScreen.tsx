@@ -4,7 +4,7 @@
  */
 
 import * as React from 'react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,10 +18,19 @@ import {
   ActivityIndicator,
   PermissionsAndroid,
 } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
+import type { RootStackParamList } from '../navigation/types';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import Clipboard from '@react-native-clipboard/clipboard';
-import { createTicketListing, getProfile, getCommissionPercentage, type Profile } from '../lib/api';
+import {
+  createTicketListing,
+  getProfile,
+  getCommissionPercentage,
+  getMyListingDetail,
+  updateMyListing,
+  type Profile,
+} from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
@@ -75,8 +84,22 @@ const chipStyles = StyleSheet.create({
   logo: { width: 24, height: 24 },
 });
 
+function listingDateToInput(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'string') return v.length >= 10 ? v.slice(0, 10) : v;
+  const sec = (v as { _seconds?: number })._seconds;
+  if (typeof sec === 'number') {
+    const d = new Date(sec * 1000);
+    return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+  }
+  const d = new Date(v as string);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+}
+
 export function PublishTicketScreen() {
   const navigation = useNavigation();
+  const route = useRoute<RouteProp<RootStackParamList, 'Publish'>>();
+  const editListingId = route.params?.editListingId;
   const [eventName, setEventName] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventPlace, setEventPlace] = useState('');
@@ -93,12 +116,50 @@ export function PublishTicketScreen() {
   const [appBoletosOtra, setAppBoletosOtra] = useState('');
   const [orderRef, setOrderRef] = useState('');
   const [publicationPassword, setPublicationPassword] = useState('');
+  const [showPubPassword, setShowPubPassword] = useState(false);
   const [captureTicket, setCaptureTicket] = useState<ImageAsset | null>(null);
   const [captureOwnership, setCaptureOwnership] = useState<ImageAsset | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [commissionPercentage, setCommissionPercentage] = useState(COMISION_PORCENTAJE_FALLBACK);
+  const [editListingLoading, setEditListingLoading] = useState(false);
+
+  useEffect(() => {
+    if (!editListingId) return;
+    let cancelled = false;
+    setEditListingLoading(true);
+    getMyListingDetail(editListingId)
+      .then((L) => {
+        if (cancelled) return;
+        setEventName(L.eventName || '');
+        setEventDate(listingDateToInput(L.eventDate));
+        setEventPlace(L.eventPlace || '');
+        setSector(L.sector || '');
+        setFila((L.row as string) || '');
+        setCantidadEntradas((L.quantityEntries as string) || '');
+        setTipoEntrada((L.tipoEntrada as string) || 'GENERAL');
+        setTipoEntradaOtro((L.tipoEntradaOtro as string) || '');
+        setPrice(String(L.price ?? ''));
+        setTicketera((L.ticketera as string) || 'TICKETEK');
+        setTicketeraOtra((L.ticketeraOtra as string) || '');
+        setAppBoletos((L.appBoletos as string) || 'QUENTRO');
+        setAppBoletosOtra((L.appBoletosOtra as string) || '');
+        setButacasAsientos((L.seat as string) || '');
+        setOrderRef(L.orderRef || '');
+        setPublicationPassword((L.publicationPassword as string) || '');
+      })
+      .catch(() => {
+        Alert.alert('Error', 'No se pudo cargar la publicación.');
+        navigation.goBack();
+      })
+      .finally(() => {
+        if (!cancelled) setEditListingLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editListingId, navigation]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -202,12 +263,36 @@ export function PublishTicketScreen() {
       Alert.alert('Precio inválido', 'Ingresá un precio válido.');
       return;
     }
-    if (!captureTicket?.uri) {
+    if (!editListingId && !captureTicket?.uri) {
       Alert.alert('Falta imagen', 'Subí la captura del ticket (QR pixelado).');
       return;
     }
     setSubmitting(true);
     try {
+      if (editListingId) {
+        await updateMyListing(editListingId, {
+          eventName: eventName.trim(),
+          eventDate: dateStr,
+          eventPlace: eventPlace.trim() || undefined,
+          sector: sector.trim() || undefined,
+          row: fila.trim() || undefined,
+          seat: butacasAsientos.trim() || undefined,
+          quantityEntries: cantidadEntradas.trim() || undefined,
+          tipoEntrada,
+          tipoEntradaOtro: tipoEntrada === 'OTRO' ? tipoEntradaOtro.trim() || undefined : undefined,
+          price: priceNum,
+          currency: 'ARS',
+          ticketera,
+          ticketeraOtra: ticketera === 'OTRA' ? ticketeraOtra.trim() || undefined : undefined,
+          appBoletos,
+          appBoletosOtra: appBoletos === 'OTRA' ? appBoletosOtra.trim() || undefined : undefined,
+          orderRef: orderRef.trim() || undefined,
+          publicationPassword: publicationPassword.trim() || null,
+        });
+        Alert.alert('Listo', 'Tu publicación se actualizó.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+        return;
+      }
+
       const formData = new FormData();
       // La API pixelará automáticamente zonas sensibles (QR, nombres, etc.). Opcional: enviar pixelateRegions (Fase 2) si se implementa detección de QR en app.
       formData.append('eventName', eventName.trim());
@@ -227,11 +312,12 @@ export function PublishTicketScreen() {
       if (appBoletos === 'OTRA' && appBoletosOtra.trim()) formData.append('appBoletosOtra', appBoletosOtra.trim());
       if (butacasAsientos.trim()) formData.append('seat', butacasAsientos.trim());
       if (tipoEntrada === 'OTRO' && tipoEntradaOtro.trim()) formData.append('tipoEntradaOtro', tipoEntradaOtro.trim());
-      const uri = (uri: string) => (Platform.OS === 'android' ? uri : uri.replace('file://', ''));
+      const uri = (u: string) => (Platform.OS === 'android' ? u : u.replace('file://', ''));
+      const ticketCap = captureTicket!;
       formData.append('captureTicket', {
-        uri: uri(captureTicket.uri),
-        name: captureTicket.fileName || 'ticket.jpg',
-        type: captureTicket.type || 'image/jpeg',
+        uri: uri(ticketCap.uri),
+        name: ticketCap.fileName || 'ticket.jpg',
+        type: ticketCap.type || 'image/jpeg',
       } as unknown as Blob);
       if (captureOwnership?.uri) {
         formData.append('captureOwnership', {
@@ -274,8 +360,8 @@ export function PublishTicketScreen() {
       Alert.alert(
         'Listo',
         listingId
-          ? `Tu ticket fue enviado a verificación.\n\nCódigo: ${listingId}\n\nPodés copiarlo para compartirlo.`
-          : 'Tu ticket fue enviado a verificación.',
+          ? `Tu ticket fue publicado y ya está disponible.\n\nCódigo: ${listingId}\n\nPodés copiarlo para compartirlo.`
+          : 'Tu ticket fue publicado.',
         [
           ...(listingId ? [{ text: 'Copiar código', onPress: copyAndConfirm }] : []),
           { text: 'OK', onPress: resetFormAndGoHome },
@@ -292,7 +378,7 @@ export function PublishTicketScreen() {
   const comision = priceNum * (commissionPercentage / 100);
   const montoVendedor = priceNum - comision;
 
-  if (profileLoading) {
+  if (profileLoading || editListingLoading) {
     return (
       <AuthBackground>
         <View style={[styles.content, { justifyContent: 'center', alignItems: 'center', padding: spacing.xl }]}>
@@ -310,7 +396,12 @@ export function PublishTicketScreen() {
     return (
       <AuthBackground>
         <View style={styles.inlineHeader}>
-          <ScreenHeader title="Publicar ticket" showBack onBack={() => navigation.goBack()} rightSlot={<UserMenuButton />} />
+          <ScreenHeader
+            title={editListingId ? 'Editar publicación' : 'Publicar ticket'}
+            showBack
+            onBack={() => navigation.goBack()}
+            rightSlot={<UserMenuButton />}
+          />
         </View>
         <View style={[styles.content, { padding: spacing.xl }]}>
           <Text style={[styles.label, { marginBottom: spacing.md }]}>Verificación requerida</Text>
@@ -340,7 +431,7 @@ export function PublishTicketScreen() {
       {/* Header dentro del scroll: se desplaza con el contenido (sin sticky) */}
       <View style={styles.inlineHeader}>
         <ScreenHeader
-          title="Publicar ticket"
+          title={editListingId ? 'Editar publicación' : 'Publicar ticket'}
           showBack
           onBack={() => navigation.goBack()}
           rightSlot={<UserMenuButton />}
@@ -482,17 +573,30 @@ export function PublishTicketScreen() {
       </TouchableOpacity>
 
       <Text style={styles.label}>Contraseña de la publicación</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Contraseña para transferir el ticket"
-        placeholderTextColor={colors.textMuted}
-        value={publicationPassword}
-        onChangeText={setPublicationPassword}
-        secureTextEntry
-      />
+      <View style={styles.inputRow}>
+        <TextInput
+          style={[styles.input, styles.inputRowInput]}
+          placeholder="Contraseña para transferir el ticket"
+          placeholderTextColor={colors.textMuted}
+          value={publicationPassword}
+          onChangeText={setPublicationPassword}
+          secureTextEntry={!showPubPassword}
+        />
+        <TouchableOpacity
+          style={styles.eyeBtn}
+          onPress={() => setShowPubPassword((v) => !v)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.eyeBtnText}>{showPubPassword ? '🙈' : '👁'}</Text>
+        </TouchableOpacity>
+      </View>
 
       <TouchableOpacity style={[styles.primaryButton, submitting && styles.disabled]} onPress={handleSubmit} disabled={submitting}>
-        {submitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryButtonText}>Publicar</Text>}
+        {submitting ? (
+          <ActivityIndicator color={colors.white} />
+        ) : (
+          <Text style={styles.primaryButtonText}>{editListingId ? 'Guardar cambios' : 'Publicar'}</Text>
+        )}
       </TouchableOpacity>
     </ScrollView>
     </AuthBackground>
@@ -505,6 +609,19 @@ const styles = StyleSheet.create({
   inlineHeader: { marginBottom: spacing.md },
   montoVendedor: { fontSize: 13, color: colors.primaryLight, marginTop: -spacing.sm, marginBottom: spacing.md },
   label: { fontSize: 14, fontWeight: '600', color: colors.textMuted, marginBottom: spacing.sm },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.md },
+  inputRowInput: { flex: 1, marginBottom: 0 },
+  eyeBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(30, 58, 138, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.3)',
+  },
+  eyeBtnText: { fontSize: 18 },
   input: { backgroundColor: 'rgba(30, 58, 138, 0.4)', borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.3)', borderRadius: 20, padding: 14, color: colors.text, marginBottom: spacing.md },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
   chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.3)' },

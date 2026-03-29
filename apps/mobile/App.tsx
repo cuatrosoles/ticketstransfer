@@ -5,9 +5,11 @@
 
 import * as React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { AuthProvider } from './src/context/AuthContext';
 import { ProfileImageProvider } from './src/context/ProfileImageContext';
+import { FcmConversationOpener } from './src/components/FcmConversationOpener';
+import type { RootStackParamList } from './src/navigation/types';
 import { RootNavigator } from './src/navigation/RootNavigator';
 
 const linking = {
@@ -20,11 +22,13 @@ const linking = {
 };
 
 export default function App() {
+  const navigationRef = useNavigationContainerRef<RootStackParamList>();
   return (
     <SafeAreaProvider>
       <AuthProvider>
         <ProfileImageProvider>
-          <NavigationContainer linking={linking}>
+          <NavigationContainer ref={navigationRef} linking={linking}>
+            <FcmConversationOpener navigationRef={navigationRef} />
             <RootNavigator />
           </NavigationContainer>
         </ProfileImageProvider>

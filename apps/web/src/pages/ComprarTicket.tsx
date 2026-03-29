@@ -1,29 +1,49 @@
 /**
- * Comprar Ticket – Buscar por ID (compartido con el vendedor), previsualizar entradas, contraseña del vendedor (opcional), continuar compra.
+ * Comprar Ticket – Paso 1: buscar ID, evento + vendedor, contraseña → detalle.
  */
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Lock, MessageCircle } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { api } from '../lib/api';
 
-type Preview = {
+type Seller = {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  username?: string | null;
+  reputationScore?: number | null;
+  phoneVerified?: boolean;
+  emailVerified?: boolean;
+  kyc?: { status: string } | null;
+};
+
+type TicketPreview = {
   id: string;
   eventName: string;
   eventDate: string;
+  eventPlace?: string | null;
   sector?: string | null;
-  price: number;
-  currency: string;
-} | null;
+  quantityEntries?: string | null;
+  seller?: Seller;
+  showFull?: boolean;
+};
 
 export function ComprarTicket() {
   const [id, setId] = useState('');
-  const [preview, setPreview] = useState<Preview>(null);
+  const [preview, setPreview] = useState<TicketPreview | null>(null);
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showChat, setShowChat] = useState(false);
   const navigate = useNavigate();
+
+  const fetchTicket = async (pwd?: string) => {
+    const trimmed = id.trim();
+    if (!trimmed) return null;
+    const q = pwd ? `?password=${encodeURIComponent(pwd)}` : '';
+    return api<TicketPreview>(`/api/tickets/${encodeURIComponent(trimmed)}${q}`);
+  };
 
   const handleSearch = async () => {
     const trimmed = id.trim();
@@ -31,8 +51,9 @@ export function ComprarTicket() {
     setError('');
     setLoading(true);
     setPreview(null);
+    setPassword('');
     try {
-      const res = await api<Preview>(`/api/tickets/${encodeURIComponent(trimmed)}`);
+      const res = await fetchTicket();
       setPreview(res);
     } catch {
       setError('No se encontró ninguna publicación con ese ID. Verificá el número con el vendedor.');
@@ -41,25 +62,35 @@ export function ComprarTicket() {
     }
   };
 
-  const handleContinuePurchase = async () => {
+  const goToDetail = (pwd: string) => {
     if (!preview) return;
+    navigate('/comprar-ticket/detalle', { state: { listingId: preview.id, password: pwd } });
+  };
+
+  const handlePasswordSubmit = async () => {
+    if (!preview || !password.trim()) return;
     setError('');
     setLoading(true);
     try {
-      const res = await api<{ order: { id: string }; checkoutUrl?: string }>('/api/orders', {
-        method: 'POST',
-        body: JSON.stringify({
-          ticketListingId: preview.id,
-          paymentMethod: 'mercadopago',
-        }),
-      });
-      navigate(`/orden/${res.order.id}/pago`, { state: { checkoutUrl: res.checkoutUrl } });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo iniciar la compra.');
+      const res = await fetchTicket(password.trim());
+      if (!res || !res.showFull) {
+        setError('Contraseña incorrecta.');
+        return;
+      }
+      goToDetail(password.trim());
+    } catch {
+      setError('Contraseña incorrecta.');
     } finally {
       setLoading(false);
     }
   };
+
+  const seller = preview?.seller;
+  const sellerName = seller
+    ? [seller.firstName, seller.lastName].filter(Boolean).join(' ') || seller.username || '—'
+    : '—';
+  const needsPassword = preview && !preview.showFull && preview.id;
+  const salesCount = 0;
 
   return (
     <div className="page-content comprar-ticket-page">
@@ -74,7 +105,7 @@ export function ComprarTicket() {
             <input
               type="text"
               className="input-field"
-              placeholder="Ej: UUID o código"
+              placeholder="81y7eZv1bVC16kfBu7db"
               value={id}
               onChange={(e) => setId(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -82,7 +113,7 @@ export function ComprarTicket() {
           </div>
         </div>
         <button type="button" className="btn-primary" onClick={handleSearch} disabled={loading}>
-          {loading ? 'Buscando...' : 'Buscar'}
+          {loading && !preview ? 'Buscando…' : 'Buscar'}
         </button>
       </div>
 
@@ -90,57 +121,73 @@ export function ComprarTicket() {
 
       {preview && (
         <div className="glass comprar-ticket-preview">
-          <h2 className="comprar-preview-title">Previsualización</h2>
+          <h2 className="comprar-preview-title">Comprar Ticket</h2>
           <dl className="comprar-preview-list">
             <dt>Evento</dt>
             <dd>{preview.eventName}</dd>
             <dt>Fecha</dt>
             <dd>{new Date(preview.eventDate).toLocaleDateString('es-AR')}</dd>
+            <dt>Lugar</dt>
+            <dd>{preview.eventPlace || '—'}</dd>
             {preview.sector && (
               <>
                 <dt>Sector</dt>
                 <dd>{preview.sector}</dd>
               </>
             )}
-            <dt>Precio</dt>
-            <dd>{preview.currency} {preview.price}</dd>
+            <dt>Cantidad de entradas</dt>
+            <dd>{preview.quantityEntries || '—'}</dd>
           </dl>
 
-          <button
-            type="button"
-            className="btn-secondary btn-chat-toggle"
-            onClick={() => setShowChat(!showChat)}
-          >
-            <MessageCircle size={18} />
-            {showChat ? 'Ocultar chat' : 'Chat con el vendedor (opcional)'}
-          </button>
-          {showChat && (
-            <div className="comprar-chat-placeholder">
-              <p className="text-muted">Chat interno (próximamente)</p>
+          {seller && (
+            <div className="comprar-seller-block">
+              <p className="comprar-seller-title">VENDEDOR: {sellerName.toUpperCase()}</p>
+              <ul className="comprar-seller-list text-muted">
+                <li>Usuario: {seller.username || '—'}</li>
+                <li>Reputación: {seller.reputationScore ?? 0} PTS</li>
+                <li>Verificación KYC: {seller.kyc?.status === 'APROBADO' ? '✓ Verificado' : 'Sin verificar'}</li>
+                <li>Verificación email: {seller.emailVerified ? '✓ Verificado' : 'Sin verificar'}</li>
+                <li>Verificación teléfono: {seller.phoneVerified ? '✓ Verificado' : 'Sin verificar'}</li>
+                <li>Ventas concretadas: {salesCount}</li>
+              </ul>
             </div>
           )}
 
-          <div className="input-wrap comprar-password-wrap">
-            <label>Contraseña del vendedor (opcional)</label>
-            <div className="input-with-icon">
-              <Lock size={20} className="input-icon" />
-              <input
-                type="password"
-                className="input-field"
-                placeholder="Si el vendedor te pasó una contraseña"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          </div>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={handleContinuePurchase}
-            disabled={loading}
-          >
-            {loading ? 'Procesando...' : 'Continuar con la compra'}
-          </button>
+          {needsPassword ? (
+            <>
+              <div className="input-wrap">
+                <label>Contraseña del ticket</label>
+                <div className="input-password-row">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    className="input-field"
+                    placeholder="Ingresá la contraseña que te pasó el vendedor"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary btn-eye"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showPassword ? '🙈' : '👁'}
+                  </button>
+                </div>
+              </div>
+              <p className="form-hint">
+                Ingresá aquí la contraseña que te adjuntó el vendedor para visualizar el ticket completo antes de
+                efectuar la compra.
+              </p>
+              <button type="button" className="btn-primary" onClick={handlePasswordSubmit} disabled={loading}>
+                {loading ? 'Procesando…' : 'Siguiente'}
+              </button>
+            </>
+          ) : (
+            <button type="button" className="btn-primary" onClick={() => goToDetail('')}>
+              Siguiente
+            </button>
+          )}
         </div>
       )}
     </div>

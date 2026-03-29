@@ -9,23 +9,17 @@
 import { Platform } from 'react-native';
 
 const API_TIMEOUT_MS = 15000;
+const API_TIMEOUT_UPLOAD_MS = 60000; // 60 s para subidas (imágenes, FormData)
 
 /**
- * URL de la API en producción. Cuando subas la API a un hosting (Railway, Hostinger, etc.),
+ * URL de la API en producción. Cuando subas la API a un hosting (Railway, Vercel, etc.),
  * poné acá esa URL (con https) y generá el APK. Null = desarrollo (emulador/simulador).
  */
-///const API_BASE_OVERRIDE: string | null = 'https://ticketstransfer-production.up.railway.app';
 const API_BASE_OVERRIDE: string | null = 'https://ticketstransfer-api.vercel.app';
 
 const API_BASE =
   API_BASE_OVERRIDE ??
   (Platform.OS === 'android' ? 'http://10.0.2.2:3001' : 'http://localhost:3001');
-
-/*
-const API_BASE =
-  API_BASE_OVERRIDE ??
-  (Platform.OS === 'android' ? 'http://10.0.2.2:3001' : 'http://localhost:3001');
-*/
 
 /** Asegura que la URL de imagen tenga protocolo (https://) para que Image pueda cargarla */
 export function ensureImageUrl(url: string | null): string | null {
@@ -46,13 +40,15 @@ function isNetworkError(e: unknown): boolean {
   return msg === 'Network request failed' || msg.includes('Network request failed');
 }
 
+const isProduction = Boolean(API_BASE_OVERRIDE);
+
 export async function api<T>(
   path: string,
-  options: RequestInit & { token?: string | null } = {}
+  options: RequestInit & { token?: string | null; timeoutMs?: number } = {}
 ): Promise<T> {
   const tokenRes = options.token !== undefined ? options.token : getToken();
   const token = tokenRes instanceof Promise ? await tokenRes : tokenRes;
-  const { token: _t, ...rest } = options;
+  const { token: _t, timeoutMs, ...rest } = options;
   const body = rest.body;
   const isFormData = body instanceof FormData;
   const headers: Record<string, string> = {
@@ -61,8 +57,9 @@ export async function api<T>(
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
+  const timeout = timeoutMs ?? (isFormData ? API_TIMEOUT_UPLOAD_MS : API_TIMEOUT_MS);
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
     const res = await fetch(`${API_BASE}${path}`, {
@@ -77,11 +74,17 @@ export async function api<T>(
   } catch (e) {
     clearTimeout(timeoutId);
     if (e instanceof Error && e.name === 'AbortError') {
-      throw new Error('La solicitud tardó demasiado. Comprobá que la API esté corriendo (pnpm dev en apps/api).');
+      throw new Error(
+        isProduction
+          ? 'La solicitud tardó demasiado. Probá de nuevo con mejor conexión a internet.'
+          : 'La solicitud tardó demasiado. Comprobá que la API esté corriendo (pnpm dev en apps/api).'
+      );
     }
     if (isNetworkError(e)) {
       throw new Error(
-        'No se pudo conectar al servidor. Comprobá que la API esté corriendo (pnpm dev en apps/api) y que en src/lib/api.ts la URL sea correcta (emulador Android: 10.0.2.2:3001, dispositivo físico: IP de tu PC).'
+        isProduction
+          ? 'No se pudo conectar al servidor. Verificá tu conexión a internet y probá de nuevo.'
+          : 'No se pudo conectar al servidor. Comprobá que la API esté corriendo (pnpm dev en apps/api) y que en src/lib/api.ts la URL sea correcta (emulador Android: 10.0.2.2:3001, dispositivo físico: IP de tu PC).'
       );
     }
     throw e;
@@ -239,6 +242,33 @@ export async function getMyListings() {
   return api<TicketListingItem[]>('/api/tickets/my/listings');
 }
 
+export type MyListingDetail = TicketListingItem & {
+  row?: string | null;
+  seat?: string | null;
+  quantityEntries?: string | null;
+  ticketera?: string;
+  appBoletos?: string;
+  orderRef?: string | null;
+  publicationPassword?: string | null;
+  captureTicketUrl?: string | null;
+  captureOwnershipUrl?: string | null;
+  ticketeraOtra?: string | null;
+  appBoletosOtra?: string | null;
+  tipoEntradaOtro?: string | null;
+  tipoEntrada?: string;
+};
+
+export async function getMyListingDetail(listingId: string): Promise<MyListingDetail> {
+  return api<MyListingDetail>(`/api/tickets/mine/${encodeURIComponent(listingId)}`);
+}
+
+export async function updateMyListing(listingId: string, body: Record<string, unknown>): Promise<MyListingDetail> {
+  return api<MyListingDetail>(`/api/tickets/mine/${encodeURIComponent(listingId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
 /** Publicar ticket (multipart: body fields + captureTicket, captureOwnership) */
 export async function createTicketListing(formData: FormData) {
   return api<unknown>('/api/tickets', {
@@ -281,6 +311,7 @@ export type ConversationItem = {
     lastName?: string | null;
     username?: string | null;
     numeroId?: string | null;
+    profileImageUrl?: string | null;
   };
   lastMessage: { content: string; createdAt: string; isFromMe: boolean; readAt?: string | null } | null;
   hasUnread?: boolean;
@@ -307,6 +338,13 @@ export type UserSearchItem = {
 
 export async function getConversations(): Promise<ConversationItem[]> {
   return api<ConversationItem[]>('/api/messages/conversations');
+}
+
+export async function getConversationById(conversationId: string): Promise<{
+  id: string;
+  otherUser: ConversationItem['otherUser'];
+}> {
+  return api(`/api/messages/conversations/${encodeURIComponent(conversationId)}`);
 }
 
 export async function searchUsers(q: string): Promise<UserSearchItem[]> {

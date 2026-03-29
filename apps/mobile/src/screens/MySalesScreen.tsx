@@ -17,18 +17,21 @@ import {
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/types';
 import { getMySales, getMyListings, type OrderItem, type TicketListingItem } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { colors, spacing, radius, glassCard } from '../theme';
 
-type Section =
-  | { title: 'Mis ventas'; data: OrderItem[] }
-  | { title: 'Mis Tickets a la Venta'; data: TicketListingItem[] };
+type Section = {
+  title: 'Mis ventas' | 'Mis Tickets a la Venta';
+  data: (OrderItem | TicketListingItem)[];
+};
 
 export function MySalesScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [listings, setListings] = useState<TicketListingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,31 +115,49 @@ export function MySalesScreen() {
   const renderListingItem = (item: TicketListingItem) => {
     const isApproved = item.status === 'DISPONIBLE';
     return (
-      <View style={[styles.card, glassCard]}>
-        <Text style={styles.eventName}>{item.eventName}</Text>
-        <Text style={styles.meta}>
-          {item.price} {item.currency} · {new Date(item.eventDate).toLocaleDateString()}
-        </Text>
-        <View style={styles.statusRow}>
-          <Text style={[styles.statusBadge, isApproved ? styles.statusApproved : styles.statusPending]}>
-            {listingStatusLabel(item.status)}
+      <View style={styles.ticketStubWrap}>
+        <View style={[styles.stubCut, styles.stubCutLeft]} />
+        <View style={[styles.stubCut, styles.stubCutRight]} />
+        <View style={[styles.card, glassCard, styles.ticketCardInner]}>
+          <Text style={styles.eventName}>{item.eventName}</Text>
+          <Text style={styles.meta}>
+            {item.price} {item.currency} · {new Date(item.eventDate).toLocaleDateString()}
           </Text>
-        </View>
-        {isApproved && (
-          <View style={styles.idRow}>
-            <Text style={styles.idLabel}>Código: </Text>
-            <Text style={styles.idValue} selectable>
-              {item.id}
+          <View style={styles.statusRow}>
+            <Text style={[styles.statusBadge, isApproved ? styles.statusApproved : styles.statusPending]}>
+              {listingStatusLabel(item.status)}
             </Text>
+          </View>
+          <View style={styles.listingActions}>
             <TouchableOpacity
-              style={styles.copyBtn}
-              onPress={() => handleCopyId(item.id)}
-              activeOpacity={0.7}
+              style={styles.actionBtn}
+              onPress={() => navigation.navigate('MyListingDetail', { listingId: item.id })}
             >
-              <Text style={styles.copyBtnText}>Copiar</Text>
+              <Text style={styles.actionBtnText}>Ver ticket</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.actionBtnSecondary]}
+              onPress={() => navigation.navigate('Publish', { editListingId: item.id })}
+            >
+              <Text style={styles.actionBtnText}>Editar</Text>
             </TouchableOpacity>
           </View>
-        )}
+          {isApproved && (
+            <View style={styles.idRow}>
+              <Text style={styles.idLabel}>Código: </Text>
+              <Text style={styles.idValue} selectable>
+                {item.id}
+              </Text>
+              <TouchableOpacity
+                style={styles.copyBtn}
+                onPress={() => handleCopyId(item.id)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.copyBtnText}>Copiar</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       </View>
     );
   };
@@ -150,7 +171,8 @@ export function MySalesScreen() {
     <Text style={styles.sectionTitle}>{section.title}</Text>
   );
 
-  const keyExtractor = (item: OrderItem | TicketListingItem) => item.id;
+  const keyExtractor = (item: OrderItem | TicketListingItem, index: number) =>
+    `${item.id}-${index}`;
 
   const renderSectionFooter = ({ section }: { section: Section }) => {
     if (section.data.length > 0) return null;
@@ -173,7 +195,7 @@ export function MySalesScreen() {
 
   return (
     <AuthBackground>
-      <SectionList
+      <SectionList<OrderItem | TicketListingItem, Section>
         sections={sections}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
@@ -207,7 +229,40 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     marginBottom: spacing.sm,
   },
-  card: { padding: spacing.lg, marginBottom: spacing.md },
+  ticketStubWrap: {
+    position: 'relative',
+    marginBottom: spacing.md,
+  },
+  stubCut: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(15, 23, 42, 0.98)',
+    top: '50%',
+    marginTop: -9,
+    zIndex: 1,
+  },
+  stubCutLeft: { left: -9 },
+  stubCutRight: { right: -9 },
+  ticketCardInner: {
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: 'rgba(147, 197, 253, 0.35)',
+  },
+  card: { padding: spacing.lg, marginBottom: 0 },
+  listingActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md, flexWrap: 'wrap' },
+  actionBtn: {
+    flex: 1,
+    minWidth: 120,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  actionBtnSecondary: { backgroundColor: 'rgba(59, 130, 246, 0.35)', borderWidth: 1, borderColor: 'rgba(147, 197, 253, 0.45)' },
+  actionBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
   eventName: { fontSize: 16, fontWeight: '600', color: colors.text },
   meta: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
   buyer: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
@@ -218,7 +273,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: radius.sm,
+    borderRadius: 10,
     alignSelf: 'flex-start',
   },
   statusApproved: { backgroundColor: 'rgba(34, 197, 94, 0.2)', color: '#16a34a' },
@@ -236,7 +291,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: radius.sm,
+    borderRadius: 10,
   },
   copyBtnText: { fontSize: 14, fontWeight: '600', color: '#fff' },
   emptyText: { color: colors.textMuted, textAlign: 'center', marginTop: 24 },

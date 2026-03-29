@@ -15,6 +15,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
@@ -27,6 +28,7 @@ import { UserMenuButton } from '../components/UserMenuButton';
 import {
   getConversationMessages,
   sendMessageToConversation,
+  ensureImageUrl,
   type MessageItem,
 } from '../lib/api';
 import { colors, spacing, radius, glassCard } from '../theme';
@@ -49,6 +51,7 @@ export function MensajesConversationScreen() {
     [otherUser?.firstName, otherUser?.lastName].filter(Boolean).join(' ') ||
     otherUser?.email ||
     'Conversación';
+  const peerAvatar = otherUser?.profileImageUrl ? ensureImageUrl(otherUser.profileImageUrl) : null;
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -121,6 +124,11 @@ export function MensajesConversationScreen() {
               showBack
               onBack={() => navigation.goBack()}
               rightSlot={<UserMenuButton />}
+              titleRight={
+                peerAvatar ? (
+                  <Image source={{ uri: peerAvatar }} style={styles.peerAvatar} />
+                ) : null
+              }
             />
             {messages.map((msg) => (
               <View
@@ -257,4 +265,11 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: { opacity: 0.4 },
   sendIcon: { fontSize: 18, color: colors.white, fontWeight: '700' },
+  peerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(147, 197, 253, 0.5)',
+  },
 });

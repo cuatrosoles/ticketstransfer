@@ -18955,6 +18955,12 @@ function parsePixelateRegionsFromBody(body) {
 }
 
 // src/routes/tickets.ts
+var updateTicketListingSchema2 = createTicketListingSchema.partial().extend({
+  publicationPassword: external_exports.string().nullable().optional().transform((s) => s === "" ? null : s),
+  ticketeraOtra: external_exports.string().optional().transform((s) => s === "" ? void 0 : s),
+  appBoletosOtra: external_exports.string().optional().transform((s) => s === "" ? void 0 : s),
+  tipoEntradaOtro: external_exports.string().optional().transform((s) => s === "" ? void 0 : s)
+});
 var router3 = Router3();
 var upload2 = multer2({
   storage: multer2.memoryStorage(),
@@ -19201,7 +19207,7 @@ router3.patch("/mine/:listingId", requireAuth, async (req, res) => {
   if (!doc.exists || doc.data()?.sellerId !== req.user.id) {
     return res.status(404).json({ error: "No encontrado" });
   }
-  const parsed = updateTicketListingSchema.safeParse(req.body);
+  const parsed = updateTicketListingSchema2.safeParse(req.body);
   if (!parsed.success) {
     const flat = parsed.error.flatten();
     const msg = flat.formErrors[0] || "Datos inv\xE1lidos";

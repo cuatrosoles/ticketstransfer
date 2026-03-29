@@ -71,6 +71,17 @@ export const createTicketListingSchema = z.object({
     orderRef: z.string().optional().transform((s) => (s === '' ? undefined : s)),
     category: z.union([categoriaEventoEnum, z.literal('')]).optional().transform((v) => (v === '' ? undefined : v)),
 });
+/** Actualización parcial de publicación (vendedor); imágenes no se modifican por esta vía */
+export const updateTicketListingSchema = createTicketListingSchema.partial().extend({
+    publicationPassword: z
+        .string()
+        .nullable()
+        .optional()
+        .transform((s) => (s === '' ? null : s)),
+    ticketeraOtra: z.string().optional().transform((s) => (s === '' ? undefined : s)),
+    appBoletosOtra: z.string().optional().transform((s) => (s === '' ? undefined : s)),
+    tipoEntradaOtro: z.string().optional().transform((s) => (s === '' ? undefined : s)),
+});
 export const createOrderSchema = z.object({
     ticketListingId: z.string().min(1, 'ID de publicación requerido'),
     paymentMethod: z.enum(['mercadopago', 'stripe']),

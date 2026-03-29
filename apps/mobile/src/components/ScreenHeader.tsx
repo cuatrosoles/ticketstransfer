@@ -14,9 +14,11 @@ type Props = {
   showBack?: boolean;
   onBack?: () => void;
   rightSlot?: React.ReactNode;
+  /** Contenido junto al título (ej. avatar del contacto en chat) */
+  titleRight?: React.ReactNode;
 };
 
-export function ScreenHeader({ title, showBack, onBack, rightSlot }: Props) {
+export function ScreenHeader({ title, showBack, onBack, rightSlot, titleRight }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.row}>
@@ -34,7 +36,12 @@ export function ScreenHeader({ title, showBack, onBack, rightSlot }: Props) {
         />
         {rightSlot ? <View style={styles.rightSlot}>{rightSlot}</View> : <View style={styles.spacer} />}
       </View>
-      <Text style={styles.title}>{title}</Text>
+      <View style={styles.titleRow}>
+        <Text style={[styles.title, titleRight ? styles.titleWithExtra : undefined]} numberOfLines={1}>
+          {title}
+        </Text>
+        {titleRight ? <View style={styles.titleRightWrap}>{titleRight}</View> : null}
+      </View>
     </View>
   );
 }
@@ -77,12 +84,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   userIcon: { fontSize: 20 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+    gap: 10,
+    paddingHorizontal: 4,
+  },
   title: {
     fontSize: 22,
     fontWeight: '800',
     letterSpacing: 0.5,
     color: '#f8fafc',
-    marginTop: 6,
     textAlign: 'center',
+    flexShrink: 1,
   },
+  titleWithExtra: { flex: 1, textAlign: 'center' as const },
+  titleRightWrap: { flexShrink: 0 },
 });

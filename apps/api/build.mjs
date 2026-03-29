@@ -1,11 +1,7 @@
 #!/usr/bin/env node
 /**
- * Build de la API con esbuild: empaqueta la API + @tickets-transfer/shared en dist/index.js.
- *
- * Esbuild en Vercel falla al enlazar imports nombrados contra el JS emitido por `tsc`
- * (`dist/schemas.js`): no reconoce exportaciones aunque existan. Por eso los módulos
- * shared se resuelven al **fuente TypeScript** (`src/*.ts`); esbuild los transpila y
- * ve los `export const` en el AST sin depender del output de tsc.
+ * Build de la API con esbuild: empaqueta el código de la API + @tickets-transfer/shared
+ * en un solo dist/index.js.
  */
 import * as esbuild from 'esbuild';
 import { mkdirSync, existsSync } from 'fs';
@@ -14,26 +10,15 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outDir = join(__dirname, 'dist');
-const sharedRoot = join(__dirname, '../../packages/shared');
-const sharedIndexSrc = join(sharedRoot, 'src/index.ts');
-const sharedSchemasSrc = join(sharedRoot, 'src/schemas.ts');
+const sharedSrc = join(__dirname, '../../packages/shared/src/index.ts');
 
 if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
 
-if (!existsSync(sharedIndexSrc) || !existsSync(sharedSchemasSrc)) {
-  console.error('Missing @tickets-transfer/shared source:', { sharedIndexSrc, sharedSchemasSrc });
-  process.exit(1);
-}
-
 const sharedPlugin = {
-  name: 'shared-typescript-source',
+  name: 'shared-source',
   setup(build) {
-    // Subpath más específico primero
-    build.onResolve({ filter: /^@tickets-transfer\/shared\/schemas$/ }, () => ({
-      path: sharedSchemasSrc,
-    }));
     build.onResolve({ filter: /^@tickets-transfer\/shared$/ }, () => ({
-      path: sharedIndexSrc,
+      path: sharedSrc,
     }));
   },
 };

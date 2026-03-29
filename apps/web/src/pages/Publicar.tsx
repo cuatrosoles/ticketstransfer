@@ -2,10 +2,10 @@
  * Publicar ticket (web) – Formulario completo + detección de QR (jsQR) para enviar regiones a pixelar (Fase 2).
  */
 
-import { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useCallback, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import jsQR from 'jsqr';
-import { createTicketListing } from '../lib/api';
+import { createTicketListing, getMyListingDetail, updateMyListing } from '../lib/api';
 import type { PixelateRegion } from '@tickets-transfer/shared';
 import { createTicketListingSchema } from '@tickets-transfer/shared';
 
@@ -60,8 +60,22 @@ function detectQRRegion(file: File): Promise<PixelateRegion | null> {
   });
 }
 
+function listingDateToInput(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'string') return v.length >= 10 ? v.slice(0, 10) : v;
+  const sec = (v as { _seconds?: number })._seconds;
+  if (typeof sec === 'number') {
+    const d = new Date(sec * 1000);
+    return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+  }
+  const d = new Date(v as string);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+}
+
 export function Publicar() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editListingId = searchParams.get('editar')?.trim() || '';
   const [eventName, setEventName] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventPlace, setEventPlace] = useState('');
@@ -79,6 +93,7 @@ export function Publicar() {
   const [orderRef, setOrderRef] = useState('');
   const [category, setCategory] = useState<(typeof CATEGORIAS)[number]>('OTRO');
   const [publicationPassword, setPublicationPassword] = useState('');
+  const [showPubPassword, setShowPubPassword] = useState(false);
   const [captureTicketFile, setCaptureTicketFile] = useState<File | null>(null);
   const [captureOwnershipFile, setCaptureOwnershipFile] = useState<File | null>(null);
   const [pixelateRegions, setPixelateRegions] = useState<PixelateRegion[] | null>(null);
@@ -86,6 +101,49 @@ export function Publicar() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successListingId, setSuccessListingId] = useState<string | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+
+  useEffect(() => {
+    if (!editListingId) return;
+    let cancelled = false;
+    setEditLoading(true);
+    getMyListingDetail(editListingId)
+      .then((L) => {
+        if (cancelled) return;
+        setEventName(L.eventName || '');
+        setEventDate(listingDateToInput(L.eventDate));
+        setEventPlace(L.eventPlace || '');
+        setSector(L.sector || '');
+        setRow((L.row as string) || '');
+        setSeat((L.seat as string) || '');
+        setQuantityEntries((L.quantityEntries as string) || '');
+        setTipoEntrada((L.tipoEntrada as (typeof TIPOS_ENTRADA)[number]) || 'GENERAL');
+        setTipoEntradaOtro((L.tipoEntradaOtro as string) || '');
+        setPrice(String(L.price ?? ''));
+        setTicketera((L.ticketera as (typeof TICKETERAS)[number]) || 'TICKETEK');
+        setTicketeraOtra((L.ticketeraOtra as string) || '');
+        setAppBoletos((L.appBoletos as (typeof APPS_BOLETOS)[number]) || 'QUENTRO');
+        setAppBoletosOtra((L.appBoletosOtra as string) || '');
+        setOrderRef(L.orderRef || '');
+        setPublicationPassword((L.publicationPassword as string) || '');
+        const rawCat = (L as { category?: string }).category;
+        setCategory(
+          rawCat && CATEGORIAS.includes(rawCat as (typeof CATEGORIAS)[number])
+            ? (rawCat as (typeof CATEGORIAS)[number])
+            : 'OTRO'
+        );
+      })
+      .catch(() => {
+        window.alert('No se pudo cargar la publicación.');
+        navigate('/mis-ventas');
+      })
+      .finally(() => {
+        if (!cancelled) setEditLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editListingId, navigate]);
 
   const onCaptureTicketChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -130,7 +188,7 @@ export function Publicar() {
       setError(first || 'Revisá los datos del formulario.');
       return;
     }
-    if (!captureTicketFile) {
+    if (!editListingId && !captureTicketFile) {
       setError('Subí la captura del ticket (imagen con QR).');
       return;
     }
@@ -141,6 +199,38 @@ export function Publicar() {
 
     setSubmitting(true);
     try {
+      if (editListingId) {
+        await updateMyListing(editListingId, {
+          eventName: parsed.data.eventName,
+          eventDate: parsed.data.eventDate,
+          eventPlace: parsed.data.eventPlace,
+          sector: parsed.data.sector,
+          row: parsed.data.row,
+          seat: parsed.data.seat,
+          quantityEntries: parsed.data.quantityEntries,
+          tipoEntrada: parsed.data.tipoEntrada,
+          tipoEntradaOtro: tipoEntrada === 'OTRO' ? tipoEntradaOtro.trim() || undefined : undefined,
+          price: parsed.data.price,
+          currency: parsed.data.currency,
+          ticketera: parsed.data.ticketera,
+          ticketeraOtra: ticketera === 'OTRA' ? ticketeraOtra.trim() || undefined : undefined,
+          appBoletos: parsed.data.appBoletos,
+          appBoletosOtra: appBoletos === 'OTRA' ? appBoletosOtra.trim() || undefined : undefined,
+          orderRef: parsed.data.orderRef,
+          category: parsed.data.category,
+          publicationPassword: publicationPassword.trim() || null,
+        });
+        window.alert('Tu publicación se actualizó.');
+        navigate(`/mis-ventas/publicacion/${editListingId}`);
+        return;
+      }
+
+      const ticketFile = captureTicketFile;
+      if (!ticketFile) {
+        setError('Subí la captura del ticket (imagen con QR).');
+        return;
+      }
+
       const formData = new FormData();
       formData.append('eventName', parsed.data.eventName);
       formData.append('eventDate', parsed.data.eventDate);
@@ -161,7 +251,7 @@ export function Publicar() {
       formData.append('category', parsed.data.category ?? 'OTRO');
       if (publicationPassword.trim()) formData.append('publicationPassword', publicationPassword.trim());
 
-      formData.append('captureTicket', captureTicketFile, captureTicketFile.name || 'ticket.jpg');
+      formData.append('captureTicket', ticketFile, ticketFile.name || 'ticket.jpg');
       if (captureOwnershipFile) {
         formData.append('captureOwnership', captureOwnershipFile, captureOwnershipFile.name || 'ownership.jpg');
       }
@@ -175,7 +265,7 @@ export function Publicar() {
         setSuccessListingId(listingId);
       } else {
         navigate('/home');
-        window.alert('Tu ticket fue enviado a verificación.');
+        window.alert('Tu ticket fue publicado y ya está disponible.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo publicar.');
@@ -192,12 +282,21 @@ export function Publicar() {
     });
   };
 
+  if (editLoading) {
+    return (
+      <div className="page-content">
+        <h1 className="page-title">Cargando…</h1>
+        <div className="loader" />
+      </div>
+    );
+  }
+
   if (successListingId) {
     return (
       <div className="page-content">
-        <h1 className="page-title">Ticket enviado</h1>
+      <h1 className="page-title">Ticket publicado</h1>
         <div className="glass" style={{ padding: 24, borderRadius: 12, maxWidth: 560 }}>
-          <p className="text-muted" style={{ marginBottom: 16 }}>Tu ticket fue enviado a verificación.</p>
+          <p className="text-muted" style={{ marginBottom: 16 }}>Tu ticket fue publicado y ya está disponible.</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginBottom: 16 }}>
             <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>Código:</span>
             <code style={{ fontSize: 14, padding: '6px 10px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>{successListingId}</code>
@@ -219,7 +318,7 @@ export function Publicar() {
 
   return (
     <div className="page-content">
-      <h1 className="page-title">Publicar ticket</h1>
+      <h1 className="page-title">{editListingId ? 'Editar publicación' : 'Publicar ticket'}</h1>
       <p className="text-muted">Completá los datos. La imagen del ticket se pixelará automáticamente en zonas sensibles (QR y datos personales).</p>
 
       <form onSubmit={handleSubmit} className="glass" style={{ padding: 24, borderRadius: 12, maxWidth: 560 }}>
@@ -307,10 +406,26 @@ export function Publicar() {
         <input type="file" accept="image/*" onChange={(e) => setCaptureOwnershipFile(e.target.files?.[0] || null)} style={{ marginBottom: 12 }} />
 
         <label className="block-label">Contraseña de la publicación</label>
-        <input className="input-field" type="password" value={publicationPassword} onChange={(e) => setPublicationPassword(e.target.value)} placeholder="Para transferir el ticket" />
+        <div className="input-password-row">
+          <input
+            className="input-field"
+            type={showPubPassword ? 'text' : 'password'}
+            value={publicationPassword}
+            onChange={(e) => setPublicationPassword(e.target.value)}
+            placeholder="Para transferir el ticket"
+          />
+          <button
+            type="button"
+            className="btn-secondary btn-eye"
+            onClick={() => setShowPubPassword((v) => !v)}
+            aria-label={showPubPassword ? 'Ocultar' : 'Mostrar'}
+          >
+            {showPubPassword ? '🙈' : '👁'}
+          </button>
+        </div>
 
         <button type="submit" className="btn-primary" disabled={submitting} style={{ marginTop: 16 }}>
-          {submitting ? 'Enviando…' : 'Publicar'}
+          {submitting ? 'Enviando…' : editListingId ? 'Guardar cambios' : 'Publicar'}
         </button>
       </form>
     </div>

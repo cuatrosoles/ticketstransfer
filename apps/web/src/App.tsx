@@ -12,6 +12,9 @@ import { Kyc } from './pages/Kyc';
 import { KycCallback } from './pages/KycCallback';
 import { Home } from './pages/Home';
 import { ComprarTicket } from './pages/ComprarTicket';
+import { ComprarTicketDetalle } from './pages/ComprarTicketDetalle';
+import { MiPublicacion } from './pages/MiPublicacion';
+import { Tarjetas } from './pages/Tarjetas';
 import { Pago } from './pages/Pago';
 import { Acerca } from './pages/Acerca';
 import { PoliticaPrivacidad } from './pages/PoliticaPrivacidad';
@@ -46,12 +49,14 @@ export function App() {
       <Route path="/home" element={<ProtectedRoute><Layout><Home /></Layout></ProtectedRoute>} />
       <Route path="/publicar" element={<ProtectedRoute><Layout><Publicar /></Layout></ProtectedRoute>} />
       <Route path="/comprar-ticket" element={<ProtectedRoute><Layout><ComprarTicket /></Layout></ProtectedRoute>} />
+      <Route path="/comprar-ticket/detalle" element={<ProtectedRoute><Layout><ComprarTicketDetalle /></Layout></ProtectedRoute>} />
       <Route path="/orden/:id/pago" element={<ProtectedRoute><Layout><Pago /></Layout></ProtectedRoute>} />
       <Route path="/mis-compras" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Mis compras</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />
       <Route path="/mis-ventas" element={<ProtectedRoute><Layout><MisVentas /></Layout></ProtectedRoute>} />
+      <Route path="/mis-ventas/publicacion/:id" element={<ProtectedRoute><Layout><MiPublicacion /></Layout></ProtectedRoute>} />
       <Route path="/perfil" element={<ProtectedRoute><Layout><Perfil /></Layout></ProtectedRoute>} />
       <Route path="/tickets" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Tickets</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />
-      <Route path="/tarjetas" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Tarjetas adheridas</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />
+      <Route path="/tarjetas" element={<ProtectedRoute><Layout><Tarjetas /></Layout></ProtectedRoute>} />
       <Route path="/soporte" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Chat Soporte</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />
       <Route path="/mensajes" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Mensajes</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />
       <Route path="/acerca" element={<ProtectedRoute><Layout><Acerca /></Layout></ProtectedRoute>} />

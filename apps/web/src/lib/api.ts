@@ -76,15 +76,20 @@ export async function getMe() {
 export type Profile = {
   id: string;
   email: string;
+  username: string | null;
+  numeroId?: string | null;
   firstName: string | null;
   lastName: string | null;
   country: string | null;
   tipoDocumento: string | null;
   phone: string | null;
+  phoneVerified?: boolean;
+  emailVerified?: boolean;
   dateOfBirth: string | null;
   city: string | null;
   province: string | null;
   postalCode: string | null;
+  address: string | null;
   cbuCvu: string | null;
   bankName: string | null;
   reputationScore: number | null;
@@ -96,12 +101,14 @@ export async function getProfile(): Promise<Profile> {
 }
 
 export type ProfileUpdate = {
+  username?: string;
   firstName?: string;
   lastName?: string;
   phone?: string;
   city?: string;
   province?: string;
   postalCode?: string;
+  address?: string;
   cbuCvu?: string;
   bankName?: string;
 };
@@ -142,6 +149,60 @@ export type TicketListingItem = {
 
 export async function getMyListings() {
   return api<TicketListingItem[]>('/api/tickets/my/listings');
+}
+
+export type MyListingDetail = TicketListingItem & {
+  row?: string | null;
+  seat?: string | null;
+  quantityEntries?: string | null;
+  orderRef?: string | null;
+  publicationPassword?: string | null;
+  captureTicketUrl?: string | null;
+  captureOwnershipUrl?: string | null;
+  ticketera?: string;
+  appBoletos?: string;
+  ticketeraOtra?: string | null;
+  appBoletosOtra?: string | null;
+  tipoEntrada?: string;
+  tipoEntradaOtro?: string | null;
+};
+
+export async function getMyListingDetail(listingId: string): Promise<MyListingDetail> {
+  return api<MyListingDetail>(`/api/tickets/mine/${encodeURIComponent(listingId)}`);
+}
+
+export async function updateMyListing(listingId: string, doc: Record<string, unknown>): Promise<MyListingDetail> {
+  return api<MyListingDetail>(`/api/tickets/mine/${encodeURIComponent(listingId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(doc),
+  });
+}
+
+export function ensureImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `https://${url}`;
+}
+
+export type CardItem = {
+  id: string;
+  last_four_digits: string;
+  payment_method: { id: string; name: string };
+};
+
+export async function getUserCards(): Promise<{ cards: CardItem[] }> {
+  return api<{ cards: CardItem[] }>('/api/users/cards');
+}
+
+export async function addUserCard(token: string): Promise<{ card: CardItem }> {
+  return api<{ card: CardItem }>('/api/users/cards', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function removeUserCard(cardId: string): Promise<{ ok: boolean }> {
+  return api<{ ok: boolean }>(`/api/users/cards/${encodeURIComponent(cardId)}`, { method: 'DELETE' });
 }
 
 export type OrderItem = {
