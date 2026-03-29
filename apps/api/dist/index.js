@@ -17654,6 +17654,12 @@ var createTicketListingSchema = external_exports.object({
   orderRef: external_exports.string().optional().transform((s) => s === "" ? void 0 : s),
   category: external_exports.union([categoriaEventoEnum, external_exports.literal("")]).optional().transform((v) => v === "" ? void 0 : v)
 });
+var updateTicketListingSchema = createTicketListingSchema.partial().extend({
+  publicationPassword: external_exports.string().nullable().optional().transform((s) => s === "" ? null : s),
+  ticketeraOtra: external_exports.string().optional().transform((s) => s === "" ? void 0 : s),
+  appBoletosOtra: external_exports.string().optional().transform((s) => s === "" ? void 0 : s),
+  tipoEntradaOtro: external_exports.string().optional().transform((s) => s === "" ? void 0 : s)
+});
 var createOrderSchema = external_exports.object({
   ticketListingId: external_exports.string().min(1, "ID de publicaci\xF3n requerido"),
   paymentMethod: external_exports.enum(["mercadopago", "stripe"])
@@ -18350,7 +18356,7 @@ async function createCheckoutPreference(params) {
   const sandboxMode = settings.mercadopago.sandboxMode;
   const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
   const payerEmail = params.payerEmail && sandboxMode && usePayerTestCom ? "test_payer_1@testuser.com" : params.payerEmail && params.payerUserId && sandboxMode ? getCustomerEmailForMp(params.payerUserId, params.payerEmail, true) : params.payerEmail;
-  const backBase = settings.mercadopago.backUrlBase || process.env.WEB_URL || process.env.APP_DEEP_LINK_SCHEME || "http://localhost:5173";
+  const backBase = settings.mercadopago.backUrlBase || process.env.MOBILE_DEEP_LINK_BASE || process.env.APP_DEEP_LINK_SCHEME || process.env.WEB_URL || "ticketTransfer://";
   const basePath = backBase.replace(/\/$/, "");
   const isDeepLink = basePath.includes("://") && !basePath.startsWith("http");
   const success = isDeepLink ? `${basePath}orden/${params.orderId}/pago?status=success` : `${basePath}/orden/${params.orderId}/pago?status=success`;
@@ -18494,6 +18500,34 @@ function extractMpError(e) {
   return (fromBody || fromCause || fromMsg) ?? null;
 }
 var router2 = Router2();
+function profileDateOfBirthToApi(val) {
+  if (val == null) return null;
+  if (val instanceof Date && !Number.isNaN(val.getTime())) return val.toISOString().slice(0, 10);
+  if (typeof val === "string") {
+    const s = val.trim();
+    if (!s) return null;
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+  }
+  const ts = val;
+  if (typeof ts.toDate === "function") {
+    const d = ts.toDate();
+    return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+  }
+  const sec = ts.seconds ?? ts._seconds;
+  if (typeof sec === "number") {
+    const d = new Date(sec * 1e3);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+  }
+  return null;
+}
+function profileAddressToApi(data) {
+  const direct = typeof data.address === "string" ? data.address.trim() : typeof data.domicilio === "string" ? data.domicilio.trim() : "";
+  if (direct) return direct;
+  const parts = [data.street, data.streetNumber, data.calle, data.altura].map((p) => typeof p === "string" ? p.trim() : "").filter(Boolean);
+  return parts.length ? parts.join(" ") : null;
+}
 var upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }
@@ -18516,6 +18550,7 @@ router2.get("/profile", async (req, res) => {
   const kyc = kycDoc.exists ? kycDoc.data() : null;
   const phone = data.phone?.replace(/\+549\s*\+549/, "+549") ?? data.phone;
   const emailVerified = data.emailVerified ?? firebaseUser?.emailVerified ?? false;
+  const raw = data;
   res.json({
     id: req.user.id,
     email: data.email,
@@ -18528,11 +18563,11 @@ router2.get("/profile", async (req, res) => {
     phone,
     phoneVerified: data.phoneVerified ?? false,
     emailVerified,
-    dateOfBirth: data.dateOfBirth ?? null,
+    dateOfBirth: profileDateOfBirthToApi(data.dateOfBirth),
     city: data.city ?? null,
     province: data.province ?? null,
     postalCode: data.postalCode ?? null,
-    address: data.address ?? null,
+    address: profileAddressToApi(raw),
     reputationScore: data.reputationScore ?? null,
     profileImageUrl: data.profileImageUrl ?? null,
     cbuCvu: data.cbuCvu ?? null,
@@ -18609,7 +18644,7 @@ router2.post("/profile/avatar", upload.single("avatar"), async (req, res) => {
 });
 router2.patch("/profile", async (req, res) => {
   const body = req.body || {};
-  const { username, firstName, lastName, phone, city, province, postalCode, address, fcmToken, cbuCvu, bankName } = body;
+  const { username, firstName, lastName, phone, city, province, postalCode, address, domicilio, fcmToken, cbuCvu, bankName } = body;
   const updateData = { updatedAt: /* @__PURE__ */ new Date() };
   if (firstName !== void 0) updateData.firstName = firstName;
   if (lastName !== void 0) updateData.lastName = lastName;
@@ -18617,7 +18652,10 @@ router2.patch("/profile", async (req, res) => {
   if (city !== void 0) updateData.city = city;
   if (province !== void 0) updateData.province = province;
   if (postalCode !== void 0) updateData.postalCode = postalCode;
-  if (address !== void 0) updateData.address = typeof address === "string" ? address.trim() || null : null;
+  if (address !== void 0 || domicilio !== void 0) {
+    const raw = typeof address === "string" ? address : typeof domicilio === "string" ? domicilio : "";
+    updateData.address = raw.trim() || null;
+  }
   if (fcmToken !== void 0) updateData.fcmToken = fcmToken;
   if (cbuCvu !== void 0) {
     const val = typeof cbuCvu === "string" ? cbuCvu.replace(/\D/g, "").trim() || null : null;
@@ -19114,7 +19152,7 @@ router3.post(
       appBoletos: parsed.data.appBoletos,
       orderRef: parsed.data.orderRef ?? null,
       category: parsed.data.category ?? "OTRO",
-      status: "PENDIENTE_VERIFICACION",
+      status: "DISPONIBLE",
       captureTicketUrl: captureTicketUrl ?? null,
       captureOwnershipUrl: captureOwnershipUrl ?? null,
       publicationPassword,
@@ -19142,6 +19180,72 @@ router3.get("/my/listings", requireAuth, async (req, res) => {
     };
   });
   res.json(listings);
+});
+router3.get("/mine/:listingId", requireAuth, async (req, res) => {
+  const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).get();
+  if (!doc.exists || doc.data()?.sellerId !== req.user.id) {
+    return res.status(404).json({ error: "No encontrado" });
+  }
+  const d = doc.data();
+  res.json({
+    id: doc.id,
+    ...d,
+    publicationPassword: d.publicationPassword ?? null,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+    eventDate: d.eventDate?.toDate?.() ?? d.eventDate
+  });
+});
+router3.patch("/mine/:listingId", requireAuth, async (req, res) => {
+  const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).get();
+  if (!doc.exists || doc.data()?.sellerId !== req.user.id) {
+    return res.status(404).json({ error: "No encontrado" });
+  }
+  const parsed = updateTicketListingSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const flat = parsed.error.flatten();
+    const msg = flat.formErrors[0] || "Datos inv\xE1lidos";
+    return res.status(400).json({ error: msg, details: flat });
+  }
+  const payload = parsed.data;
+  const updates = { updatedAt: /* @__PURE__ */ new Date() };
+  if (payload.eventName !== void 0) updates.eventName = payload.eventName;
+  if (payload.eventPlace !== void 0) updates.eventPlace = payload.eventPlace ?? null;
+  if (payload.sector !== void 0) updates.sector = payload.sector ?? null;
+  if (payload.row !== void 0) updates.row = payload.row ?? null;
+  if (payload.seat !== void 0) updates.seat = payload.seat ?? null;
+  if (payload.orderRef !== void 0) updates.orderRef = payload.orderRef ?? null;
+  if (payload.ticketera !== void 0) updates.ticketera = payload.ticketera;
+  if (payload.appBoletos !== void 0) updates.appBoletos = payload.appBoletos;
+  if (payload.tipoEntrada !== void 0) updates.tipoEntrada = payload.tipoEntrada;
+  if (payload.currency !== void 0) updates.currency = payload.currency;
+  if (payload.category !== void 0) updates.category = payload.category ?? null;
+  if (payload.ticketeraOtra !== void 0) updates.ticketeraOtra = payload.ticketeraOtra ?? null;
+  if (payload.appBoletosOtra !== void 0) updates.appBoletosOtra = payload.appBoletosOtra ?? null;
+  if (payload.tipoEntradaOtro !== void 0) updates.tipoEntradaOtro = payload.tipoEntradaOtro ?? null;
+  if (payload.eventDate !== void 0) updates.eventDate = new Date(payload.eventDate);
+  if (payload.price !== void 0) updates.price = payload.price;
+  if (payload.quantityEntries !== void 0) {
+    updates.quantityEntries = payload.quantityEntries === "" || payload.quantityEntries == null ? null : String(payload.quantityEntries);
+  }
+  if (payload.publicationPassword !== void 0) {
+    updates.publicationPassword = payload.publicationPassword == null || payload.publicationPassword === "" ? null : String(payload.publicationPassword);
+  }
+  const keys = Object.keys(updates).filter((k) => k !== "updatedAt");
+  if (keys.length === 0) {
+    return res.status(400).json({ error: "Ning\xFAn campo para actualizar" });
+  }
+  await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).update(updates);
+  const refreshed = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).get();
+  const d = refreshed.data();
+  res.json({
+    id: refreshed.id,
+    ...d,
+    publicationPassword: d.publicationPassword ?? null,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+    eventDate: d.eventDate?.toDate?.() ?? d.eventDate
+  });
 });
 router3.patch("/:id/pause", requireAuth, async (req, res) => {
   const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).get();
@@ -19648,10 +19752,13 @@ async function sendPushNotification(fcmToken, title, body, data) {
   if (!fcmToken || fcmToken.length < 10) return { success: false };
   try {
     const messaging = getMessaging();
+    const dataPayload = data && Object.fromEntries(
+      Object.entries(data).map(([k, v]) => [k, v === void 0 || v === null ? "" : String(v)])
+    );
     const message = {
       token: fcmToken,
       notification: { title, body },
-      data: data || {},
+      data: dataPayload || {},
       android: { priority: "high" },
       apns: { payload: { aps: { sound: "default" } } }
     };
@@ -19708,7 +19815,8 @@ router6.get("/conversations", async (req, res) => {
           firstName: other?.firstName,
           lastName: other?.lastName,
           username: other?.username,
-          numeroId: other?.numeroId
+          numeroId: other?.numeroId,
+          profileImageUrl: other?.profileImageUrl ?? null
         },
         lastMessage: lastMsg ? {
           content: lastMsg.content,
@@ -19801,9 +19909,39 @@ router6.post("/conversations", async (req, res) => {
       firstName: otherUserData.firstName,
       lastName: otherUserData.lastName,
       username: otherUserData.username,
-      numeroId: otherUserData.numeroId
+      numeroId: otherUserData.numeroId,
+      profileImageUrl: otherUserData.profileImageUrl ?? null
     },
     createdAt: convData.createdAt?.toDate?.() ?? convData.createdAt
+  });
+});
+router6.get("/conversations/:id", async (req, res) => {
+  const convId = req.params.id;
+  const userId = req.user.id;
+  const convDoc = await db().collection(COLLECTIONS.CONVERSATIONS).doc(convId).get();
+  if (!convDoc.exists) {
+    res.status(404).json({ error: "Conversaci\xF3n no encontrada" });
+    return;
+  }
+  const conv = convDoc.data();
+  if (conv.user1Id !== userId && conv.user2Id !== userId) {
+    res.status(403).json({ error: "No ten\xE9s acceso a esta conversaci\xF3n" });
+    return;
+  }
+  const otherId = conv.user1Id === userId ? conv.user2Id : conv.user1Id;
+  const otherDoc = await db().collection(COLLECTIONS.USERS).doc(otherId).get();
+  const other = otherDoc.data();
+  res.json({
+    id: convId,
+    otherUser: {
+      id: otherId,
+      email: other?.email,
+      firstName: other?.firstName,
+      lastName: other?.lastName,
+      username: other?.username,
+      numeroId: other?.numeroId,
+      profileImageUrl: other?.profileImageUrl ?? null
+    }
   });
 });
 router6.get("/conversations/:id/messages", async (req, res) => {
