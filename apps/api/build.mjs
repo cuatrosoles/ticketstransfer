@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * Build de la API con esbuild: empaqueta el código de la API + @tickets-transfer/shared
- * en un solo dist/index.js para que en Railway no dependa de la resolución del workspace.
+ * Build de la API con esbuild: empaqueta la API + @tickets-transfer/shared en dist/index.js.
  *
- * Importante: se empaqueta el **dist** de shared (salida de `tsc`), no `src/index.ts`.
- * Así esbuild ve las exportaciones reales y el orden `pnpm -r build` no deja shared desactualizado.
+ * Esbuild en Vercel falla al enlazar imports nombrados contra el JS emitido por `tsc`
+ * (`dist/schemas.js`): no reconoce exportaciones aunque existan. Por eso los módulos
+ * shared se resuelven al **fuente TypeScript** (`src/*.ts`); esbuild los transpila y
+ * ve los `export const` en el AST sin depender del output de tsc.
  */
 import * as esbuild from 'esbuild';
-import { execSync } from 'child_process';
 import { mkdirSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -15,31 +15,25 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outDir = join(__dirname, 'dist');
 const sharedRoot = join(__dirname, '../../packages/shared');
-const sharedEntry = join(sharedRoot, 'dist/index.js');
-const sharedSchemas = join(sharedRoot, 'dist/schemas.js');
+const sharedIndexSrc = join(sharedRoot, 'src/index.ts');
+const sharedSchemasSrc = join(sharedRoot, 'src/schemas.ts');
 
 if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
 
-// Garantizar artefactos de shared (tsc) antes de bundlear; evita dist viejo o inexistente al compilar la API primero.
-execSync('pnpm run build', { cwd: sharedRoot, stdio: 'inherit' });
-
-if (!existsSync(sharedEntry) || !existsSync(sharedSchemas)) {
-  console.error('Missing shared dist after build:', { sharedEntry, sharedSchemas });
+if (!existsSync(sharedIndexSrc) || !existsSync(sharedSchemasSrc)) {
+  console.error('Missing @tickets-transfer/shared source:', { sharedIndexSrc, sharedSchemasSrc });
   process.exit(1);
 }
 
-/**
- * Forzar entradas de dist (no barrel re-exports): esbuild en CI a veces no resuelve
- * `export { x } from './schemas.js'` en index.js y falla con "No matching export".
- */
 const sharedPlugin = {
-  name: 'shared-dist',
+  name: 'shared-typescript-source',
   setup(build) {
+    // Subpath más específico primero
     build.onResolve({ filter: /^@tickets-transfer\/shared\/schemas$/ }, () => ({
-      path: sharedSchemas,
+      path: sharedSchemasSrc,
     }));
     build.onResolve({ filter: /^@tickets-transfer\/shared$/ }, () => ({
-      path: sharedEntry,
+      path: sharedIndexSrc,
     }));
   },
 };

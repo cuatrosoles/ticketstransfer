@@ -13545,7 +13545,7 @@ var COLLECTIONS = {
   SELLER_TRANSFERS: "sellerTransfers"
 };
 
-// ../../packages/shared/dist/constants.js
+// ../../packages/shared/src/constants.ts
 var HORAS_MAX_TRANSFERENCIA_VENDEDOR = 72;
 
 // ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/external.js
@@ -17589,7 +17589,7 @@ var coerce = {
 };
 var NEVER = INVALID;
 
-// ../../packages/shared/dist/schemas.js
+// ../../packages/shared/src/schemas.ts
 var registerBase = external_exports.object({
   email: external_exports.string().email("Email inv\xE1lido"),
   password: external_exports.string().min(8, "M\xEDnimo 8 caracteres").regex(/[A-Z]/, "Al menos una may\xFAscula").regex(/[0-9]/, "Al menos un n\xFAmero"),
@@ -17629,10 +17629,8 @@ var tipoEntradaEnum = external_exports.enum(["GENERAL", "CAMPO", "PLATEA", "VIP"
 var categoriaEventoEnum = external_exports.enum(["MUSICA", "DEPORTES", "TEATRO", "FESTIVALES", "OTRO"]);
 function normalizeEventDate(val) {
   const s = String(val ?? "").trim();
-  if (!s)
-    return val;
-  if (/^\d{4}-\d{2}-\d{2}/.test(s))
-    return s.slice(0, 10);
+  if (!s) return val;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
   const match = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
   if (match) {
     const [, d, m, y] = match;
