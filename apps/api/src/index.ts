@@ -77,7 +77,7 @@ const generalLimiter = (rateLimit as unknown as RateLimitFn)({
   windowMs: 15 * 60 * 1000,
   max: 400,
   message: { error: 'Demasiadas solicitudes' },
-  skip: (req) => req.path.startsWith(messagesPathPrefix),
+  skip: (req: Request) => req.path.startsWith(messagesPathPrefix),
 });
 
 /** Chat: polling + listas; límite propio más alto para no bloquear uso normal autenticado */
