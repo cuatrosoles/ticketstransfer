@@ -384,8 +384,15 @@ export async function createOrGetConversation(otherUserId: string): Promise<{
   });
 }
 
-export async function getConversationMessages(conversationId: string): Promise<MessageItem[]> {
-  return api<MessageItem[]>(`/api/messages/conversations/${conversationId}/messages`);
+export async function getConversationMessages(
+  conversationId: string,
+  options?: { skipMarkRead?: boolean }
+): Promise<MessageItem[]> {
+  const q =
+    options?.skipMarkRead === true
+      ? `?skipMarkRead=1`
+      : '';
+  return api<MessageItem[]>(`/api/messages/conversations/${conversationId}/messages${q}`);
 }
 
 export async function sendMessageToConversation(

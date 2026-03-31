@@ -19035,8 +19035,10 @@ router3.get("/eventos", async (req, res) => {
   }
   res.json(eventos.slice(0, 100));
 });
-router3.get("/marketplace/public", async (_req, res) => {
-  const limit = await getMarketplaceHomePublicListingsLimit();
+router3.get("/marketplace/public", async (req, res) => {
+  const scope = typeof req.query.scope === "string" ? req.query.scope : "";
+  const homeLimit = await getMarketplaceHomePublicListingsLimit();
+  const limit = scope === "store" ? 100 : Math.min(100, homeLimit);
   const snap = await db().collection(COLLECTIONS.TICKET_LISTINGS).where("status", "==", "DISPONIBLE").where("visibility", "==", "PUBLIC").orderBy("createdAt", "desc").limit(limit).get();
   const items = await Promise.all(
     snap.docs.map(async (doc) => {
@@ -19059,7 +19061,7 @@ router3.get("/marketplace/public", async (_req, res) => {
       };
     })
   );
-  res.json({ limit, items });
+  res.json({ limit, items, scope: scope === "store" ? "store" : "home" });
 });
 router3.get("/:id", async (req, res) => {
   const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).get();
@@ -19860,7 +19862,10 @@ async function sendPushNotification(fcmToken, title, body, data) {
       notification: { title, body },
       data: dataPayload || {},
       android: { priority: "high" },
-      apns: { payload: { aps: { sound: "default" } } }
+      apns: {
+        headers: { "apns-priority": "10" },
+        payload: { aps: { sound: "default", badge: 1 } }
+      }
     };
     await messaging.send(message);
     return { success: true };
@@ -19878,6 +19883,11 @@ async function sendPushNotification(fcmToken, title, body, data) {
 // src/routes/messages.ts
 var router6 = Router6();
 router6.use(requireAuth);
+router6.use((_req, res, next) => {
+  res.set("Cache-Control", "private, no-store, no-cache, must-revalidate");
+  res.set("Pragma", "no-cache");
+  next();
+});
 function normalizeUserIds(id1, id2) {
   return id1 < id2 ? [id1, id2] : [id2, id1];
 }
@@ -20058,14 +20068,17 @@ router6.get("/conversations/:id/messages", async (req, res) => {
     return;
   }
   const messagesSnap = await db().collection(COLLECTIONS.MESSAGES).where("conversationId", "==", convId).orderBy("createdAt", "asc").get();
-  await db().collection(COLLECTIONS.MESSAGES).where("conversationId", "==", convId).where("senderId", "!=", userId).get().then((snap) => {
-    const batch = db().batch();
-    snap.docs.forEach((d) => {
-      if (!d.data().readAt) batch.update(d.ref, { readAt: /* @__PURE__ */ new Date() });
+  const skipMarkRead = req.query.skipMarkRead === "1" || String(req.query.skipMarkRead).toLowerCase() === "true";
+  if (!skipMarkRead) {
+    await db().collection(COLLECTIONS.MESSAGES).where("conversationId", "==", convId).where("senderId", "!=", userId).get().then((snap) => {
+      const batch = db().batch();
+      snap.docs.forEach((d) => {
+        if (!d.data().readAt) batch.update(d.ref, { readAt: /* @__PURE__ */ new Date() });
+      });
+      return batch.commit();
+    }).catch(() => {
     });
-    return batch.commit();
-  }).catch(() => {
-  });
+  }
   const messages = await Promise.all(
     messagesSnap.docs.map(async (doc) => {
       const m = doc.data();
@@ -21396,13 +21409,19 @@ app2.use(
     }
   })
 );
-app2.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1e3,
-    max: 200,
-    message: { error: "Demasiadas solicitudes" }
-  })
-);
+var messagesPathPrefix = "/api/messages";
+var generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1e3,
+  max: 400,
+  message: { error: "Demasiadas solicitudes" },
+  skip: (req) => req.path.startsWith(messagesPathPrefix)
+});
+var messagesLimiter = rateLimit({
+  windowMs: 15 * 60 * 1e3,
+  max: 4e3,
+  message: { error: "Demasiadas solicitudes" }
+});
+app2.use(generalLimiter);
 invalidateSettingsCache();
 try {
   getFirebaseAdmin();
@@ -21431,7 +21450,7 @@ app2.use("/api/users", usersRouter);
 app2.use("/api/tickets", ticketsRouter);
 app2.use("/api/orders", ordersRouter);
 app2.use("/api/disputes", disputesRouter);
-app2.use("/api/messages", messagesRouter);
+app2.use("/api/messages", messagesLimiter, messagesRouter);
 app2.use("/api/admin", adminRouter);
 app2.use((_req, res) => {
   res.status(404).json({ error: "No encontrado" });

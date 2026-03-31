@@ -18,7 +18,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { AuthBackground } from '../components/AuthBackground';
@@ -33,6 +33,7 @@ import {
   type UserSearchItem,
 } from '../lib/api';
 import { requestNotificationPermission, getFcmToken } from '../lib/pushNotifications';
+import { subscribeNewMessageHint } from '../lib/messageSync';
 import { colors, spacing, radius, glassCard } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Mensajes'>;
@@ -82,8 +83,16 @@ export function MensajesScreen() {
     }
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      void loadConversations();
+    }, [loadConversations])
+  );
+
   useEffect(() => {
-    loadConversations();
+    return subscribeNewMessageHint(() => {
+      void loadConversations();
+    });
   }, [loadConversations]);
 
   useEffect(() => {

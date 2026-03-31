@@ -16,6 +16,8 @@ import {
   Platform,
   ActivityIndicator,
   Image,
+  AppState,
+  type AppStateStatus,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
@@ -32,8 +34,10 @@ import {
   type MessageItem,
 } from '../lib/api';
 import { colors, spacing, radius, glassCard } from '../theme';
+import { subscribeNewMessageHint } from '../lib/messageSync';
 
-const POLL_INTERVAL_MS = 2500;
+/** Polling moderado; refuerzo con FCM en primer plano y al volver a active */
+const POLL_INTERVAL_MS = 10000;
 
 type Route = RouteProp<RootStackParamList, 'MensajesConversation'>;
 
@@ -58,25 +62,50 @@ export function MensajesConversationScreen() {
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  const loadMessages = useCallback(async () => {
-    try {
-      const list = await getConversationMessages(conversationId);
-      setMessages(list);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, [conversationId]);
+  const loadMessages = useCallback(
+    async (opts?: { skipMarkRead?: boolean }) => {
+      try {
+        const list = await getConversationMessages(conversationId, {
+          skipMarkRead: opts?.skipMarkRead === true,
+        });
+        setMessages(list);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [conversationId]
+  );
 
   useEffect(() => {
-    loadMessages();
+    void loadMessages({ skipMarkRead: false });
   }, [loadMessages]);
 
   useEffect(() => {
-    const id = setInterval(loadMessages, POLL_INTERVAL_MS);
-    return () => clearInterval(id);
+    const id = setInterval(() => {
+      if (AppState.currentState === 'active') {
+        void loadMessages({ skipMarkRead: true });
+      }
+    }, POLL_INTERVAL_MS);
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active') {
+        void loadMessages({ skipMarkRead: true });
+      }
+    });
+    return () => {
+      clearInterval(id);
+      sub.remove();
+    };
   }, [loadMessages]);
+
+  useEffect(() => {
+    return subscribeNewMessageHint((cid) => {
+      if (!cid || cid === conversationId) {
+        void loadMessages({ skipMarkRead: true });
+      }
+    });
+  }, [conversationId, loadMessages]);
 
   useEffect(() => {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);

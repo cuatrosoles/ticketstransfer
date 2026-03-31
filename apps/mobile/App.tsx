@@ -10,6 +10,7 @@ import { NavigationContainer, useNavigationContainerRef } from '@react-navigatio
 import { AuthProvider } from './src/context/AuthContext';
 import { ProfileImageProvider } from './src/context/ProfileImageContext';
 import { FcmConversationOpener } from './src/components/FcmConversationOpener';
+import { FcmForegroundMessageSync } from './src/components/FcmForegroundMessageSync';
 import { SplashScreen } from './src/components/SplashScreen';
 import type { RootStackParamList } from './src/navigation/types';
 import { RootNavigator } from './src/navigation/RootNavigator';
@@ -37,6 +38,7 @@ export default function App() {
           <ProfileImageProvider>
             <NavigationContainer ref={navigationRef} linking={linking}>
               <FcmConversationOpener navigationRef={navigationRef} />
+              <FcmForegroundMessageSync />
               <RootNavigator />
             </NavigationContainer>
           </ProfileImageProvider>

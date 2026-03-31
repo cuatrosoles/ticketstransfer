@@ -12,6 +12,12 @@ import { sendPushNotification } from '../lib/firebase-messaging.js';
 const router = Router();
 router.use(requireAuth);
 
+router.use((_req, res, next) => {
+  res.set('Cache-Control', 'private, no-store, no-cache, must-revalidate');
+  res.set('Pragma', 'no-cache');
+  next();
+});
+
 function normalizeUserIds(id1: string, id2: string): [string, string] {
   return id1 < id2 ? [id1, id2] : [id2, id1];
 }
@@ -253,19 +259,24 @@ router.get('/conversations/:id/messages', async (req: AuthRequest, res) => {
     .orderBy('createdAt', 'asc')
     .get();
 
-  await db()
-    .collection(COLLECTIONS.MESSAGES)
-    .where('conversationId', '==', convId)
-    .where('senderId', '!=', userId)
-    .get()
-    .then((snap) => {
-      const batch = db().batch();
-      snap.docs.forEach((d) => {
-        if (!d.data().readAt) batch.update(d.ref, { readAt: new Date() });
-      });
-      return batch.commit();
-    })
-    .catch(() => {});
+  const skipMarkRead =
+    req.query.skipMarkRead === '1' || String(req.query.skipMarkRead).toLowerCase() === 'true';
+
+  if (!skipMarkRead) {
+    await db()
+      .collection(COLLECTIONS.MESSAGES)
+      .where('conversationId', '==', convId)
+      .where('senderId', '!=', userId)
+      .get()
+      .then((snap) => {
+        const batch = db().batch();
+        snap.docs.forEach((d) => {
+          if (!d.data().readAt) batch.update(d.ref, { readAt: new Date() });
+        });
+        return batch.commit();
+      })
+      .catch(() => {});
+  }
 
   const messages = await Promise.all(
     messagesSnap.docs.map(async (doc) => {

@@ -71,13 +71,23 @@ app.use(
   })
 );
 
-app.use(
-  (rateLimit as unknown as RateLimitFn)({
-    windowMs: 15 * 60 * 1000,
-    max: 200,
-    message: { error: 'Demasiadas solicitudes' },
-  })
-);
+const messagesPathPrefix = '/api/messages';
+
+const generalLimiter = (rateLimit as unknown as RateLimitFn)({
+  windowMs: 15 * 60 * 1000,
+  max: 400,
+  message: { error: 'Demasiadas solicitudes' },
+  skip: (req) => req.path.startsWith(messagesPathPrefix),
+});
+
+/** Chat: polling + listas; límite propio más alto para no bloquear uso normal autenticado */
+const messagesLimiter = (rateLimit as unknown as RateLimitFn)({
+  windowMs: 15 * 60 * 1000,
+  max: 4000,
+  message: { error: 'Demasiadas solicitudes' },
+});
+
+app.use(generalLimiter);
 
 invalidateSettingsCache();
 
@@ -112,7 +122,7 @@ app.use('/api/users', usersRouter);
 app.use('/api/tickets', ticketsRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/disputes', disputesRouter);
-app.use('/api/messages', messagesRouter);
+app.use('/api/messages', messagesLimiter, messagesRouter);
 app.use('/api/admin', adminRouter);
 
 app.use((_req, res) => {

@@ -32,7 +32,10 @@ export async function sendPushNotification(
       notification: { title, body },
       data: dataPayload || {},
       android: { priority: 'high' },
-      apns: { payload: { aps: { sound: 'default' } } },
+      apns: {
+        headers: { 'apns-priority': '10' },
+        payload: { aps: { sound: 'default', badge: 1 } },
+      },
     };
     await messaging.send(message);
     return { success: true };
