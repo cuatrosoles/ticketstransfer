@@ -28,6 +28,8 @@ export type MercadoPagoSettings = {
 export type PlatformSettings = {
   commissionPercentage: number;
   mercadopago: MercadoPagoSettings;
+  /** Cantidad de tickets públicos en la grilla del inicio de la app (default 6) */
+  marketplaceHomePublicListingsLimit: number;
   users?: Record<string, unknown>;
   visual?: Record<string, unknown>;
   updatedAt?: Date;
@@ -35,6 +37,7 @@ export type PlatformSettings = {
 
 const DEFAULTS: PlatformSettings = {
   commissionPercentage: 6.5,
+  marketplaceHomePublicListingsLimit: 6,
   mercadopago: {
     enabled: false,
     accessToken: '',
@@ -67,6 +70,10 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
   const d = doc.data()!;
   cachedSettings = {
     commissionPercentage: d.commissionPercentage ?? DEFAULTS.commissionPercentage,
+    marketplaceHomePublicListingsLimit: Math.min(
+      50,
+      Math.max(1, Number(d.marketplaceHomePublicListingsLimit) || DEFAULTS.marketplaceHomePublicListingsLimit)
+    ),
     mercadopago: {
       enabled: d.mercadopago?.enabled ?? DEFAULTS.mercadopago.enabled,
       accessToken: d.mercadopago?.accessToken ?? '',
@@ -93,4 +100,9 @@ export function invalidateSettingsCache(): void {
 export async function getCommissionPercentage(): Promise<number> {
   const s = await getPlatformSettings();
   return s.commissionPercentage;
+}
+
+export async function getMarketplaceHomePublicListingsLimit(): Promise<number> {
+  const s = await getPlatformSettings();
+  return s.marketplaceHomePublicListingsLimit;
 }

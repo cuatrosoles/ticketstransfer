@@ -48,6 +48,13 @@ router.put('/settings', async (req: AuthRequest, res) => {
     updates.commissionPercentage = body.commissionPercentage;
   }
 
+  if (typeof body.marketplaceHomePublicListingsLimit === 'number') {
+    const n = Math.floor(body.marketplaceHomePublicListingsLimit);
+    if (n >= 1 && n <= 50) {
+      updates.marketplaceHomePublicListingsLimit = n;
+    }
+  }
+
   if (body.mercadopago && typeof body.mercadopago === 'object') {
     const mp = body.mercadopago as Record<string, unknown>;
     const useNew = (val: unknown, key: 'accessToken' | 'webhookSecret' | 'publicKey') =>

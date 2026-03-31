@@ -17627,6 +17627,7 @@ var ticketeraEnum = external_exports.enum(["TICKETEK", "ALLACCESS", "TICKET_PLUS
 var appBoletosEnum = external_exports.enum(["QUENTRO", "ENIGMA", "OTRA"]);
 var tipoEntradaEnum = external_exports.enum(["GENERAL", "CAMPO", "PLATEA", "VIP", "OTRO"]);
 var categoriaEventoEnum = external_exports.enum(["MUSICA", "DEPORTES", "TEATRO", "FESTIVALES", "OTRO"]);
+var listingVisibilitySchema = external_exports.enum(["PUBLIC", "PRIVATE"]);
 function normalizeEventDate(val) {
   const s = String(val ?? "").trim();
   if (!s) return val;
@@ -17652,7 +17653,9 @@ var createTicketListingSchema = external_exports.object({
   ticketera: ticketeraEnum,
   appBoletos: appBoletosEnum,
   orderRef: external_exports.string().optional().transform((s) => s === "" ? void 0 : s),
-  category: external_exports.union([categoriaEventoEnum, external_exports.literal("")]).optional().transform((v) => v === "" ? void 0 : v)
+  category: external_exports.union([categoriaEventoEnum, external_exports.literal("")]).optional().transform((v) => v === "" ? void 0 : v),
+  /** Si no se envía, la API trata la publicación como legada (mismo comportamiento que antes). */
+  visibility: listingVisibilitySchema.optional()
 });
 var updateTicketListingSchema = createTicketListingSchema.partial().extend({
   publicationPassword: external_exports.string().nullable().optional().transform((s) => s === "" ? null : s),
@@ -18251,6 +18254,7 @@ import { MercadoPagoConfig, Preference, Payment, Customer } from "mercadopago";
 // src/lib/settings.ts
 var DEFAULTS = {
   commissionPercentage: 6.5,
+  marketplaceHomePublicListingsLimit: 6,
   mercadopago: {
     enabled: false,
     accessToken: "",
@@ -18280,6 +18284,10 @@ async function getPlatformSettings() {
   const d = doc.data();
   cachedSettings = {
     commissionPercentage: d.commissionPercentage ?? DEFAULTS.commissionPercentage,
+    marketplaceHomePublicListingsLimit: Math.min(
+      50,
+      Math.max(1, Number(d.marketplaceHomePublicListingsLimit) || DEFAULTS.marketplaceHomePublicListingsLimit)
+    ),
     mercadopago: {
       enabled: d.mercadopago?.enabled ?? DEFAULTS.mercadopago.enabled,
       accessToken: d.mercadopago?.accessToken ?? "",
@@ -18304,6 +18312,10 @@ function invalidateSettingsCache() {
 async function getCommissionPercentage() {
   const s = await getPlatformSettings();
   return s.commissionPercentage;
+}
+async function getMarketplaceHomePublicListingsLimit() {
+  const s = await getPlatformSettings();
+  return s.marketplaceHomePublicListingsLimit;
 }
 
 // src/lib/mercadopago.ts
@@ -18967,7 +18979,7 @@ var upload2 = multer2({
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 router3.get("/", async (_req, res) => {
-  const snap = await db().collection(COLLECTIONS.TICKET_LISTINGS).where("status", "==", "DISPONIBLE").orderBy("createdAt", "desc").limit(50).get();
+  const snap = await db().collection(COLLECTIONS.TICKET_LISTINGS).where("status", "==", "DISPONIBLE").where("visibility", "==", "PUBLIC").orderBy("createdAt", "desc").limit(50).get();
   const listings = await Promise.all(
     snap.docs.map(async (doc) => {
       const d = doc.data();
@@ -18992,7 +19004,7 @@ router3.get("/", async (_req, res) => {
 });
 router3.get("/eventos", async (req, res) => {
   const { q, categoria, fecha } = req.query;
-  const snap = await db().collection(COLLECTIONS.TICKET_LISTINGS).where("status", "==", "DISPONIBLE").orderBy("eventDate", "asc").limit(200).get();
+  const snap = await db().collection(COLLECTIONS.TICKET_LISTINGS).where("status", "==", "DISPONIBLE").where("visibility", "==", "PUBLIC").orderBy("eventDate", "asc").limit(200).get();
   let eventos = snap.docs.map((doc) => {
     const d = doc.data();
     return {
@@ -19023,6 +19035,32 @@ router3.get("/eventos", async (req, res) => {
   }
   res.json(eventos.slice(0, 100));
 });
+router3.get("/marketplace/public", async (_req, res) => {
+  const limit = await getMarketplaceHomePublicListingsLimit();
+  const snap = await db().collection(COLLECTIONS.TICKET_LISTINGS).where("status", "==", "DISPONIBLE").where("visibility", "==", "PUBLIC").orderBy("createdAt", "desc").limit(limit).get();
+  const items = await Promise.all(
+    snap.docs.map(async (doc) => {
+      const d = doc.data();
+      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+      const sellerData = sellerDoc.data();
+      const eventDate = d.eventDate?.toDate?.() ?? d.eventDate;
+      const name = sellerData && ([sellerData.firstName, sellerData.lastName].filter(Boolean).join(" ") || sellerData.username || "Vendedor");
+      return {
+        id: doc.id,
+        eventName: d.eventName,
+        eventDate,
+        eventPlace: d.eventPlace ?? null,
+        quantityEntries: d.quantityEntries ?? null,
+        seller: sellerData ? {
+          id: d.sellerId,
+          displayName: name,
+          reputationScore: sellerData.reputationScore ?? 0
+        } : { id: d.sellerId, displayName: "Vendedor", reputationScore: 0 }
+      };
+    })
+  );
+  res.json({ limit, items });
+});
 router3.get("/:id", async (req, res) => {
   const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
@@ -19030,7 +19068,8 @@ router3.get("/:id", async (req, res) => {
   if (d.status !== "DISPONIBLE") return res.status(404).json({ error: "No encontrado" });
   const password = req.query.password;
   const pubPassword = d.publicationPassword;
-  const showFull = !pubPassword || password && password === pubPassword;
+  const isPublicListing = d.visibility === "PUBLIC";
+  const showFull = isPublicListing || !pubPassword || password != null && password === pubPassword;
   const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
   const sellerData = sellerDoc.data();
   const kycDoc = sellerDoc.exists ? await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(d.sellerId).get() : null;
@@ -19057,6 +19096,7 @@ router3.get("/:id", async (req, res) => {
     delete out.captureOwnershipUrl;
     delete out.orderRef;
   }
+  delete out.publicationPassword;
   res.json(out);
 });
 router3.post(
@@ -19137,7 +19177,24 @@ router3.post(
         mimeType
       );
     }
-    const publicationPassword = req.body.publicationPassword?.trim() || null;
+    let publicationPassword = req.body.publicationPassword?.trim() || null;
+    const vis = parsed.data.visibility;
+    let visibility;
+    if (vis === "PUBLIC") {
+      visibility = "PUBLIC";
+      publicationPassword = null;
+    } else if (vis === "PRIVATE") {
+      visibility = "PRIVATE";
+      if (!publicationPassword || publicationPassword.length < 4) {
+        res.status(400).json({
+          error: "Las publicaciones privadas requieren una contrase\xF1a de al menos 4 caracteres.",
+          code: "PRIVATE_PASSWORD_REQUIRED"
+        });
+        return;
+      }
+    } else {
+      visibility = void 0;
+    }
     const ticketeraOtra = req.body.ticketeraOtra?.trim() || null;
     const appBoletosOtra = req.body.appBoletosOtra?.trim() || null;
     const tipoEntradaOtro = req.body.tipoEntradaOtro?.trim() || null;
@@ -19159,6 +19216,7 @@ router3.post(
       orderRef: parsed.data.orderRef ?? null,
       category: parsed.data.category ?? "OTRO",
       status: "DISPONIBLE",
+      ...visibility !== void 0 ? { visibility } : {},
       captureTicketUrl: captureTicketUrl ?? null,
       captureOwnershipUrl: captureOwnershipUrl ?? null,
       publicationPassword,
@@ -19207,6 +19265,7 @@ router3.patch("/mine/:listingId", requireAuth, async (req, res) => {
   if (!doc.exists || doc.data()?.sellerId !== req.user.id) {
     return res.status(404).json({ error: "No encontrado" });
   }
+  const d = doc.data();
   const parsed = updateTicketListingSchema2.safeParse(req.body);
   if (!parsed.success) {
     const flat = parsed.error.flatten();
@@ -19234,8 +19293,43 @@ router3.patch("/mine/:listingId", requireAuth, async (req, res) => {
   if (payload.quantityEntries !== void 0) {
     updates.quantityEntries = payload.quantityEntries === "" || payload.quantityEntries == null ? null : String(payload.quantityEntries);
   }
+  if (payload.visibility !== void 0) updates.visibility = payload.visibility;
   if (payload.publicationPassword !== void 0) {
-    updates.publicationPassword = payload.publicationPassword == null || payload.publicationPassword === "" ? null : String(payload.publicationPassword);
+    updates.publicationPassword = payload.publicationPassword == null || payload.publicationPassword === "" ? null : String(payload.publicationPassword).trim();
+  }
+  const nextVis = updates.visibility ?? d.visibility;
+  const nextPwd = updates.publicationPassword !== void 0 ? String(updates.publicationPassword ?? "").trim() : String(d.publicationPassword || "").trim();
+  if (nextVis === "PUBLIC") {
+    updates.visibility = "PUBLIC";
+    updates.publicationPassword = null;
+  } else if (nextVis === "PRIVATE") {
+    if (nextPwd.length < 4) {
+      return res.status(400).json({
+        error: "Publicaci\xF3n privada: indic\xE1 una contrase\xF1a de al menos 4 caracteres.",
+        code: "PRIVATE_PASSWORD_REQUIRED"
+      });
+    }
+  } else {
+    const legacyOpen = d.visibility == null && !String(d.publicationPassword || "").trim();
+    if (payload.visibility === "PRIVATE") {
+      if (nextPwd.length < 4) {
+        return res.status(400).json({
+          error: "Publicaci\xF3n privada: indic\xE1 una contrase\xF1a de al menos 4 caracteres.",
+          code: "PRIVATE_PASSWORD_REQUIRED"
+        });
+      }
+      updates.visibility = "PRIVATE";
+    } else if (!legacyOpen && nextPwd.length < 4) {
+      return res.status(400).json({
+        error: "Publicaci\xF3n privada: indic\xE1 una contrase\xF1a de al menos 4 caracteres.",
+        code: "PRIVATE_PASSWORD_REQUIRED"
+      });
+    } else if (legacyOpen && payload.publicationPassword !== void 0 && nextPwd.length > 0 && nextPwd.length < 4) {
+      return res.status(400).json({
+        error: "La contrase\xF1a debe tener al menos 4 caracteres.",
+        code: "PRIVATE_PASSWORD_REQUIRED"
+      });
+    }
   }
   const keys = Object.keys(updates).filter((k) => k !== "updatedAt");
   if (keys.length === 0) {
@@ -19243,14 +19337,14 @@ router3.patch("/mine/:listingId", requireAuth, async (req, res) => {
   }
   await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).update(updates);
   const refreshed = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).get();
-  const d = refreshed.data();
+  const refreshedData = refreshed.data();
   res.json({
     id: refreshed.id,
-    ...d,
-    publicationPassword: d.publicationPassword ?? null,
-    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
-    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
-    eventDate: d.eventDate?.toDate?.() ?? d.eventDate
+    ...refreshedData,
+    publicationPassword: refreshedData.publicationPassword ?? null,
+    createdAt: refreshedData.createdAt?.toDate?.() ?? refreshedData.createdAt,
+    updatedAt: refreshedData.updatedAt?.toDate?.() ?? refreshedData.updatedAt,
+    eventDate: refreshedData.eventDate?.toDate?.() ?? refreshedData.eventDate
   });
 });
 router3.patch("/:id/pause", requireAuth, async (req, res) => {
@@ -20210,6 +20304,12 @@ router7.put("/settings", async (req, res) => {
   };
   if (typeof body.commissionPercentage === "number" && body.commissionPercentage >= 0 && body.commissionPercentage <= 100) {
     updates.commissionPercentage = body.commissionPercentage;
+  }
+  if (typeof body.marketplaceHomePublicListingsLimit === "number") {
+    const n = Math.floor(body.marketplaceHomePublicListingsLimit);
+    if (n >= 1 && n <= 50) {
+      updates.marketplaceHomePublicListingsLimit = n;
+    }
   }
   if (body.mercadopago && typeof body.mercadopago === "object") {
     const mp = body.mercadopago;
@@ -21231,6 +21331,10 @@ var settingsRouter = Router11();
 settingsRouter.get("/commission", requireAuth, async (_req, res) => {
   const commissionPercentage = await getCommissionPercentage();
   res.json({ commissionPercentage });
+});
+settingsRouter.get("/marketplace-home", requireAuth, async (_req, res) => {
+  const homePublicListingsLimit = await getMarketplaceHomePublicListingsLimit();
+  res.json({ homePublicListingsLimit });
 });
 
 // src/routes/cron.ts

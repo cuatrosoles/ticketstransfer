@@ -5,7 +5,7 @@
 
 import { Router } from 'express';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
-import { getCommissionPercentage } from '../lib/settings.js';
+import { getCommissionPercentage, getMarketplaceHomePublicListingsLimit } from '../lib/settings.js';
 
 export const settingsRouter = Router();
 
@@ -13,4 +13,10 @@ export const settingsRouter = Router();
 settingsRouter.get('/commission', requireAuth, async (_req: AuthRequest, res) => {
   const commissionPercentage = await getCommissionPercentage();
   res.json({ commissionPercentage });
+});
+
+/** Límite de tickets públicos en el inicio (marketplace app) */
+settingsRouter.get('/marketplace-home', requireAuth, async (_req: AuthRequest, res) => {
+  const homePublicListingsLimit = await getMarketplaceHomePublicListingsLimit();
+  res.json({ homePublicListingsLimit });
 });

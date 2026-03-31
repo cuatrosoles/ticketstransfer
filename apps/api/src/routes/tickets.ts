@@ -11,6 +11,7 @@ import { uploadFile } from '../lib/firebase-storage.js';
 import { redactImage, parsePixelateRegionsFromBody } from '../lib/image-redaction.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { createTicketListingSchema } from '@tickets-transfer/shared';
+import { getMarketplaceHomePublicListingsLimit } from '../lib/settings.js';
 
 /** PATCH /mine/:id — mismo criterio que en shared/schemas (evita import roto si no se pushea packages/shared). */
 const updateTicketListingSchema = createTicketListingSchema.partial().extend({
@@ -34,6 +35,7 @@ router.get('/', async (_req, res) => {
   const snap = await db()
     .collection(COLLECTIONS.TICKET_LISTINGS)
     .where('status', '==', 'DISPONIBLE')
+    .where('visibility', '==', 'PUBLIC')
     .orderBy('createdAt', 'desc')
     .limit(50)
     .get();
@@ -70,6 +72,7 @@ router.get('/eventos', async (req, res) => {
   const snap = await db()
     .collection(COLLECTIONS.TICKET_LISTINGS)
     .where('status', '==', 'DISPONIBLE')
+    .where('visibility', '==', 'PUBLIC')
     .orderBy('eventDate', 'asc')
     .limit(200)
     .get();
@@ -107,6 +110,45 @@ router.get('/eventos', async (req, res) => {
   res.json(eventos.slice(0, 100));
 });
 
+/** Marketplace: tickets públicos para grilla en el inicio de la app (límite desde Admin). */
+router.get('/marketplace/public', async (_req, res) => {
+  const limit = await getMarketplaceHomePublicListingsLimit();
+  const snap = await db()
+    .collection(COLLECTIONS.TICKET_LISTINGS)
+    .where('status', '==', 'DISPONIBLE')
+    .where('visibility', '==', 'PUBLIC')
+    .orderBy('createdAt', 'desc')
+    .limit(limit)
+    .get();
+
+  const items = await Promise.all(
+    snap.docs.map(async (doc) => {
+      const d = doc.data();
+      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+      const sellerData = sellerDoc.data();
+      const eventDate = d.eventDate?.toDate?.() ?? d.eventDate;
+      const name =
+        sellerData &&
+        ([sellerData.firstName, sellerData.lastName].filter(Boolean).join(' ') || sellerData.username || 'Vendedor');
+      return {
+        id: doc.id,
+        eventName: d.eventName,
+        eventDate,
+        eventPlace: d.eventPlace ?? null,
+        quantityEntries: d.quantityEntries ?? null,
+        seller: sellerData
+          ? {
+              id: d.sellerId,
+              displayName: name,
+              reputationScore: sellerData.reputationScore ?? 0,
+            }
+          : { id: d.sellerId, displayName: 'Vendedor', reputationScore: 0 },
+      };
+    })
+  );
+  res.json({ limit, items });
+});
+
 router.get('/:id', async (req, res) => {
   const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
@@ -115,7 +157,9 @@ router.get('/:id', async (req, res) => {
 
   const password = req.query.password as string | undefined;
   const pubPassword = d.publicationPassword;
-  const showFull = !pubPassword || (password && password === pubPassword);
+  const isPublicListing = d.visibility === 'PUBLIC';
+  const showFull =
+    isPublicListing || !pubPassword || (password != null && password === pubPassword);
 
   const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
   const sellerData = sellerDoc.data();
@@ -149,6 +193,7 @@ router.get('/:id', async (req, res) => {
     delete out.captureOwnershipUrl;
     delete out.orderRef;
   }
+  delete out.publicationPassword;
   res.json(out);
 });
 
@@ -236,7 +281,24 @@ router.post(
       );
     }
 
-    const publicationPassword = (req.body.publicationPassword as string)?.trim() || null;
+    let publicationPassword = (req.body.publicationPassword as string)?.trim() || null;
+    const vis = parsed.data.visibility;
+    let visibility: 'PUBLIC' | 'PRIVATE' | undefined;
+    if (vis === 'PUBLIC') {
+      visibility = 'PUBLIC';
+      publicationPassword = null;
+    } else if (vis === 'PRIVATE') {
+      visibility = 'PRIVATE';
+      if (!publicationPassword || publicationPassword.length < 4) {
+        res.status(400).json({
+          error: 'Las publicaciones privadas requieren una contraseña de al menos 4 caracteres.',
+          code: 'PRIVATE_PASSWORD_REQUIRED',
+        });
+        return;
+      }
+    } else {
+      visibility = undefined;
+    }
     const ticketeraOtra = (req.body.ticketeraOtra as string)?.trim() || null;
     const appBoletosOtra = (req.body.appBoletosOtra as string)?.trim() || null;
     const tipoEntradaOtro = (req.body.tipoEntradaOtro as string)?.trim() || null;
@@ -259,6 +321,7 @@ router.post(
       orderRef: parsed.data.orderRef ?? null,
       category: parsed.data.category ?? 'OTRO',
       status: 'DISPONIBLE',
+      ...(visibility !== undefined ? { visibility } : {}),
       captureTicketUrl: captureTicketUrl ?? null,
       captureOwnershipUrl: captureOwnershipUrl ?? null,
       publicationPassword,
@@ -317,6 +380,7 @@ router.patch('/mine/:listingId', requireAuth, async (req: AuthRequest, res) => {
   if (!doc.exists || doc.data()?.sellerId !== req.user!.id) {
     return res.status(404).json({ error: 'No encontrado' });
   }
+  const d = doc.data()!;
   const parsed = updateTicketListingSchema.safeParse(req.body);
   if (!parsed.success) {
     const flat = parsed.error.flatten();
@@ -347,11 +411,51 @@ router.patch('/mine/:listingId', requireAuth, async (req: AuthRequest, res) => {
         ? null
         : String(payload.quantityEntries);
   }
+  if (payload.visibility !== undefined) updates.visibility = payload.visibility;
   if (payload.publicationPassword !== undefined) {
     updates.publicationPassword =
       payload.publicationPassword == null || payload.publicationPassword === ''
         ? null
-        : String(payload.publicationPassword);
+        : String(payload.publicationPassword).trim();
+  }
+
+  const nextVis = (updates.visibility as string | undefined) ?? d.visibility;
+  const nextPwd =
+    updates.publicationPassword !== undefined
+      ? String(updates.publicationPassword ?? '').trim()
+      : String(d.publicationPassword || '').trim();
+
+  if (nextVis === 'PUBLIC') {
+    updates.visibility = 'PUBLIC';
+    updates.publicationPassword = null;
+  } else if (nextVis === 'PRIVATE') {
+    if (nextPwd.length < 4) {
+      return res.status(400).json({
+        error: 'Publicación privada: indicá una contraseña de al menos 4 caracteres.',
+        code: 'PRIVATE_PASSWORD_REQUIRED',
+      });
+    }
+  } else {
+    const legacyOpen = d.visibility == null && !String(d.publicationPassword || '').trim();
+    if (payload.visibility === 'PRIVATE') {
+      if (nextPwd.length < 4) {
+        return res.status(400).json({
+          error: 'Publicación privada: indicá una contraseña de al menos 4 caracteres.',
+          code: 'PRIVATE_PASSWORD_REQUIRED',
+        });
+      }
+      updates.visibility = 'PRIVATE';
+    } else if (!legacyOpen && nextPwd.length < 4) {
+      return res.status(400).json({
+        error: 'Publicación privada: indicá una contraseña de al menos 4 caracteres.',
+        code: 'PRIVATE_PASSWORD_REQUIRED',
+      });
+    } else if (legacyOpen && payload.publicationPassword !== undefined && nextPwd.length > 0 && nextPwd.length < 4) {
+      return res.status(400).json({
+        error: 'La contraseña debe tener al menos 4 caracteres.',
+        code: 'PRIVATE_PASSWORD_REQUIRED',
+      });
+    }
   }
 
   const keys = Object.keys(updates).filter((k) => k !== 'updatedAt');
@@ -361,14 +465,14 @@ router.patch('/mine/:listingId', requireAuth, async (req: AuthRequest, res) => {
 
   await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).update(updates);
   const refreshed = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).get();
-  const d = refreshed.data()!;
+  const refreshedData = refreshed.data()!;
   res.json({
     id: refreshed.id,
-    ...d,
-    publicationPassword: d.publicationPassword ?? null,
-    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
-    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
-    eventDate: d.eventDate?.toDate?.() ?? d.eventDate,
+    ...refreshedData,
+    publicationPassword: refreshedData.publicationPassword ?? null,
+    createdAt: refreshedData.createdAt?.toDate?.() ?? refreshedData.createdAt,
+    updatedAt: refreshedData.updatedAt?.toDate?.() ?? refreshedData.updatedAt,
+    eventDate: refreshedData.eventDate?.toDate?.() ?? refreshedData.eventDate,
   });
 });
 
