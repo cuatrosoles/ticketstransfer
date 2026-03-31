@@ -117,6 +117,8 @@ export function PublishTicketScreen() {
   const [orderRef, setOrderRef] = useState('');
   const [publicationPassword, setPublicationPassword] = useState('');
   const [showPubPassword, setShowPubPassword] = useState(false);
+  /** PUBLIC: listado en inicio, sin contraseña. PRIVATE: solo con ID + contraseña que comparte el vendedor. */
+  const [listingVisibility, setListingVisibility] = useState<'PUBLIC' | 'PRIVATE'>('PRIVATE');
   const [captureTicket, setCaptureTicket] = useState<ImageAsset | null>(null);
   const [captureOwnership, setCaptureOwnership] = useState<ImageAsset | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -148,6 +150,7 @@ export function PublishTicketScreen() {
         setButacasAsientos((L.seat as string) || '');
         setOrderRef(L.orderRef || '');
         setPublicationPassword((L.publicationPassword as string) || '');
+        setListingVisibility((L as { visibility?: string }).visibility === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE');
       })
       .catch(() => {
         Alert.alert('Error', 'No se pudo cargar la publicación.');
@@ -267,6 +270,13 @@ export function PublishTicketScreen() {
       Alert.alert('Falta imagen', 'Subí la captura del ticket (QR pixelado).');
       return;
     }
+    if (listingVisibility === 'PRIVATE' && publicationPassword.trim().length < 4) {
+      Alert.alert(
+        'Contraseña requerida',
+        'Las publicaciones privadas necesitan una contraseña de al menos 4 caracteres para compartir con el comprador.'
+      );
+      return;
+    }
     setSubmitting(true);
     try {
       if (editListingId) {
@@ -287,7 +297,9 @@ export function PublishTicketScreen() {
           appBoletos,
           appBoletosOtra: appBoletos === 'OTRA' ? appBoletosOtra.trim() || undefined : undefined,
           orderRef: orderRef.trim() || undefined,
-          publicationPassword: publicationPassword.trim() || null,
+          visibility: listingVisibility,
+          publicationPassword:
+            listingVisibility === 'PUBLIC' ? null : publicationPassword.trim() || null,
         });
         Alert.alert('Listo', 'Tu publicación se actualizó.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
         return;
@@ -306,8 +318,11 @@ export function PublishTicketScreen() {
       formData.append('currency', 'ARS');
       formData.append('ticketera', ticketera);
       formData.append('appBoletos', appBoletos);
+      formData.append('visibility', listingVisibility);
       if (orderRef.trim()) formData.append('orderRef', orderRef.trim());
-      if (publicationPassword.trim()) formData.append('publicationPassword', publicationPassword.trim());
+      if (listingVisibility === 'PRIVATE' && publicationPassword.trim()) {
+        formData.append('publicationPassword', publicationPassword.trim());
+      }
       if (ticketera === 'OTRA' && ticketeraOtra.trim()) formData.append('ticketeraOtra', ticketeraOtra.trim());
       if (appBoletos === 'OTRA' && appBoletosOtra.trim()) formData.append('appBoletosOtra', appBoletosOtra.trim());
       if (butacasAsientos.trim()) formData.append('seat', butacasAsientos.trim());
@@ -345,6 +360,7 @@ export function PublishTicketScreen() {
         setButacasAsientos('');
         setOrderRef('');
         setPublicationPassword('');
+        setListingVisibility('PRIVATE');
         setCaptureTicket(null);
         setCaptureOwnership(null);
         (navigation as { navigate: (name: string) => void }).navigate('Main');
@@ -554,6 +570,30 @@ export function PublishTicketScreen() {
       <Text style={styles.label}>Código de orden / referencia</Text>
       <TextInput style={styles.input} placeholder="Opcional" placeholderTextColor={colors.textMuted} value={orderRef} onChangeText={setOrderRef} />
 
+      <Text style={styles.label}>Visibilidad</Text>
+      <View style={styles.chipRow}>
+        <TouchableOpacity
+          style={[styles.chip, listingVisibility === 'PUBLIC' && styles.chipActive]}
+          onPress={() => {
+            setListingVisibility('PUBLIC');
+            setPublicationPassword('');
+          }}
+        >
+          <Text style={styles.chipText}>Público (marketplace)</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.chip, listingVisibility === 'PRIVATE' && styles.chipActive]}
+          onPress={() => setListingVisibility('PRIVATE')}
+        >
+          <Text style={styles.chipText}>Privado (ID + contraseña)</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={styles.visibilityHint}>
+        {listingVisibility === 'PUBLIC'
+          ? 'Tu publicación puede aparecer en el inicio en “Tickets a la Venta”. No usás contraseña: cualquier comprador puede ver el detalle y pagar.'
+          : 'No aparece en el inicio. Compartí el ID de la publicación y la contraseña con quien quiera comprar.'}
+      </Text>
+
       <Text style={styles.label}>Captura del ticket (QR pixelado) *</Text>
       <TouchableOpacity style={styles.imageButton} onPress={() => pickImage(setCaptureTicket)}>
         {captureTicket ? (
@@ -572,24 +612,28 @@ export function PublishTicketScreen() {
         )}
       </TouchableOpacity>
 
-      <Text style={styles.label}>Contraseña de la publicación</Text>
-      <View style={styles.inputRow}>
-        <TextInput
-          style={[styles.input, styles.inputRowInput]}
-          placeholder="Contraseña para transferir el ticket"
-          placeholderTextColor={colors.textMuted}
-          value={publicationPassword}
-          onChangeText={setPublicationPassword}
-          secureTextEntry={!showPubPassword}
-        />
-        <TouchableOpacity
-          style={styles.eyeBtn}
-          onPress={() => setShowPubPassword((v) => !v)}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Text style={styles.eyeBtnText}>{showPubPassword ? '🙈' : '👁'}</Text>
-        </TouchableOpacity>
-      </View>
+      {listingVisibility === 'PRIVATE' ? (
+        <>
+          <Text style={styles.label}>Contraseña de la publicación</Text>
+          <View style={styles.inputRow}>
+            <TextInput
+              style={[styles.input, styles.inputRowInput]}
+              placeholder="Mínimo 4 caracteres — se la das al comprador"
+              placeholderTextColor={colors.textMuted}
+              value={publicationPassword}
+              onChangeText={setPublicationPassword}
+              secureTextEntry={!showPubPassword}
+            />
+            <TouchableOpacity
+              style={styles.eyeBtn}
+              onPress={() => setShowPubPassword((v) => !v)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.eyeBtnText}>{showPubPassword ? '🙈' : '👁'}</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      ) : null}
 
       <TouchableOpacity style={[styles.primaryButton, submitting && styles.disabled]} onPress={handleSubmit} disabled={submitting}>
         {submitting ? (
@@ -633,4 +677,5 @@ const styles = StyleSheet.create({
   primaryButton: { backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radius, alignItems: 'center', marginTop: spacing.sm },
   primaryButtonText: { color: colors.white, fontWeight: '600', fontSize: 16 },
   disabled: { opacity: 0.7 },
+  visibilityHint: { fontSize: 12, color: colors.primaryLight, marginBottom: spacing.md, lineHeight: 18 },
 });

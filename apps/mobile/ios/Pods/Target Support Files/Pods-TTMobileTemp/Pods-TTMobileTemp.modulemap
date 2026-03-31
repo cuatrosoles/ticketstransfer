@@ -1,0 +1,6 @@
+module Pods_TTMobileTemp {
+  umbrella header "Pods-TTMobileTemp-umbrella.h"
+
+  export *
+  module * { export * }
+}

@@ -8,11 +8,11 @@ import { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -25,13 +25,28 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { colors, spacing, radius, glassCard } from '../theme';
+import { getMarketplacePublicListings, type MarketplacePublicItem } from '../lib/api';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
+function formatEventDateTime(iso: string | Date): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('es-AR', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export function HomeScreen() {
   const [showBiometricModal, setShowBiometricModal] = useState(false);
+  const [marketplaceItems, setMarketplaceItems] = useState<MarketplacePublicItem[]>([]);
+  const [marketplaceLoading, setMarketplaceLoading] = useState(true);
+  const [marketplaceError, setMarketplaceError] = useState('');
   const {
-    logout,
     getPostRegisterRedirectToKyc,
     clearPostRegisterRedirectToKyc,
     getPendingBiometricPrompt,
@@ -58,7 +73,24 @@ export function HomeScreen() {
     });
   }, [biometricAvailability, getPendingBiometricPrompt, clearPendingBiometricPrompt]);
 
-  const handleLogout = () => logout();
+  useEffect(() => {
+    let cancelled = false;
+    setMarketplaceLoading(true);
+    setMarketplaceError('');
+    getMarketplacePublicListings()
+      .then((res) => {
+        if (!cancelled) setMarketplaceItems(res.items ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setMarketplaceError('No se pudieron cargar los tickets públicos.');
+      })
+      .finally(() => {
+        if (!cancelled) setMarketplaceLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <AuthBackground>
@@ -69,6 +101,44 @@ export function HomeScreen() {
           onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
           rightSlot={<UserMenuButton />}
         />
+
+        <Text style={styles.sectionTitle}>Tickets a la Venta</Text>
+        <Text style={styles.sectionHint}>Publicaciones visibles para todos los usuarios</Text>
+        {marketplaceLoading ? (
+          <View style={styles.marketplaceLoading}>
+            <ActivityIndicator color={colors.primaryLight} />
+          </View>
+        ) : marketplaceError ? (
+          <Text style={styles.marketplaceError}>{marketplaceError}</Text>
+        ) : marketplaceItems.length === 0 ? (
+          <Text style={styles.marketplaceEmpty}>No hay tickets públicos por el momento.</Text>
+        ) : (
+          <View style={styles.grid}>
+            {marketplaceItems.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.gridCard, glassCard]}
+                onPress={() =>
+                  navigation.navigate('ComprarTicketDetalle', { listingId: item.id, password: '' })
+                }
+                activeOpacity={0.85}
+              >
+                <Text style={styles.gridEvent} numberOfLines={2}>
+                  {item.eventName}
+                </Text>
+                <Text style={styles.gridMeta}>{formatEventDateTime(item.eventDate)}</Text>
+                <Text style={styles.gridMeta} numberOfLines={2}>
+                  {item.eventPlace || '—'}
+                </Text>
+                <Text style={styles.gridSeller} numberOfLines={2}>
+                  {item.seller.displayName} ({item.seller.reputationScore} pts)
+                </Text>
+                <Text style={styles.gridQty}>Cantidad: {item.quantityEntries || '—'}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         <TouchableOpacity style={[styles.card, glassCard]} onPress={() => navigation.navigate('Kyc')}>
           <Text style={styles.cardTitle}>Verificación KYC</Text>
           <Text style={styles.cardSubtitle}>Verificar identidad con DNI y selfie</Text>
@@ -123,6 +193,33 @@ export function HomeScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  sectionHint: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.md },
+  marketplaceLoading: { paddingVertical: spacing.lg, alignItems: 'center' },
+  marketplaceError: { color: '#f87171', marginBottom: spacing.md, fontSize: 13 },
+  marketplaceEmpty: { color: colors.textMuted, marginBottom: spacing.lg, fontSize: 14 },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: spacing.lg,
+    gap: 0,
+  },
+  gridCard: {
+    width: '48%',
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    minHeight: 168,
+  },
+  gridEvent: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 6 },
+  gridMeta: { fontSize: 12, color: colors.textMuted, marginBottom: 4 },
+  gridSeller: { fontSize: 12, color: colors.primaryLight, marginTop: 4, marginBottom: 4 },
+  gridQty: { fontSize: 12, fontWeight: '600', color: colors.text },
   banner: { marginBottom: spacing.lg, alignItems: 'center' },
   bannerLogo: { width: 200, height: 56 },
   card: {

@@ -143,6 +143,20 @@ export async function getCommissionPercentage(): Promise<number> {
   return data.commissionPercentage ?? 5;
 }
 
+/** Tickets públicos para la grilla del inicio (marketplace) */
+export type MarketplacePublicItem = {
+  id: string;
+  eventName: string;
+  eventDate: string;
+  eventPlace?: string | null;
+  quantityEntries?: string | null;
+  seller: { id: string; displayName: string; reputationScore: number };
+};
+
+export async function getMarketplacePublicListings(): Promise<{ limit: number; items: MarketplacePublicItem[] }> {
+  return api<{ limit: number; items: MarketplacePublicItem[] }>('/api/tickets/marketplace/public');
+}
+
 /** Perfil */
 export type Profile = {
   id: string;
@@ -246,6 +260,7 @@ export type MyListingDetail = TicketListingItem & {
   row?: string | null;
   seat?: string | null;
   quantityEntries?: string | null;
+  visibility?: 'PUBLIC' | 'PRIVATE';
   ticketera?: string;
   appBoletos?: string;
   orderRef?: string | null;

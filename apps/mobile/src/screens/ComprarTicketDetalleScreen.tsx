@@ -22,6 +22,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { api, ensureImageUrl } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { TicketStubBackground } from '../components/TicketStubBackground';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { colors, spacing, radius } from '../theme';
 
@@ -127,8 +128,11 @@ export function ComprarTicketDetalleScreen() {
         <ScreenHeader title="Comprar Ticket" showBack onBack={() => navigation.goBack()} rightSlot={<UserMenuButton />} />
         {error && !preview.showFull ? <Text style={styles.error}>{error}</Text> : null}
 
-        <View style={styles.ticketStub}>
-          <View style={styles.stubNotch} />
+        <TicketStubBackground
+          backgroundOrientation="portrait"
+          style={styles.ticketWrap}
+          contentStyle={styles.ticketInner}
+        >
           <Text style={styles.ticketId}>TICKET ID N°: {preview.id}</Text>
           <View style={styles.perforation} />
           <Text style={styles.previewRow}>EVENTO: {preview.eventName}</Text>
@@ -150,8 +154,7 @@ export function ComprarTicketDetalleScreen() {
               {preview.orderRef ? <Text style={styles.previewRow}>CODIGO DE ORDEN: {preview.orderRef}</Text> : null}
             </>
           ) : null}
-          <View style={styles.stubNotchBottom} />
-        </View>
+        </TicketStubBackground>
 
         {(preview.captureTicketUrl || preview.captureOwnershipUrl) && preview.showFull && (
       <View style={styles.previewButtons}>
@@ -213,32 +216,12 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  ticketStub: {
-    padding: spacing.lg,
-    backgroundColor: 'rgba(30, 58, 138, 0.55)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(96, 165, 250, 0.35)',
-    marginBottom: spacing.lg,
-    overflow: 'hidden',
-  },
-  stubNotch: {
-    position: 'absolute',
-    left: -10,
-    top: 56,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(15, 23, 42, 0.95)',
-  },
-  stubNotchBottom: {
-    position: 'absolute',
-    right: -10,
-    bottom: 56,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+  ticketWrap: { marginBottom: spacing.lg },
+  ticketInner: {
+    paddingTop: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: 148,
+    minHeight: 440,
   },
   perforation: {
     borderStyle: 'dashed',

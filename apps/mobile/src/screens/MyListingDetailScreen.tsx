@@ -22,6 +22,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { getMyListingDetail, ensureImageUrl, type MyListingDetail as Listing } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { TicketStubBackground } from '../components/TicketStubBackground';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { colors, spacing, radius } from '../theme';
 
@@ -70,9 +71,17 @@ export function MyListingDetailScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <ScreenHeader title="Mi publicación" showBack onBack={() => navigation.goBack()} rightSlot={<UserMenuButton />} />
 
-        <View style={styles.ticketStub}>
+        <TicketStubBackground
+          backgroundOrientation="portrait"
+          style={styles.ticketWrap}
+          contentStyle={styles.ticketInner}
+        >
           <Text style={styles.ticketId}>TICKET ID N°: {listing.id}</Text>
           <View style={styles.perforation} />
+          <Text style={styles.row}>
+            VISIBILIDAD:{' '}
+            {listing.visibility === 'PUBLIC' ? 'Pública (marketplace)' : 'Privada (ID + contraseña)'}
+          </Text>
           <Text style={styles.row}>EVENTO: {listing.eventName}</Text>
           <Text style={styles.row}>
             FECHA: {new Date(listing.eventDate).toLocaleDateString('es-AR')}
@@ -88,7 +97,7 @@ export function MyListingDetailScreen() {
           {listing.ticketera ? <Text style={styles.row}>TICKETERA: {listing.ticketera}</Text> : null}
           {listing.appBoletos ? <Text style={styles.row}>APP DE BOLETOS: {listing.appBoletos}</Text> : null}
           {listing.orderRef ? <Text style={styles.row}>CODIGO DE ORDEN: {listing.orderRef}</Text> : null}
-        </View>
+        </TicketStubBackground>
 
         <View style={styles.previewButtons}>
           {listing.captureTicketUrl && (
@@ -142,13 +151,12 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  ticketStub: {
-    padding: spacing.lg,
-    backgroundColor: 'rgba(30, 58, 138, 0.55)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(96, 165, 250, 0.35)',
-    marginBottom: spacing.lg,
+  ticketWrap: { marginBottom: spacing.lg },
+  ticketInner: {
+    paddingTop: spacing.xl * 2,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: 148,
+    minHeight: 440,
   },
   perforation: {
     borderStyle: 'dashed',

@@ -1,0 +1,1 @@
+../../../Target Support Files/react-native-biometrics/react-native-biometrics-umbrella.h

@@ -19,6 +19,7 @@ type MercadoPagoSettings = {
 
 type PlatformSettings = {
   commissionPercentage: number;
+  marketplaceHomePublicListingsLimit: number;
   mercadopago: MercadoPagoSettings;
   users?: Record<string, unknown>;
   visual?: Record<string, unknown>;
@@ -33,6 +34,7 @@ export function Configuracion() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<PlatformSettings>({
     commissionPercentage: 6.5,
+    marketplaceHomePublicListingsLimit: 6,
     mercadopago: { enabled: false, accessToken: '', publicKey: '', webhookSecret: '', sandboxMode: true },
   });
 
@@ -111,6 +113,29 @@ export function Configuracion() {
                   setForm((f) => ({ ...f, commissionPercentage: parseFloat(e.target.value) || 0 }))
                 }
               />
+            </div>
+            <div className="form-group">
+              <label>Tickets públicos en el inicio (app móvil)</label>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                step={1}
+                value={form.marketplaceHomePublicListingsLimit ?? 6}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    marketplaceHomePublicListingsLimit: Math.min(
+                      50,
+                      Math.max(1, parseInt(e.target.value, 10) || 6)
+                    ),
+                  }))
+                }
+              />
+              <small className="text-muted">
+                Cantidad máxima de publicaciones <strong>públicas</strong> en la sección “Tickets a la Venta” del
+                inicio. Por defecto 6 (grilla de 2 columnas × 3 filas).
+              </small>
             </div>
           </div>
         )}

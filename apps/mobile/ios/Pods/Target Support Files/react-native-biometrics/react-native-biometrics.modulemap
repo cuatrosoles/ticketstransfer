@@ -1,0 +1,6 @@
+module react_native_biometrics {
+  umbrella header "react-native-biometrics-umbrella.h"
+
+  export *
+  module * { export * }
+}

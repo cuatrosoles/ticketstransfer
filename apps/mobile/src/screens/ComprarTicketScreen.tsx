@@ -19,6 +19,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { api } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { TicketStubBackground } from '../components/TicketStubBackground';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { colors, spacing, radius } from '../theme';
 
@@ -126,7 +127,8 @@ export function ComprarTicketScreen() {
           rightSlot={<UserMenuButton />}
         />
         <Text style={styles.subtitle}>
-          Ingresá el ID que te pasó el vendedor para ver la publicación y continuar con la compra.
+          Podés elegir un ticket desde Inicio (Tickets a la Venta) o ingresá el ID que te pasó el vendedor para
+          publicaciones privadas.
         </Text>
 
         <Text style={styles.label}>ID de la publicación</Text>
@@ -150,7 +152,9 @@ export function ComprarTicketScreen() {
         {preview && (
           <View style={styles.preview}>
             <Text style={styles.previewTitle}>Comprar Ticket</Text>
-            <View style={styles.ticketCard}>
+            <TicketStubBackground style={styles.ticketStubWrap} contentStyle={styles.ticketInner}>
+              <Text style={styles.ticketId}>TICKET ID N°: {preview.id}</Text>
+              <View style={styles.perforation} />
               <Text style={styles.previewRow}>EVENTO: {preview.eventName}</Text>
               <Text style={styles.previewRow}>
                 FECHA: {new Date(preview.eventDate).toLocaleDateString('es-AR')}
@@ -160,7 +164,7 @@ export function ComprarTicketScreen() {
               <Text style={styles.previewRow}>
                 CANTIDAD DE ENTRADAS: {preview.quantityEntries || '—'}
               </Text>
-            </View>
+            </TicketStubBackground>
 
             {seller && (
               <View style={styles.sellerInfo}>
@@ -269,13 +273,14 @@ const styles = StyleSheet.create({
   hint: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.md },
   preview: { marginTop: spacing.lg },
   previewTitle: { fontSize: 18, fontWeight: '700', color: colors.white, marginBottom: spacing.md },
-  ticketCard: {
-    padding: spacing.lg,
-    backgroundColor: 'rgba(30, 58, 138, 0.5)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(96, 165, 250, 0.3)',
-    marginBottom: spacing.md,
+  ticketStubWrap: { marginBottom: spacing.md },
+  ticketInner: { padding: spacing.lg },
+  ticketId: { fontSize: 12, color: colors.primaryLight, marginBottom: spacing.xs },
+  perforation: {
+    borderStyle: 'dashed',
+    borderBottomWidth: 1,
+    borderColor: 'rgba(147, 197, 253, 0.4)',
+    marginVertical: spacing.sm,
   },
   previewRow: { fontSize: 14, color: colors.text, marginBottom: spacing.sm },
   sellerInfo: { marginBottom: spacing.lg, padding: spacing.md },

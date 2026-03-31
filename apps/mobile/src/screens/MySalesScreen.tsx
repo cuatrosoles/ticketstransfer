@@ -22,6 +22,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { getMySales, getMyListings, type OrderItem, type TicketListingItem } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { TicketStubBackground } from '../components/TicketStubBackground';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { colors, spacing, radius, glassCard } from '../theme';
 
@@ -115,50 +116,46 @@ export function MySalesScreen() {
   const renderListingItem = (item: TicketListingItem) => {
     const isApproved = item.status === 'DISPONIBLE';
     return (
-      <View style={styles.ticketStubWrap}>
-        <View style={[styles.stubCut, styles.stubCutLeft]} />
-        <View style={[styles.stubCut, styles.stubCutRight]} />
-        <View style={[styles.card, glassCard, styles.ticketCardInner]}>
-          <Text style={styles.eventName}>{item.eventName}</Text>
-          <Text style={styles.meta}>
-            {item.price} {item.currency} · {new Date(item.eventDate).toLocaleDateString()}
+      <TicketStubBackground style={styles.ticketStubWrap} contentStyle={styles.ticketStubContent}>
+        <Text style={styles.eventName}>{item.eventName}</Text>
+        <Text style={styles.meta}>
+          {item.price} {item.currency} · {new Date(item.eventDate).toLocaleDateString()}
+        </Text>
+        <View style={styles.statusRow}>
+          <Text style={[styles.statusBadge, isApproved ? styles.statusApproved : styles.statusPending]}>
+            {listingStatusLabel(item.status)}
           </Text>
-          <View style={styles.statusRow}>
-            <Text style={[styles.statusBadge, isApproved ? styles.statusApproved : styles.statusPending]}>
-              {listingStatusLabel(item.status)}
-            </Text>
-          </View>
-          <View style={styles.listingActions}>
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => navigation.navigate('MyListingDetail', { listingId: item.id })}
-            >
-              <Text style={styles.actionBtnText}>Ver ticket</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnSecondary]}
-              onPress={() => navigation.navigate('Publish', { editListingId: item.id })}
-            >
-              <Text style={styles.actionBtnText}>Editar</Text>
-            </TouchableOpacity>
-          </View>
-          {isApproved && (
-            <View style={styles.idRow}>
-              <Text style={styles.idLabel}>Código: </Text>
-              <Text style={styles.idValue} selectable>
-                {item.id}
-              </Text>
-              <TouchableOpacity
-                style={styles.copyBtn}
-                onPress={() => handleCopyId(item.id)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.copyBtnText}>Copiar</Text>
-              </TouchableOpacity>
-            </View>
-          )}
         </View>
-      </View>
+        <View style={styles.listingActions}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => navigation.navigate('MyListingDetail', { listingId: item.id })}
+          >
+            <Text style={styles.actionBtnText}>Ver ticket</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.actionBtnSecondary]}
+            onPress={() => navigation.navigate('Publish', { editListingId: item.id })}
+          >
+            <Text style={styles.actionBtnText}>Editar</Text>
+          </TouchableOpacity>
+        </View>
+        {isApproved && (
+          <View style={styles.idRow}>
+            <Text style={styles.idLabel}>Código: </Text>
+            <Text style={styles.idValue} selectable>
+              {item.id}
+            </Text>
+            <TouchableOpacity
+              style={styles.copyBtn}
+              onPress={() => handleCopyId(item.id)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.copyBtnText}>Copiar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </TicketStubBackground>
     );
   };
 
@@ -230,25 +227,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   ticketStubWrap: {
-    position: 'relative',
     marginBottom: spacing.md,
   },
-  stubCut: {
-    position: 'absolute',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: 'rgba(15, 23, 42, 0.98)',
-    top: '50%',
-    marginTop: -9,
-    zIndex: 1,
-  },
-  stubCutLeft: { left: -9 },
-  stubCutRight: { right: -9 },
-  ticketCardInner: {
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    borderColor: 'rgba(147, 197, 253, 0.35)',
+  ticketStubContent: {
+    padding: spacing.lg,
   },
   card: { padding: spacing.lg, marginBottom: 0 },
   listingActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md, flexWrap: 'wrap' },

@@ -94,6 +94,7 @@ export function Publicar() {
   const [category, setCategory] = useState<(typeof CATEGORIAS)[number]>('OTRO');
   const [publicationPassword, setPublicationPassword] = useState('');
   const [showPubPassword, setShowPubPassword] = useState(false);
+  const [listingVisibility, setListingVisibility] = useState<'PUBLIC' | 'PRIVATE'>('PRIVATE');
   const [captureTicketFile, setCaptureTicketFile] = useState<File | null>(null);
   const [captureOwnershipFile, setCaptureOwnershipFile] = useState<File | null>(null);
   const [pixelateRegions, setPixelateRegions] = useState<PixelateRegion[] | null>(null);
@@ -126,6 +127,7 @@ export function Publicar() {
         setAppBoletosOtra((L.appBoletosOtra as string) || '');
         setOrderRef(L.orderRef || '');
         setPublicationPassword((L.publicationPassword as string) || '');
+        setListingVisibility((L as { visibility?: string }).visibility === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE');
         const rawCat = (L as { category?: string }).category;
         setCategory(
           rawCat && CATEGORIAS.includes(rawCat as (typeof CATEGORIAS)[number])
@@ -181,6 +183,7 @@ export function Publicar() {
       appBoletosOtra: appBoletos === 'OTRA' ? appBoletosOtra.trim() || undefined : undefined,
       orderRef: orderRef.trim() || undefined,
       category,
+      visibility: listingVisibility,
     };
     const parsed = createTicketListingSchema.safeParse(body);
     if (!parsed.success) {
@@ -194,6 +197,10 @@ export function Publicar() {
     }
     if (isNaN(priceNum) || priceNum <= 0) {
       setError('Precio debe ser un número positivo.');
+      return;
+    }
+    if (listingVisibility === 'PRIVATE' && publicationPassword.trim().length < 4) {
+      setError('Las publicaciones privadas requieren una contraseña de al menos 4 caracteres.');
       return;
     }
 
@@ -218,7 +225,9 @@ export function Publicar() {
           appBoletosOtra: appBoletos === 'OTRA' ? appBoletosOtra.trim() || undefined : undefined,
           orderRef: parsed.data.orderRef,
           category: parsed.data.category,
-          publicationPassword: publicationPassword.trim() || null,
+          visibility: listingVisibility,
+          publicationPassword:
+            listingVisibility === 'PUBLIC' ? null : publicationPassword.trim() || null,
         });
         window.alert('Tu publicación se actualizó.');
         navigate(`/mis-ventas/publicacion/${editListingId}`);
@@ -249,7 +258,10 @@ export function Publicar() {
       if (ticketera === 'OTRA' && ticketeraOtra.trim()) formData.append('ticketeraOtra', ticketeraOtra.trim());
       if (appBoletos === 'OTRA' && appBoletosOtra.trim()) formData.append('appBoletosOtra', appBoletosOtra.trim());
       formData.append('category', parsed.data.category ?? 'OTRO');
-      if (publicationPassword.trim()) formData.append('publicationPassword', publicationPassword.trim());
+      formData.append('visibility', listingVisibility);
+      if (listingVisibility === 'PRIVATE' && publicationPassword.trim()) {
+        formData.append('publicationPassword', publicationPassword.trim());
+      }
 
       formData.append('captureTicket', ticketFile, ticketFile.name || 'ticket.jpg');
       if (captureOwnershipFile) {
@@ -405,24 +417,50 @@ export function Publicar() {
         <label className="block-label">Captura de titularidad o factura (opcional)</label>
         <input type="file" accept="image/*" onChange={(e) => setCaptureOwnershipFile(e.target.files?.[0] || null)} style={{ marginBottom: 12 }} />
 
-        <label className="block-label">Contraseña de la publicación</label>
-        <div className="input-password-row">
-          <input
-            className="input-field"
-            type={showPubPassword ? 'text' : 'password'}
-            value={publicationPassword}
-            onChange={(e) => setPublicationPassword(e.target.value)}
-            placeholder="Para transferir el ticket"
-          />
+        <label className="block-label">Visibilidad</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
           <button
             type="button"
-            className="btn-secondary btn-eye"
-            onClick={() => setShowPubPassword((v) => !v)}
-            aria-label={showPubPassword ? 'Ocultar' : 'Mostrar'}
+            className={listingVisibility === 'PUBLIC' ? 'chip active' : 'chip'}
+            onClick={() => {
+              setListingVisibility('PUBLIC');
+              setPublicationPassword('');
+            }}
           >
-            {showPubPassword ? '🙈' : '👁'}
+            Público (marketplace / inicio app)
+          </button>
+          <button type="button" className={listingVisibility === 'PRIVATE' ? 'chip active' : 'chip'} onClick={() => setListingVisibility('PRIVATE')}>
+            Privado (ID + contraseña)
           </button>
         </div>
+        <p className="text-muted" style={{ marginBottom: 12, fontSize: 13 }}>
+          {listingVisibility === 'PUBLIC'
+            ? 'Aparece en “Tickets a la Venta” del inicio. Sin contraseña.'
+            : 'Solo quien tenga el ID y la contraseña que compartas podrá ver el ticket completo.'}
+        </p>
+
+        {listingVisibility === 'PRIVATE' && (
+          <>
+            <label className="block-label">Contraseña de la publicación</label>
+            <div className="input-password-row">
+              <input
+                className="input-field"
+                type={showPubPassword ? 'text' : 'password'}
+                value={publicationPassword}
+                onChange={(e) => setPublicationPassword(e.target.value)}
+                placeholder="Mínimo 4 caracteres"
+              />
+              <button
+                type="button"
+                className="btn-secondary btn-eye"
+                onClick={() => setShowPubPassword((v) => !v)}
+                aria-label={showPubPassword ? 'Ocultar' : 'Mostrar'}
+              >
+                {showPubPassword ? '🙈' : '👁'}
+              </button>
+            </div>
+          </>
+        )}
 
         <button type="submit" className="btn-primary" disabled={submitting} style={{ marginTop: 16 }}>
           {submitting ? 'Enviando…' : editListingId ? 'Guardar cambios' : 'Publicar'}

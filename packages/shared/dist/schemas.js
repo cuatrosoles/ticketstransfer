@@ -41,6 +41,8 @@ const ticketeraEnum = z.enum(['TICKETEK', 'ALLACCESS', 'TICKET_PLUS', 'OTRA']);
 const appBoletosEnum = z.enum(['QUENTRO', 'ENIGMA', 'OTRA']);
 const tipoEntradaEnum = z.enum(['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO']);
 const categoriaEventoEnum = z.enum(['MUSICA', 'DEPORTES', 'TEATRO', 'FESTIVALES', 'OTRO']);
+/** Visibilidad en el marketplace: público aparece en inicio; privado solo con ID + contraseña compartida por el vendedor */
+export const listingVisibilitySchema = z.enum(['PUBLIC', 'PRIVATE']);
 /** Normaliza fecha a YYYY-MM-DD desde DD/MM/YYYY, DD-MM-YYYY o YYYY-MM-DD */
 function normalizeEventDate(val) {
     const s = String(val ?? '').trim();
@@ -70,6 +72,8 @@ export const createTicketListingSchema = z.object({
     appBoletos: appBoletosEnum,
     orderRef: z.string().optional().transform((s) => (s === '' ? undefined : s)),
     category: z.union([categoriaEventoEnum, z.literal('')]).optional().transform((v) => (v === '' ? undefined : v)),
+    /** Si no se envía, la API trata la publicación como legada (mismo comportamiento que antes). */
+    visibility: listingVisibilitySchema.optional(),
 });
 /** Actualización parcial de publicación (vendedor); imágenes no se modifican por esta vía */
 export const updateTicketListingSchema = createTicketListingSchema.partial().extend({

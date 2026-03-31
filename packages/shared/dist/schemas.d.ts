@@ -193,6 +193,9 @@ export declare const onboardingSchema: z.ZodObject<{
     ticketeras: string[];
     appsBoletos: string[];
 }>;
+/** Visibilidad en el marketplace: público aparece en inicio; privado solo con ID + contraseña compartida por el vendedor */
+export declare const listingVisibilitySchema: z.ZodEnum<["PUBLIC", "PRIVATE"]>;
+export type ListingVisibility = z.infer<typeof listingVisibilitySchema>;
 export declare const createTicketListingSchema: z.ZodObject<{
     eventName: z.ZodString;
     eventDate: z.ZodEffects<z.ZodString, string, unknown>;
@@ -208,6 +211,8 @@ export declare const createTicketListingSchema: z.ZodObject<{
     appBoletos: z.ZodEnum<["QUENTRO", "ENIGMA", "OTRA"]>;
     orderRef: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
     category: z.ZodEffects<z.ZodOptional<z.ZodUnion<[z.ZodEnum<["MUSICA", "DEPORTES", "TEATRO", "FESTIVALES", "OTRO"]>, z.ZodLiteral<"">]>>, "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined, "" | "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined>;
+    /** Si no se envía, la API trata la publicación como legada (mismo comportamiento que antes). */
+    visibility: z.ZodOptional<z.ZodEnum<["PUBLIC", "PRIVATE"]>>;
 }, "strip", z.ZodTypeAny, {
     eventName: string;
     eventDate: string;
@@ -223,6 +228,7 @@ export declare const createTicketListingSchema: z.ZodObject<{
     quantityEntries?: string | number | undefined;
     orderRef?: string | undefined;
     category?: "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
+    visibility?: "PUBLIC" | "PRIVATE" | undefined;
 }, {
     eventName: string;
     tipoEntrada: "OTRO" | "GENERAL" | "CAMPO" | "PLATEA" | "VIP";
@@ -238,6 +244,7 @@ export declare const createTicketListingSchema: z.ZodObject<{
     currency?: string | undefined;
     orderRef?: string | undefined;
     category?: "" | "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
+    visibility?: "PUBLIC" | "PRIVATE" | undefined;
 }>;
 /** Actualización parcial de publicación (vendedor); imágenes no se modifican por esta vía */
 export declare const updateTicketListingSchema: z.ZodObject<{
@@ -255,6 +262,7 @@ export declare const updateTicketListingSchema: z.ZodObject<{
     appBoletos: z.ZodOptional<z.ZodEnum<["QUENTRO", "ENIGMA", "OTRA"]>>;
     orderRef: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>>;
     category: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodUnion<[z.ZodEnum<["MUSICA", "DEPORTES", "TEATRO", "FESTIVALES", "OTRO"]>, z.ZodLiteral<"">]>>, "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined, "" | "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined>>;
+    visibility: z.ZodOptional<z.ZodOptional<z.ZodEnum<["PUBLIC", "PRIVATE"]>>>;
 } & {
     publicationPassword: z.ZodEffects<z.ZodOptional<z.ZodNullable<z.ZodString>>, string | null | undefined, string | null | undefined>;
     ticketeraOtra: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
@@ -275,6 +283,7 @@ export declare const updateTicketListingSchema: z.ZodObject<{
     appBoletos?: "OTRA" | "QUENTRO" | "ENIGMA" | undefined;
     orderRef?: string | undefined;
     category?: "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
+    visibility?: "PUBLIC" | "PRIVATE" | undefined;
     publicationPassword?: string | null | undefined;
     ticketeraOtra?: string | undefined;
     appBoletosOtra?: string | undefined;
@@ -294,6 +303,7 @@ export declare const updateTicketListingSchema: z.ZodObject<{
     appBoletos?: "OTRA" | "QUENTRO" | "ENIGMA" | undefined;
     orderRef?: string | undefined;
     category?: "" | "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
+    visibility?: "PUBLIC" | "PRIVATE" | undefined;
     publicationPassword?: string | null | undefined;
     ticketeraOtra?: string | undefined;
     appBoletosOtra?: string | undefined;

@@ -11,6 +11,8 @@ export {
   registerBodySchema,
   loginSchema,
   onboardingSchema,
+  listingVisibilitySchema,
+  type ListingVisibility,
   createTicketListingSchema,
   updateTicketListingSchema,
   createOrderSchema,

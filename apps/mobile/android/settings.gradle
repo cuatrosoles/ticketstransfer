@@ -2,5 +2,6 @@ rootProject.name = 'TTMobileTemp'
 // node-linker=hoisted: packages en monorepo root (v2/node_modules). android/ -> ../../../ = v2
 def nodeModules = "../../../node_modules"
 apply from: file("${nodeModules}/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesSettingsGradle(settings)
+
 include ':app'
 includeBuild("${nodeModules}/@react-native/gradle-plugin")

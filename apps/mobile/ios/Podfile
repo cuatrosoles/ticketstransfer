@@ -15,6 +15,9 @@ if linkage != nil
 end
 
 target 'TTMobileTemp' do
+  # Firebase (Swift) + enlazado estático: GoogleUtilities y otros deben exponer módulos.
+  use_modular_headers!
+
   config = use_native_modules!
 
   use_react_native!(
