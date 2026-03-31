@@ -24,6 +24,8 @@ type Props = {
    * `portrait`: misma textura rotada 90° para que la zona tipo código de barras quede abajo.
    */
   backgroundOrientation?: 'landscape' | 'portrait';
+  /** Altura mínima del stub (ej. grilla 2 cols en inicio → ticket más alto que ancho). */
+  minFrameHeight?: number;
 };
 
 const TICKET_BG = require('../assets/ticket-card-bg.png');
@@ -33,6 +35,7 @@ export function TicketStubBackground({
   style,
   contentStyle,
   backgroundOrientation = 'landscape',
+  minFrameHeight,
 }: Props) {
   const [size, setSize] = React.useState({ w: 0, h: 0 });
 
@@ -58,9 +61,11 @@ export function TicketStubBackground({
     return [styles.bgImage, { width: size.w, height: size.h }];
   }, [size.w, size.h, backgroundOrientation]);
 
+  const frameMin = minFrameHeight != null && minFrameHeight > 0 ? { minHeight: minFrameHeight } : null;
+  /** Sin flexGrow: el contenido queda arriba y la zona baja del PNG (código de barras) queda libre de texto. */
   return (
     <View style={[styles.shadowOuter, style]}>
-      <View style={styles.frame} collapsable={false} onLayout={onFrameLayout}>
+      <View style={[styles.frame, frameMin]} collapsable={false} onLayout={onFrameLayout}>
         {size.w > 0 && size.h > 0 ? (
           <View style={styles.bgHitBlocker} pointerEvents="none">
             <Image source={TICKET_BG} style={bgImageStyle} resizeMode="stretch" />

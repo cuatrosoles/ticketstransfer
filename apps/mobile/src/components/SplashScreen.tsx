@@ -5,7 +5,7 @@
 
 import * as React from 'react';
 import { useEffect, useRef } from 'react';
-import { View, Text, Image, StyleSheet, Animated } from 'react-native';
+import { View, Text, Image, StyleSheet, Animated, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing } from '../theme';
 
@@ -24,6 +24,7 @@ type Props = {
 
 export function SplashScreen({ onFinished }: Props) {
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   const opacity = useRef(new Animated.Value(1)).current;
   const finishedRef = useRef(false);
 
@@ -49,12 +50,18 @@ export function SplashScreen({ onFinished }: Props) {
       style={[styles.overlay, { opacity, backgroundColor: SPLASH_GIF_BACKGROUND }]}
       pointerEvents="auto"
     >
-      <Image
-        source={require('../assets/video_splash01.gif')}
-        style={[StyleSheet.absoluteFill, { backgroundColor: SPLASH_GIF_BACKGROUND }]}
-        resizeMode="cover"
-        accessibilityRole="image"
-      />
+      <View style={styles.gifCenterWrap}>
+        <Image
+          source={require('../assets/video_splash01.gif')}
+          style={{
+            width: width * 0.92,
+            maxHeight: height * 0.45,
+            backgroundColor: SPLASH_GIF_BACKGROUND,
+          }}
+          resizeMode="contain"
+          accessibilityRole="image"
+        />
+      </View>
       <View
         style={[
           styles.titleBar,
@@ -75,6 +82,11 @@ const styles = StyleSheet.create({
     zIndex: 9999,
     elevation: 9999,
     overflow: 'hidden',
+  },
+  gifCenterWrap: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   titleBar: {
     position: 'absolute',

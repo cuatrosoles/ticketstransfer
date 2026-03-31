@@ -8,11 +8,16 @@ import { TicketStubBackground } from './TicketStubBackground';
 import { colors, spacing } from '../theme';
 import type { MarketplacePublicItem } from '../lib/api';
 
+/** Espacio reservado sobre la franja decorativa del PNG (código de barras) para que el texto no se solape. */
+const BARCODE_SAFE_INSET = 52;
+
 type Props = {
   item: MarketplacePublicItem;
   onPress: () => void;
   /** Menos padding y tipografía para el listado compacto del inicio */
   compact?: boolean;
+  /** Altura mínima del stub (inicio: más alto que ancho ⇒ orientación vertical leg) */
+  minFrameHeight?: number;
   formatEventDateTime: (iso: string | Date) => string;
 };
 
@@ -20,9 +25,17 @@ export function MarketplaceTicketCard({
   item,
   onPress,
   compact,
+  minFrameHeight,
   formatEventDateTime,
 }: Props) {
-  const pad = compact ? spacing.sm : spacing.md;
+  const isPortraitStub = minFrameHeight != null && minFrameHeight > 0;
+  const padH = compact ? spacing.lg : spacing.xl;
+  const padTop = compact ? spacing.lg : spacing.lg;
+  const padBottom = isPortraitStub
+    ? BARCODE_SAFE_INSET + (compact ? spacing.sm : spacing.md)
+    : compact
+      ? spacing.lg
+      : spacing.lg;
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -33,12 +46,17 @@ export function MarketplaceTicketCard({
       <TicketStubBackground
         backgroundOrientation="portrait"
         style={styles.stub}
-        contentStyle={{ padding: pad, paddingBottom: compact ? spacing.sm : spacing.md }}
+        minFrameHeight={minFrameHeight}
+        contentStyle={{
+          paddingHorizontal: padH,
+          paddingTop: padTop,
+          paddingBottom: padBottom,
+        }}
       >
         <Text style={[styles.event, compact && styles.eventCompact]} numberOfLines={2}>
           {item.eventName}
         </Text>
-        <View style={styles.perforation} />
+        <View style={[styles.perforation, compact && styles.perforationCompact]} />
         <Text style={[styles.meta, compact && styles.metaCompact]} numberOfLines={2}>
           {formatEventDateTime(item.eventDate)}
         </Text>
@@ -62,17 +80,23 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.xs,
   },
-  eventCompact: { fontSize: 12, marginBottom: 4 },
+  eventCompact: { fontSize: 12, marginBottom: spacing.sm },
   perforation: {
     borderStyle: 'dashed',
     borderBottomWidth: 1,
     borderColor: 'rgba(147, 197, 253, 0.4)',
     marginVertical: spacing.xs,
   },
-  meta: { fontSize: 12, color: colors.textMuted, marginBottom: 4 },
-  metaCompact: { fontSize: 11, marginBottom: 2 },
-  seller: { fontSize: 12, color: colors.primaryLight, marginTop: 2, marginBottom: 2 },
-  sellerCompact: { fontSize: 11 },
-  qty: { fontSize: 12, fontWeight: '600', color: colors.text },
+  perforationCompact: { marginVertical: spacing.sm },
+  meta: { fontSize: 12, color: colors.textMuted, marginBottom: 6 },
+  metaCompact: { fontSize: 11, marginBottom: 5 },
+  seller: { fontSize: 12, color: colors.primaryLight, marginTop: 4, marginBottom: 0 },
+  sellerCompact: { fontSize: 11, marginTop: 2, marginBottom: 0 },
+  qty: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text,
+    marginTop: spacing.sm,
+  },
   qtyCompact: { fontSize: 11 },
 });

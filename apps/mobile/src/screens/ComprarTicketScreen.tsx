@@ -271,11 +271,11 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: colors.white, fontWeight: '600', fontSize: 16 },
   error: { color: '#ef4444', marginTop: spacing.sm },
   hint: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.md },
-  preview: { marginTop: spacing.lg },
+  preview: { marginTop: spacing.lg * 2 },
   previewTitle: { fontSize: 18, fontWeight: '700', color: colors.white, marginBottom: spacing.md },
   ticketStubWrap: { marginBottom: spacing.md },
   ticketInner: { padding: spacing.lg },
-  ticketId: { fontSize: 12, color: colors.primaryLight, marginBottom: spacing.xs },
+  ticketId: { fontSize: 12, color: colors.primaryLight, marginTop: spacing.lg, marginBottom: spacing.xs },
   perforation: {
     borderStyle: 'dashed',
     borderBottomWidth: 1,

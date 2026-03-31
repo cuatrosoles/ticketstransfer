@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(147, 197, 253, 0.4)',
     marginVertical: spacing.sm,
   },
-  ticketId: { fontSize: 12, color: colors.primaryLight, marginBottom: spacing.xs },
+  ticketId: { fontSize: 12, color: colors.primaryLight, marginTop: spacing.lg, marginBottom: spacing.xs },
   previewRow: { fontSize: 14, color: colors.text, marginBottom: spacing.sm },
   previewButtons: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md, flexWrap: 'wrap' },
   previewBtn: {

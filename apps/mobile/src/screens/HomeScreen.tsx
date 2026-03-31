@@ -57,8 +57,12 @@ export function HomeScreen() {
     biometricAvailability,
   } = useAuth();
   const navigation = useNavigation<Nav>();
-  const { height: windowHeight } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const marketplaceMaxHeight = windowHeight * 0.4;
+  /** Columna ~48% del ancho útil: altura mínima > ancho para que el stub se lea en vertical */
+  const homeMarketplaceCardMinHeight = Math.round(
+    Math.max(232, (windowWidth - spacing.lg * 2) * 0.48 * 1.42)
+  );
 
   useEffect(() => {
     if (getPostRegisterRedirectToKyc()) {
@@ -140,6 +144,7 @@ export function HomeScreen() {
                     <View key={item.id} style={styles.marketplaceCell}>
                       <MarketplaceTicketCard
                         compact
+                        minFrameHeight={homeMarketplaceCardMinHeight}
                         item={item}
                         formatEventDateTime={formatEventDateTime}
                         onPress={() =>

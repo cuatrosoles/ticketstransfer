@@ -73,6 +73,7 @@ export function TiendaScreen() {
   const gap = spacing.sm;
   const horizontalPad = spacing.lg;
   const cardWidth = (width - horizontalPad * 2 - gap) / 2;
+  const storeCardMinHeight = Math.round(Math.max(260, cardWidth * 1.38));
 
   const goDetail = (id: string) => {
     navigation.navigate('ComprarTicketDetalle', { listingId: id, password: '' });
@@ -117,6 +118,7 @@ export function TiendaScreen() {
                 <MarketplaceTicketCard
                   item={item}
                   compact={false}
+                  minFrameHeight={storeCardMinHeight}
                   formatEventDateTime={formatEventDateTime}
                   onPress={() => goDetail(item.id)}
                 />
