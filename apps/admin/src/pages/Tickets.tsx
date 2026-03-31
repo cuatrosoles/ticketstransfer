@@ -18,6 +18,8 @@ type TicketItem = {
   eventDate: string | Date;
   eventPlace: string | null;
   sector: string | null;
+  /** PUBLIC = marketplace; PRIVATE = ID + contraseña; undefined = documento legacy */
+  visibility?: 'PUBLIC' | 'PRIVATE' | string;
   status: string;
   tipoEntrada: string;
   price: number;
@@ -83,6 +85,28 @@ export function Tickets() {
     return <span className={`badge badge-${c}`}>{s}</span>;
   };
 
+  const visibilityBadge = (v: string | undefined) => {
+    if (v === 'PUBLIC') {
+      return (
+        <span className="badge badge-approved" title="Visible en marketplace / inicio app">
+          Tipo: Público
+        </span>
+      );
+    }
+    if (v === 'PRIVATE') {
+      return (
+        <span className="badge badge-open" title="Solo con ID y contraseña compartida por el vendedor">
+          Tipo: Privado
+        </span>
+      );
+    }
+    return (
+      <span className="badge badge-pending" title="Sin campo en Firestore (comportamiento previo a visibilidad)">
+        Tipo: Legacy
+      </span>
+    );
+  };
+
   if (loading) return <p>Cargando…</p>;
   if (error) return <div className="card" style={{ color: 'var(--danger)' }}>{error}</div>;
 
@@ -123,7 +147,10 @@ export function Tickets() {
                   <Link to={`/tickets/${t.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
                     <strong style={{ fontSize: '1.1rem' }}>{t.eventName}</strong>
                   </Link>
-                  <div style={{ marginTop: 4 }}>{statusBadge(t.status)}</div>
+                  <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                    {statusBadge(t.status)}
+                    {visibilityBadge(t.visibility)}
+                  </div>
                   <div style={{ marginTop: 8, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                     Fecha: {formatDate(t.eventDate)} · {t.eventPlace || 'Sin lugar'}
                   </div>
