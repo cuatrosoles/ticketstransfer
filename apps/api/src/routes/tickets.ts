@@ -110,9 +110,11 @@ router.get('/eventos', async (req, res) => {
   res.json(eventos.slice(0, 100));
 });
 
-/** Marketplace: tickets públicos para grilla en el inicio de la app (límite desde Admin). */
-router.get('/marketplace/public', async (_req, res) => {
-  const limit = await getMarketplaceHomePublicListingsLimit();
+/** Marketplace: tickets públicos. `?scope=store` lista hasta 100 para la Tienda; sin query usa límite de inicio (Admin). */
+router.get('/marketplace/public', async (req, res) => {
+  const scope = typeof req.query.scope === 'string' ? req.query.scope : '';
+  const homeLimit = await getMarketplaceHomePublicListingsLimit();
+  const limit = scope === 'store' ? 100 : Math.min(100, homeLimit);
   const snap = await db()
     .collection(COLLECTIONS.TICKET_LISTINGS)
     .where('status', '==', 'DISPONIBLE')
@@ -146,7 +148,7 @@ router.get('/marketplace/public', async (_req, res) => {
       };
     })
   );
-  res.json({ limit, items });
+  res.json({ limit, items, scope: scope === 'store' ? 'store' : 'home' });
 });
 
 router.get('/:id', async (req, res) => {

@@ -13,6 +13,8 @@ export type RootStackParamList = {
   KycWebView: { sessionUrl: string };
   Publish: { editListingId?: string };
   ComprarTicket: undefined;
+  /** Marketplace: catálogo completo de tickets públicos */
+  Tienda: undefined;
   ComprarTicketDetalle: { listingId: string; password: string };
   MyListingDetail: { listingId: string };
   OrderPago: { orderId: string; checkoutUrl?: string };

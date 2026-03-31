@@ -17,6 +17,7 @@ import { KycScreen } from '../screens/KycScreen';
 import { KycWebViewScreen } from '../screens/KycWebViewScreen';
 import { PublishTicketScreen } from '../screens/PublishTicketScreen';
 import { ComprarTicketScreen } from '../screens/ComprarTicketScreen';
+import { TiendaScreen } from '../screens/TiendaScreen';
 import { ComprarTicketDetalleScreen } from '../screens/ComprarTicketDetalleScreen';
 import { MyListingDetailScreen } from '../screens/MyListingDetailScreen';
 import { MyPurchasesScreen } from '../screens/MyPurchasesScreen';
@@ -67,6 +68,7 @@ export function RootNavigator() {
           <Stack.Screen name="KycWebView" component={KycWebViewScreen} options={NO_HEADER} />
           <Stack.Screen name="Publish" component={PublishTicketScreen} options={NO_HEADER} />
           <Stack.Screen name="ComprarTicket" component={ComprarTicketScreen} options={NO_HEADER} />
+          <Stack.Screen name="Tienda" component={TiendaScreen} options={NO_HEADER} />
           <Stack.Screen name="ComprarTicketDetalle" component={ComprarTicketDetalleScreen} options={NO_HEADER} />
           <Stack.Screen name="MyListingDetail" component={MyListingDetailScreen} options={NO_HEADER} />
           <Stack.Screen name="MyPurchases" component={MyPurchasesScreen} options={NO_HEADER} />

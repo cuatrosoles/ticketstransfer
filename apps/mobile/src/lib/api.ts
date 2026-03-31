@@ -157,6 +157,13 @@ export async function getMarketplacePublicListings(): Promise<{ limit: number; i
   return api<{ limit: number; items: MarketplacePublicItem[] }>('/api/tickets/marketplace/public');
 }
 
+/** Todos los tickets públicos disponibles en la Tienda (hasta 100). */
+export async function getMarketplaceStoreListings(): Promise<{ limit: number; items: MarketplacePublicItem[] }> {
+  return api<{ limit: number; items: MarketplacePublicItem[] }>(
+    '/api/tickets/marketplace/public?scope=store'
+  );
+}
+
 /** Perfil */
 export type Profile = {
   id: string;

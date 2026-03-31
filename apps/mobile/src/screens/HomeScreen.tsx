@@ -13,6 +13,7 @@ import {
   ScrollView,
   Linking,
   ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -26,6 +27,7 @@ import { UserMenuButton } from '../components/UserMenuButton';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { colors, spacing, radius, glassCard } from '../theme';
 import { getMarketplacePublicListings, type MarketplacePublicItem } from '../lib/api';
+import { MarketplaceTicketCard } from '../components/MarketplaceTicketCard';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
@@ -55,6 +57,8 @@ export function HomeScreen() {
     biometricAvailability,
   } = useAuth();
   const navigation = useNavigation<Nav>();
+  const { height: windowHeight } = useWindowDimensions();
+  const marketplaceMaxHeight = windowHeight * 0.4;
 
   useEffect(() => {
     if (getPostRegisterRedirectToKyc()) {
@@ -104,40 +108,57 @@ export function HomeScreen() {
 
         <Text style={styles.sectionTitle}>Tickets a la Venta</Text>
         <Text style={styles.sectionHint}>Publicaciones visibles para todos los usuarios</Text>
-        {marketplaceLoading ? (
-          <View style={styles.marketplaceLoading}>
-            <ActivityIndicator color={colors.primaryLight} />
-          </View>
-        ) : marketplaceError ? (
-          <Text style={styles.marketplaceError}>{marketplaceError}</Text>
-        ) : marketplaceItems.length === 0 ? (
-          <Text style={styles.marketplaceEmpty}>No hay tickets públicos por el momento.</Text>
-        ) : (
-          <View style={styles.grid}>
-            {marketplaceItems.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[styles.gridCard, glassCard]}
-                onPress={() =>
-                  navigation.navigate('ComprarTicketDetalle', { listingId: item.id, password: '' })
-                }
-                activeOpacity={0.85}
-              >
-                <Text style={styles.gridEvent} numberOfLines={2}>
-                  {item.eventName}
-                </Text>
-                <Text style={styles.gridMeta}>{formatEventDateTime(item.eventDate)}</Text>
-                <Text style={styles.gridMeta} numberOfLines={2}>
-                  {item.eventPlace || '—'}
-                </Text>
-                <Text style={styles.gridSeller} numberOfLines={2}>
-                  {item.seller.displayName} ({item.seller.reputationScore} pts)
-                </Text>
-                <Text style={styles.gridQty}>Cantidad: {item.quantityEntries || '—'}</Text>
+        <View style={[styles.marketplaceSection, { height: marketplaceMaxHeight }]}>
+          {marketplaceLoading ? (
+            <View style={styles.marketplaceLoading}>
+              <ActivityIndicator color={colors.primaryLight} />
+            </View>
+          ) : marketplaceError ? (
+            <View style={styles.marketplaceFallback}>
+              <Text style={styles.marketplaceError}>{marketplaceError}</Text>
+              <TouchableOpacity style={styles.tiendaBtn} onPress={() => navigation.navigate('Tienda')}>
+                <Text style={styles.tiendaBtnText}>Ir a la Tienda</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-        )}
+            </View>
+          ) : marketplaceItems.length === 0 ? (
+            <View style={styles.marketplaceFallback}>
+              <Text style={styles.marketplaceEmpty}>No hay tickets públicos por el momento.</Text>
+              <TouchableOpacity style={styles.tiendaBtn} onPress={() => navigation.navigate('Tienda')}>
+                <Text style={styles.tiendaBtnText}>Ir a la Tienda</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <ScrollView
+                nestedScrollEnabled
+                style={styles.marketplaceScroll}
+                showsVerticalScrollIndicator
+                contentContainerStyle={styles.marketplaceScrollContent}
+              >
+                <View style={styles.marketplaceGrid}>
+                  {marketplaceItems.map((item) => (
+                    <View key={item.id} style={styles.marketplaceCell}>
+                      <MarketplaceTicketCard
+                        compact
+                        item={item}
+                        formatEventDateTime={formatEventDateTime}
+                        onPress={() =>
+                          navigation.navigate('ComprarTicketDetalle', {
+                            listingId: item.id,
+                            password: '',
+                          })
+                        }
+                      />
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+              <TouchableOpacity style={styles.tiendaBtn} onPress={() => navigation.navigate('Tienda')}>
+                <Text style={styles.tiendaBtnText}>Ir a la Tienda</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
 
         <TouchableOpacity style={[styles.card, glassCard]} onPress={() => navigation.navigate('Kyc')}>
           <Text style={styles.cardTitle}>Verificación KYC</Text>
@@ -200,26 +221,32 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   sectionHint: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.md },
-  marketplaceLoading: { paddingVertical: spacing.lg, alignItems: 'center' },
-  marketplaceError: { color: '#f87171', marginBottom: spacing.md, fontSize: 13 },
-  marketplaceEmpty: { color: colors.textMuted, marginBottom: spacing.lg, fontSize: 14 },
-  grid: {
+  marketplaceSection: {
+    marginBottom: spacing.lg,
+  },
+  marketplaceFallback: { flex: 1, justifyContent: 'center' },
+  marketplaceLoading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  marketplaceError: { color: '#f87171', marginBottom: spacing.md, fontSize: 13, textAlign: 'center' },
+  marketplaceEmpty: { color: colors.textMuted, fontSize: 14, textAlign: 'center', marginBottom: spacing.md },
+  marketplaceScroll: { flex: 1 },
+  marketplaceScrollContent: { paddingBottom: spacing.xs },
+  marketplaceGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: spacing.lg,
-    gap: 0,
   },
-  gridCard: {
+  marketplaceCell: {
     width: '48%',
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    minHeight: 168,
+    marginBottom: spacing.sm,
   },
-  gridEvent: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 6 },
-  gridMeta: { fontSize: 12, color: colors.textMuted, marginBottom: 4 },
-  gridSeller: { fontSize: 12, color: colors.primaryLight, marginTop: 4, marginBottom: 4 },
-  gridQty: { fontSize: 12, fontWeight: '600', color: colors.text },
+  tiendaBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    borderRadius: radius,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  tiendaBtnText: { color: colors.white, fontWeight: '600', fontSize: 16 },
   banner: { marginBottom: spacing.lg, alignItems: 'center' },
   bannerLogo: { width: 200, height: 56 },
   card: {
