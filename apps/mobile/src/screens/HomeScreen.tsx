@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.md,
   },
-  cardTitle: { color: colors.text, fontWeight: '600', fontSize: 16 },
+  cardTitle: { color: colors.text, fontWeight: '800', fontSize: 18, fontFamily: 'serif' },
   cardSubtitle: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
   socialTitle: { fontWeight: '700', color: colors.text, marginTop: spacing.lg, marginBottom: spacing.sm, textAlign: 'center' },
   socialRow: { flexDirection: 'row', justifyContent: 'center', gap: spacing.lg, marginBottom: spacing.lg },

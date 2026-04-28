@@ -30,6 +30,14 @@ export function AcercaScreen() {
         <Text style={styles.cardTitle}>ACERCA DE LA APP:</Text>
         <Text style={styles.cardText}>{ACERCA_DE_LA_APP}</Text>
         </View>
+        <View style={styles.legalWrap}>
+          <Text style={styles.legalText}>TICKETS TRANSFER®</Text>
+          <Text style={styles.legalText}>DE VALENTIN PITTALUGA</Text>
+          <Text style={styles.legalText}>IVA RESP.MONOTRIBUTO</Text>
+          <Text style={styles.legalText}>CUIT 20-40387579-2</Text>
+          <Text style={styles.legalText}>CP9400. RIO GALLEGOS</Text>
+          <Text style={styles.legalText}>SANTA CRUZ</Text>
+        </View>
       </ScrollView>
     </AuthBackground>
   );
@@ -44,4 +52,6 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
   cardText: { fontSize: 14, color: colors.textMuted, lineHeight: 22 },
+  legalWrap: { marginTop: spacing.xl, alignItems: 'center', gap: 2 },
+  legalText: { color: colors.text, fontWeight: '700', fontSize: 16, letterSpacing: 0.4, textAlign: 'center' },
 });

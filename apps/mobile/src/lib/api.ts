@@ -305,10 +305,66 @@ export type OrderItem = {
   totalAmount: number;
   currency: string;
   createdAt: string;
-  ticketListing: { eventName: string; eventDate?: string; price?: number };
-  seller?: { email?: string };
-  buyer?: { email?: string };
+  updatedAt?: string;
+  transferDeadline?: string;
+  checkoutUrl?: string;
+  ticketListing: {
+    id?: string;
+    eventName: string;
+    eventDate?: string;
+    eventPlace?: string;
+    sector?: string;
+    row?: string;
+    seat?: string;
+    quantityEntries?: string;
+    price?: number;
+    currency?: string;
+    captureTicketUrl?: string | null;
+    captureOwnershipUrl?: string | null;
+  };
+  seller?: { id?: string; email?: string; reputationScore?: number };
+  buyer?: { id?: string; email?: string };
+  evidenceUrl?: string | null;
+  buyerEvidenceUrl?: string | null;
+  sellerEvidenceUrl?: string | null;
+  cancelReason?: string | null;
+  cancelNote?: string | null;
 };
+
+export async function uploadOrderEvidence(orderId: string, image: {
+  uri: string;
+  name?: string;
+  type?: string;
+}): Promise<{ ok: boolean; status: string }> {
+  const formData = new FormData();
+  formData.append('evidence', {
+    uri: image.uri,
+    name: image.name || `evidence-${Date.now()}.jpg`,
+    type: image.type || 'image/jpeg',
+  } as never);
+  return api<{ ok: boolean; status: string }>(`/api/orders/${encodeURIComponent(orderId)}/evidence`, {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+export async function markTransferDone(orderId: string): Promise<{ ok: boolean }> {
+  return api<{ ok: boolean }>(`/api/orders/${encodeURIComponent(orderId)}/transfer-done`, { method: 'POST' });
+}
+
+export async function confirmOrderReceived(orderId: string): Promise<{ ok: boolean }> {
+  return api<{ ok: boolean }>(`/api/orders/${encodeURIComponent(orderId)}/confirm-received`, {
+    method: 'POST',
+    body: JSON.stringify({ received: true }),
+  });
+}
+
+export async function openOrderDispute(orderId: string, reason: string): Promise<{ id: string }> {
+  return api<{ id: string }>('/api/disputes', {
+    method: 'POST',
+    body: JSON.stringify({ orderId, reason }),
+  });
+}
 
 export type TicketListingItem = {
   id: string;

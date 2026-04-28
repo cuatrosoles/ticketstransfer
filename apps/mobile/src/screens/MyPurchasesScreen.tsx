@@ -8,16 +8,19 @@
 
 import * as React from 'react';
 import { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { getMyPurchases, type OrderItem } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
-import { colors, spacing, radius, glassCard } from '../theme';
+import { TicketStubBackground } from '../components/TicketStubBackground';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/types';
+import { colors, spacing } from '../theme';
 
 export function MyPurchasesScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -56,13 +59,19 @@ export function MyPurchasesScreen() {
   };
 
   const renderItem = ({ item }: { item: OrderItem }) => (
-    <View style={[styles.card, glassCard]}>
+    <TicketStubBackground style={styles.card} contentStyle={styles.ticketContent}>
       <Text style={styles.eventName}>{item.ticketListing.eventName}</Text>
       <Text style={styles.meta}>
         {item.totalAmount} {item.currency} · {statusLabel(item.status)}
       </Text>
       <Text style={styles.date}>{new Date(item.createdAt).toLocaleDateString()}</Text>
-    </View>
+      <TouchableOpacity
+        style={styles.viewBtn}
+        onPress={() => navigation.navigate('OrderDetail', { orderId: item.id, source: 'buyer' })}
+      >
+        <Text style={styles.viewBtnText}>Ver detalles ticket</Text>
+      </TouchableOpacity>
+    </TicketStubBackground>
   );
 
   if (loading && orders.length === 0) {
@@ -100,9 +109,20 @@ export function MyPurchasesScreen() {
 const styles = StyleSheet.create({
   list: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  card: { padding: spacing.lg, marginBottom: spacing.md },
+  card: { marginBottom: spacing.md },
+  ticketContent: { padding: spacing.lg },
   eventName: { fontSize: 16, fontWeight: '600', color: colors.text },
   meta: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
   date: { fontSize: 12, color: colors.textMuted, marginTop: 4 },
+  viewBtn: {
+    marginTop: spacing.sm,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(96,165,250,0.4)',
+    backgroundColor: 'rgba(30,58,138,0.35)',
+  },
+  viewBtnText: { color: colors.text, fontWeight: '700' },
   emptyText: { color: colors.textMuted, textAlign: 'center', marginTop: 24 },
 });

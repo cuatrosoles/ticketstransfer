@@ -19,7 +19,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../navigation/types';
-import { api, ensureImageUrl } from '../lib/api';
+import { ensureImageUrl } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { TicketStubBackground } from '../components/TicketStubBackground';
@@ -68,7 +68,6 @@ export function ComprarTicketDetalleScreen() {
   const [preview, setPreview] = useState<TicketPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [payLoading, setPayLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<'qr' | 'factura' | null>(null);
 
   useEffect(() => {
@@ -84,21 +83,9 @@ export function ComprarTicketDetalleScreen() {
       .finally(() => setLoading(false));
   }, [listingId, password]);
 
-  const handleContinue = async () => {
+  const handleContinue = () => {
     if (!preview?.showFull) return;
-    setError('');
-    setPayLoading(true);
-    try {
-      const res = await api<{ order: { id: string }; checkoutUrl?: string }>('/api/orders', {
-        method: 'POST',
-        body: JSON.stringify({ ticketListingId: preview.id, paymentMethod: 'mercadopago' }),
-      });
-      navigation.navigate('OrderPago', { orderId: res.order.id, checkoutUrl: res.checkoutUrl });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo iniciar la compra.');
-    } finally {
-      setPayLoading(false);
-    }
+    navigation.navigate('OrderPurchaseDetails', { listingId: preview.id, password: password || '' });
   };
 
   if (loading) {
@@ -174,12 +161,8 @@ export function ComprarTicketDetalleScreen() {
         {preview.showFull ? (
           <>
             {error ? <Text style={styles.error}>{error}</Text> : null}
-            <TouchableOpacity style={styles.primaryButton} onPress={handleContinue} disabled={payLoading}>
-              {payLoading ? (
-                <ActivityIndicator color={colors.white} />
-              ) : (
-                <Text style={styles.primaryButtonText}>CONTINUAR CON LA COMPRA</Text>
-              )}
+            <TouchableOpacity style={styles.primaryButton} onPress={handleContinue}>
+              <Text style={styles.primaryButtonText}>CONTINUAR CON LA COMPRA</Text>
             </TouchableOpacity>
           </>
         ) : null}

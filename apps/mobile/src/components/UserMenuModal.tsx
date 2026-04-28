@@ -20,6 +20,8 @@ const MENU_ITEMS = [
   { id: 'politica', label: 'Política de privacidad y uso de datos', route: 'PoliticaPrivacidad' as const },
   { id: 'terminos', label: 'Términos y condiciones de uso', route: 'TerminosYCondiciones' as const },
   { id: 'acerca', label: 'Acerca de', route: 'Acerca' as const },
+  { id: 'recomendaciones', label: 'Recomendaciones y quejas', route: 'RecomendacionesQuejas' as const },
+  { id: 'faq', label: 'Preguntas frecuentes', route: 'PreguntasFrecuentes' as const },
   { id: 'baja', label: 'Solicitar baja de cuenta', route: 'SolicitarBaja' as const },
 ];
 
@@ -54,7 +56,8 @@ export function UserMenuModal() {
                 <Text
                   style={[
                     styles.menuItemText,
-                    ['politica', 'terminos', 'acerca', 'baja'].includes(item.id) && styles.menuItemLink,
+                    ['politica', 'terminos', 'acerca', 'recomendaciones', 'faq', 'baja'].includes(item.id) &&
+                      styles.menuItemLink,
                   ]}
                 >
                   {item.label}
@@ -90,7 +93,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(96, 165, 250, 0.3)',
   },
   menuItem: { paddingVertical: 14, paddingHorizontal: 24 },
-  menuItemText: { color: '#f8fafc', fontSize: 15 },
+  menuItemText: { color: '#f8fafc', fontSize: 16, fontFamily: 'serif', fontWeight: '700' },
   menuItemLink: { color: '#60a5fa' },
   logoutBtn: {
     marginTop: 8,

@@ -17,6 +17,8 @@ export type RootStackParamList = {
   Tienda: undefined;
   ComprarTicketDetalle: { listingId: string; password: string };
   MyListingDetail: { listingId: string };
+  OrderDetail: { orderId: string; source: 'buyer' | 'seller' };
+  OrderPurchaseDetails: { listingId: string; password: string };
   OrderPago: { orderId: string; checkoutUrl?: string };
   MyPurchases: undefined;
   MySales: undefined;
@@ -41,4 +43,6 @@ export type RootStackParamList = {
   PoliticaPrivacidad: undefined;
   TerminosYCondiciones: undefined;
   SolicitarBaja: undefined;
+  RecomendacionesQuejas: undefined;
+  PreguntasFrecuentes: undefined;
 };

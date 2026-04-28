@@ -29,10 +29,14 @@ import { ChatSoporteScreen } from '../screens/ChatSoporteScreen';
 import { MensajesScreen } from '../screens/MensajesScreen';
 import { MensajesConversationScreen } from '../screens/MensajesConversationScreen';
 import { OrderPagoScreen } from '../screens/OrderPagoScreen';
+import { OrderDetailScreen } from '../screens/OrderDetailScreen';
+import { OrderPurchaseDetailsScreen } from '../screens/OrderPurchaseDetailsScreen';
 import { AcercaScreen } from '../screens/AcercaScreen';
 import { PoliticaPrivacidadScreen } from '../screens/PoliticaPrivacidadScreen';
 import { TerminosYCondicionesScreen } from '../screens/TerminosYCondicionesScreen';
 import { SolicitarBajaScreen } from '../screens/SolicitarBajaScreen';
+import { RecomendacionesQuejasScreen } from '../screens/RecomendacionesQuejasScreen';
+import { PreguntasFrecuentesScreen } from '../screens/PreguntasFrecuentesScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -70,9 +74,11 @@ export function RootNavigator() {
           <Stack.Screen name="ComprarTicket" component={ComprarTicketScreen} options={NO_HEADER} />
           <Stack.Screen name="Tienda" component={TiendaScreen} options={NO_HEADER} />
           <Stack.Screen name="ComprarTicketDetalle" component={ComprarTicketDetalleScreen} options={NO_HEADER} />
+          <Stack.Screen name="OrderPurchaseDetails" component={OrderPurchaseDetailsScreen} options={NO_HEADER} />
           <Stack.Screen name="MyListingDetail" component={MyListingDetailScreen} options={NO_HEADER} />
           <Stack.Screen name="MyPurchases" component={MyPurchasesScreen} options={NO_HEADER} />
           <Stack.Screen name="MySales" component={MySalesScreen} options={NO_HEADER} />
+          <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={NO_HEADER} />
           <Stack.Screen name="Profile" component={ProfileScreen} options={NO_HEADER} />
           <Stack.Screen name="TarjetasAdheridas" component={TarjetasAdheridasScreen} options={NO_HEADER} />
           <Stack.Screen name="CardFormWebView" component={CardFormWebViewScreen} options={NO_HEADER} />
@@ -84,6 +90,8 @@ export function RootNavigator() {
           <Stack.Screen name="PoliticaPrivacidad" component={PoliticaPrivacidadScreen} options={NO_HEADER} />
           <Stack.Screen name="TerminosYCondiciones" component={TerminosYCondicionesScreen} options={NO_HEADER} />
           <Stack.Screen name="SolicitarBaja" component={SolicitarBajaScreen} options={NO_HEADER} />
+          <Stack.Screen name="RecomendacionesQuejas" component={RecomendacionesQuejasScreen} options={NO_HEADER} />
+          <Stack.Screen name="PreguntasFrecuentes" component={PreguntasFrecuentesScreen} options={NO_HEADER} />
         </>
       )}
       </Stack.Navigator>

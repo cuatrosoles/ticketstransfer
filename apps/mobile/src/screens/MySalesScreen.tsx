@@ -24,7 +24,7 @@ import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { TicketStubBackground } from '../components/TicketStubBackground';
 import { UserMenuButton } from '../components/UserMenuButton';
-import { colors, spacing, radius, glassCard } from '../theme';
+import { colors, spacing } from '../theme';
 
 type Section = {
   title: 'Mis ventas' | 'Mis Tickets a la Venta';
@@ -75,7 +75,7 @@ export function MySalesScreen() {
   const orderStatusLabel = (s: string) => {
     const map: Record<string, string> = {
       PENDIENTE_PAGO: 'Pendiente de pago',
-      ESPERANDO_TRANSFERENCIA: 'Debes transferir el ticket',
+      ESPERANDO_TRANSFERENCIA: 'En espera transferencia',
       TRANSFERIDO_VENDEDOR: 'Transferido',
       COMPLETADA: 'Completada',
       CANCELADA: 'Cancelada',
@@ -102,15 +102,37 @@ export function MySalesScreen() {
     { title: 'Mis Tickets a la Venta', data: listings },
   ];
 
+  const orderBadgeStyle =
+    (status: string) =>
+      ({
+        PENDIENTE_PAGO: styles.statusPending,
+        ESPERANDO_TRANSFERENCIA: styles.statusPending,
+        TRANSFERIDO_VENDEDOR: styles.statusApproved,
+        PAGADO: styles.statusApproved,
+        CANCELADA: styles.statusDanger,
+        EN_DISPUTA: styles.statusDanger,
+      }[status] || styles.statusPending);
+
   const renderOrderItem = (item: OrderItem) => (
-    <View style={[styles.card, glassCard]}>
+    <TicketStubBackground style={styles.ticketStubWrap} contentStyle={styles.ticketStubContent}>
       <Text style={styles.eventName}>{item.ticketListing.eventName}</Text>
       <Text style={styles.meta}>
-        {item.totalAmount} {item.currency} · {orderStatusLabel(item.status)}
+        {item.currency} {item.totalAmount.toLocaleString('es-AR')}
       </Text>
+      <View style={styles.statusRow}>
+        <Text style={[styles.statusBadge, orderBadgeStyle(item.status)]}>{orderStatusLabel(item.status)}</Text>
+      </View>
       {item.buyer?.email ? <Text style={styles.buyer}>Comprador: {item.buyer.email}</Text> : null}
       <Text style={styles.date}>{new Date(item.createdAt).toLocaleDateString()}</Text>
-    </View>
+      <View style={styles.listingActions}>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={() => navigation.navigate('OrderDetail', { orderId: item.id, source: 'seller' })}
+        >
+          <Text style={styles.actionBtnText}>Ver detalles de venta</Text>
+        </TouchableOpacity>
+      </View>
+    </TicketStubBackground>
   );
 
   const renderListingItem = (item: TicketListingItem) => {
@@ -133,12 +155,14 @@ export function MySalesScreen() {
           >
             <Text style={styles.actionBtnText}>Ver ticket</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.actionBtnSecondary]}
-            onPress={() => navigation.navigate('Publish', { editListingId: item.id })}
-          >
-            <Text style={styles.actionBtnText}>Editar</Text>
-          </TouchableOpacity>
+          {isApproved ? (
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.actionBtnSecondary]}
+              onPress={() => navigation.navigate('Publish', { editListingId: item.id })}
+            >
+              <Text style={styles.actionBtnText}>Editar</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
         {isApproved && (
           <View style={styles.idRow}>
@@ -260,6 +284,7 @@ const styles = StyleSheet.create({
   },
   statusApproved: { backgroundColor: 'rgba(34, 197, 94, 0.2)', color: '#16a34a' },
   statusPending: { backgroundColor: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' },
+  statusDanger: { backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' },
   idRow: {
     flexDirection: 'row',
     alignItems: 'center',

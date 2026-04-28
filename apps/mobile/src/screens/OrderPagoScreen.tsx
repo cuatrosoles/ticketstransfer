@@ -171,7 +171,8 @@ export function OrderPagoScreen() {
             {order.currency} {order.totalAmount.toLocaleString('es-AR')}
           </Text>
           <Text style={styles.escrow}>
-            Tu dinero será retenido hasta que el vendedor transfiera el ticket.
+            Tu dinero será retenido y protegido por la plataforma hasta que el vendedor transfiera el ticket y ambos
+            usuarios adjunten/validen capturas de recibido.
           </Text>
           <Text style={styles.hint}>
             Podés usar tarjeta, débito o cuenta de Mercado Pago. Agregá tarjetas acá o en Perfil → Tarjetas
@@ -213,6 +214,9 @@ export function OrderPagoScreen() {
                 <Text style={styles.btnText}>+ Agregar tarjeta</Text>
               </TouchableOpacity>
               {!checkoutUrl && <Text style={styles.muted}>Generando link de pago…</Text>}
+              <Text style={styles.hintError}>
+                Si falla el pago con tarjeta adherida, usá el botón de Mercado Pago y elegí allí el medio guardado.
+              </Text>
             </>
           )}
 
@@ -282,6 +286,7 @@ const styles = StyleSheet.create({
   btnSecondary: { backgroundColor: 'rgba(59, 130, 246, 0.35)', borderWidth: 1, borderColor: 'rgba(147, 197, 253, 0.5)' },
   btnText: { color: colors.white, fontWeight: '600', fontSize: 16 },
   hint: { fontSize: 12, color: colors.textMuted, marginTop: spacing.sm, marginBottom: spacing.sm, lineHeight: 18 },
+  hintError: { fontSize: 12, color: '#fca5a5', marginTop: spacing.sm, lineHeight: 18 },
   muted: { fontSize: 14, color: colors.textMuted },
   success: { fontSize: 14, color: colors.primary, fontWeight: '600', marginTop: spacing.sm },
   mpModal: { flex: 1, backgroundColor: '#0f172a' },

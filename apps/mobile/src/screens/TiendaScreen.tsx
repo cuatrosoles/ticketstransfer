@@ -105,8 +105,7 @@ export function TiendaScreen() {
             }
           >
           <Text style={styles.lead}>
-            Tickets a la venta con visibilidad pública. Tocá una tarjeta para ver el detalle y comprar con Mercado
-            Pago.
+            Tickets públicos verificados. Tocá un ticket para ver el detalle y continuar con la compra.
           </Text>
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {!error && items.length === 0 ? (
