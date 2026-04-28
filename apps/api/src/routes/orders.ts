@@ -7,7 +7,7 @@ import multer from 'multer';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { uploadFile } from '../lib/firebase-storage.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
-import { createOrderSchema, confirmReceivedSchema } from '@tickets-transfer/shared';
+import { createOrderSchema } from '@tickets-transfer/shared';
 import { HORAS_MAX_TRANSFERENCIA_VENDEDOR } from '@tickets-transfer/shared';
 import {
   isMercadoPagoConfigured,
@@ -320,12 +320,8 @@ router.post('/:id/transfer-done', async (req: AuthRequest, res) => {
 });
 
 router.post('/:id/confirm-received', async (req: AuthRequest, res) => {
-  const parsed = confirmReceivedSchema.safeParse({
-    orderId: req.params.id,
-    received: req.body.received,
-  });
-  if (!parsed.success) {
-    res.status(400).json({ error: 'Datos inv?lidos' });
+  if (typeof req.body?.received !== 'boolean') {
+    res.status(400).json({ error: 'Datos inválidos' });
     return;
   }
   const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
@@ -333,8 +329,8 @@ router.post('/:id/confirm-received', async (req: AuthRequest, res) => {
   const d = doc.data()!;
   if (d.buyerId !== req.user!.id) return res.status(404).json({ error: 'No encontrado' });
   await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({
-    status: parsed.data.received ? 'ESPERANDO_CONFIRMACION_COMPRADOR' : d.status,
-    buyerConfirmedAt: parsed.data.received ? new Date() : null,
+    status: req.body.received ? 'ESPERANDO_CONFIRMACION_COMPRADOR' : d.status,
+    buyerConfirmedAt: req.body.received ? new Date() : null,
     updatedAt: new Date(),
   });
   res.json({ ok: true });
@@ -344,7 +340,9 @@ router.post('/:id/evidence', upload.single('evidence'), async (req: AuthRequest,
   const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
   const d = doc.data()!;
-  if (d.buyerId !== req.user!.id) return res.status(404).json({ error: 'No encontrado' });
+  const isBuyer = d.buyerId === req.user!.id;
+  const isSeller = d.sellerId === req.user!.id;
+  if (!isBuyer && !isSeller) return res.status(404).json({ error: 'No encontrado' });
   const file = req.file;
   if (!file) {
     res.status(400).json({ error: 'Archivo requerido' });
@@ -355,12 +353,18 @@ router.post('/:id/evidence', upload.single('evidence'), async (req: AuthRequest,
     file.buffer,
     file.mimetype || 'image/jpeg'
   );
-  await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({
-    evidenceUrl,
-    status: 'EVIDENCIA_SUBIDA',
+  const patch: Record<string, unknown> = {
     updatedAt: new Date(),
-  });
-  res.json({ ok: true, status: 'EVIDENCIA_SUBIDA' });
+  };
+  if (isBuyer) {
+    patch.buyerEvidenceUrl = evidenceUrl;
+    patch.evidenceUrl = evidenceUrl;
+    patch.status = 'EVIDENCIA_SUBIDA';
+  } else {
+    patch.sellerEvidenceUrl = evidenceUrl;
+  }
+  await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update(patch);
+  res.json({ ok: true, status: String(patch.status ?? d.status) });
 });
 
 const PUNTOS_POR_RATING_POSITIVO = 5;
