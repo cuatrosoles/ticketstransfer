@@ -19,7 +19,6 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { useAuth } from '../context/AuthContext';
-import { getBiometricsEnabled } from '../lib/secureStorage';
 import { BiometricActivationModal } from '../components/BiometricActivationModal';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -34,7 +33,7 @@ export function LoginScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showBiometricModal, setShowBiometricModal] = useState(false);
-  const { login, enableBiometrics, biometricAvailability, clearPendingBiometricPrompt } = useAuth();
+  const { login, enableBiometrics, biometricAvailability, biometricEnabled, clearPendingBiometricPrompt } = useAuth();
   const navigation = useNavigation<Nav>();
 
   const goToMain = () => {
@@ -48,8 +47,7 @@ export function LoginScreen() {
     setLoading(true);
     try {
       await login(email, password);
-      const biometricsEnabled = await getBiometricsEnabled();
-      if (biometricAvailability?.available && !biometricsEnabled) {
+      if (biometricAvailability?.available && !biometricEnabled) {
         setShowBiometricModal(true);
       } else {
         navigation.replace('Main', {});

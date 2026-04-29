@@ -3,19 +3,19 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "start": "CI=true npx react-native start",
-    "start:reset": "CI=true npx react-native start --reset-cache",
-    "android": "adb reverse tcp:8081 tcp:8081 2>/dev/null; CI=true npx react-native run-android",
-    "android:install": "adb reverse tcp:8081 tcp:8081 2>/dev/null; cd android && ./gradlew --stop 2>/dev/null; ./gradlew app:installDebug -PreactNativeDevServerPort=8081 --no-daemon && cd ..",
-    "android:clean": "lsof -t -i :8081 | xargs kill 2>/dev/null; rm -rf ~/.metro 2>/dev/null; adb reverse tcp:8081 tcp:8081 2>/dev/null; echo 'Listo. Ejecutá pnpm start:reset y luego pnpm android'",
+    "start": "npx react-native start",
+    "start:reset": "npx react-native start --reset-cache",
+    "android": "node -e \"const cp=require('child_process');try{cp.execSync('adb reverse tcp:8081 tcp:8081',{stdio:'ignore',shell:true});}catch{}cp.execSync('npx react-native run-android',{stdio:'inherit',shell:true});\"",
+    "android:install": "node -e \"const cp=require('child_process');const gradlew=process.platform==='win32'?'gradlew.bat':'./gradlew';try{cp.execSync('adb reverse tcp:8081 tcp:8081',{stdio:'ignore',shell:true});}catch{}cp.execSync(`cd android && ${gradlew} --stop`,{stdio:'ignore',shell:true});cp.execSync(`cd android && ${gradlew} app:installDebug -PreactNativeDevServerPort=8081 --no-daemon`,{stdio:'inherit',shell:true});\"",
+    "android:clean": "node -e \"const cp=require('child_process');const os=require('os');const fs=require('fs');const path=require('path');try{if(process.platform!=='win32'){cp.execSync('lsof -t -i :8081 | xargs kill',{stdio:'ignore',shell:true});}}catch{}try{fs.rmSync(path.join(os.homedir(),'.metro'),{recursive:true,force:true});}catch{}try{cp.execSync('adb reverse tcp:8081 tcp:8081',{stdio:'ignore',shell:true});}catch{}console.log('Listo. Ejecutá pnpm start:reset y luego pnpm android');\"",
     "ios": "npx react-native run-ios",
     "lint": "eslint .",
     "fix:android": "bash scripts/fix-android-build.sh",
     "postinstall": "node -e \"process.exit(0)\"",
-    "apk:debug": "cd android && ./gradlew assembleDebug && cd ..",
-    "apk:release": "NODE_OPTIONS='--max-old-space-size=4096' cd android && ./gradlew assembleRelease --no-daemon && cd ..",
-    "apk:release:clean": "rm -rf node_modules/.cache ~/.metro android/app/build/generated 2>/dev/null; pnpm apk:release",
-    "apk:release:no-daemon": "cd android && ./gradlew --stop && cd .. && pnpm apk:release"
+    "apk:debug": "node -e \"const cp=require('child_process');const gradlew=process.platform==='win32'?'gradlew.bat':'./gradlew';cp.execSync(`cd android && ${gradlew} assembleDebug`,{stdio:'inherit',shell:true});\"",
+    "apk:release": "node -e \"const cp=require('child_process');const gradlew=process.platform==='win32'?'gradlew.bat':'./gradlew';cp.execSync(`cd android && ${gradlew} assembleRelease --no-daemon`,{stdio:'inherit',shell:true,env:{...process.env,NODE_OPTIONS:'--max-old-space-size=4096'}});\"",
+    "apk:release:clean": "node -e \"const os=require('os');const fs=require('fs');const path=require('path');['node_modules/.cache','android/app/build/generated'].forEach((p)=>{try{fs.rmSync(path.resolve(p),{recursive:true,force:true});}catch{}});try{fs.rmSync(path.join(os.homedir(),'.metro'),{recursive:true,force:true});}catch{}\" && pnpm apk:release",
+    "apk:release:no-daemon": "node -e \"const cp=require('child_process');const gradlew=process.platform==='win32'?'gradlew.bat':'./gradlew';cp.execSync(`cd android && ${gradlew} --stop`,{stdio:'inherit',shell:true});\" && pnpm apk:release"
   },
   "dependencies": {
     "@babel/runtime": "^7.23.7",

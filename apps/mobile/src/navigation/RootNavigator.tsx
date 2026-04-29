@@ -37,16 +37,38 @@ import { TerminosYCondicionesScreen } from '../screens/TerminosYCondicionesScree
 import { SolicitarBajaScreen } from '../screens/SolicitarBajaScreen';
 import { RecomendacionesQuejasScreen } from '../screens/RecomendacionesQuejasScreen';
 import { PreguntasFrecuentesScreen } from '../screens/PreguntasFrecuentesScreen';
+import { AppLockScreen } from '../components/AppLockScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const NO_HEADER = { headerShown: false };
 
 export function RootNavigator() {
-  const { user, loading } = useAuth();
+  const { user, loading, biometricEnabled, isAppUnlocked, unlockWithBiometrics, logout } = useAuth();
+  const [unlocking, setUnlocking] = React.useState(false);
 
   if (loading) {
     return null;
+  }
+
+  if (user && biometricEnabled && !isAppUnlocked) {
+    return (
+      <AppLockScreen
+        unlocking={unlocking}
+        onUnlock={async () => {
+          if (unlocking) return;
+          setUnlocking(true);
+          try {
+            await unlockWithBiometrics();
+          } finally {
+            setUnlocking(false);
+          }
+        }}
+        onLogout={() => {
+          void logout();
+        }}
+      />
+    );
   }
 
   return (

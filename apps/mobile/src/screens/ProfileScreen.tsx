@@ -27,7 +27,6 @@ import { useAuth } from '../context/AuthContext';
 import { useProfileImage } from '../context/ProfileImageContext';
 import { getProfile, updateProfile, uploadProfileImage, requestPhoneVerification, confirmPhoneVerification, ensureImageUrl, type Profile, type ProfileUpdate } from '../lib/api';
 import { PROVINCIAS_ARGENTINA, CIUDADES_POR_PROVINCIA } from '../data/provinciasArgentina';
-import { getBiometricsEnabled } from '../lib/secureStorage';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
@@ -73,14 +72,13 @@ function KycBadge({ status }: { status: string }) {
 
 export function ProfileScreen() {
   const navigation = useNavigation();
-  const { fetchUser, enableBiometrics, disableBiometrics, biometricAvailability } = useAuth();
+  const { fetchUser, enableBiometrics, disableBiometrics, biometricAvailability, biometricEnabled } = useAuth();
   const { refreshProfileImage } = useProfileImage();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [biometricsOn, setBiometricsOn] = useState<boolean | null>(null);
   const [pickerModal, setPickerModal] = useState<'province' | 'city' | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [phoneVerifyModal, setPhoneVerifyModal] = useState(false);
@@ -129,10 +127,6 @@ export function ProfileScreen() {
 
   useEffect(() => {
     loadProfile();
-  }, []);
-
-  useEffect(() => {
-    getBiometricsEnabled().then(setBiometricsOn);
   }, []);
 
   const handleSave = async () => {
@@ -247,13 +241,11 @@ export function ProfileScreen() {
 
   const handleToggleBiometrics = async () => {
     if (!biometricAvailability?.available) return;
-    if (biometricsOn) {
-      const ok = await disableBiometrics();
-      if (ok) setBiometricsOn(false);
+    if (biometricEnabled) {
+      await disableBiometrics();
       return;
     }
-    const ok = await enableBiometrics();
-    if (ok) setBiometricsOn(true);
+    await enableBiometrics();
   };
 
   const cities = form.province ? (CIUDADES_POR_PROVINCIA[form.province] ?? []) : [];
@@ -486,10 +478,10 @@ export function ProfileScreen() {
           <View style={[styles.card, glassCard]}>
           <Text style={styles.label}>Inicio de sesión con {labelBiometric}</Text>
           <Text style={styles.subvalue}>
-            {biometricsOn ? 'Activado. La próxima vez que abras la app podés usar tu biometría.' : 'Desactivado. Activá para entrar más rápido.'}
+            {biometricEnabled ? 'Activado. Se solicitará biometría al abrir o retomar la app.' : 'Desactivado. Activá para proteger el acceso a la app.'}
           </Text>
           <TouchableOpacity style={styles.biometricBtn} onPress={handleToggleBiometrics}>
-            <Text style={styles.biometricBtnText}>{biometricsOn ? 'Desactivar' : `Activar ${labelBiometric}`}</Text>
+            <Text style={styles.biometricBtnText}>{biometricEnabled ? 'Desactivar' : `Activar ${labelBiometric}`}</Text>
           </TouchableOpacity>
         </View>
         )}

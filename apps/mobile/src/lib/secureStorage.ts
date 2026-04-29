@@ -89,9 +89,9 @@ export async function setSecureToken(token: string, useBiometric: boolean): Prom
  * Si biométricos están activados, pasa accessControl y authenticationPrompt para que
  * el sistema muestre el prompt biométrico al recuperar (requerido en iOS/Android).
  */
-export async function getSecureToken(): Promise<string | null> {
+export async function getSecureToken(userId: string | null = null): Promise<string | null> {
   try {
-    const biometricsEnabled = await getBiometricsEnabled();
+    const biometricsEnabled = await getBiometricsEnabledForUser(userId);
     const options: Keychain.Options = { service: SERVICE_NAME };
 
     if (biometricsEnabled) {
@@ -124,14 +124,24 @@ export async function removeSecureToken(): Promise<void> {
  * pero usamos Keychain para centralizar credenciales).
  */
 export async function setBiometricsEnabled(enabled: boolean): Promise<void> {
+  return setBiometricsEnabledForUser(null, enabled);
+}
+
+function prefsServiceForUser(userId: string | null): string {
+  if (!userId) return `${SERVICE_NAME}.prefs`;
+  return `${SERVICE_NAME}.prefs.${userId}`;
+}
+
+export async function setBiometricsEnabledForUser(userId: string | null, enabled: boolean): Promise<void> {
   try {
+    const service = prefsServiceForUser(userId);
     if (enabled) {
       await Keychain.setGenericPassword(BIOMETRICS_ENABLED_KEY, 'true', {
-        service: `${SERVICE_NAME}.prefs`,
+        service,
         accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED,
       });
     } else {
-      await Keychain.resetGenericPassword({ service: `${SERVICE_NAME}.prefs` });
+      await Keychain.resetGenericPassword({ service });
     }
   } catch {
     // Ignorar errores de preferencias
@@ -142,9 +152,13 @@ export async function setBiometricsEnabled(enabled: boolean): Promise<void> {
  * Obtiene si el usuario tiene biométricos habilitados.
  */
 export async function getBiometricsEnabled(): Promise<boolean> {
+  return getBiometricsEnabledForUser(null);
+}
+
+export async function getBiometricsEnabledForUser(userId: string | null): Promise<boolean> {
   try {
     const creds = await Keychain.getGenericPassword({
-      service: `${SERVICE_NAME}.prefs`,
+      service: prefsServiceForUser(userId),
     });
     return creds?.password === 'true';
   } catch {
@@ -156,12 +170,12 @@ export async function getBiometricsEnabled(): Promise<boolean> {
  * Desactiva biométricos: obtiene el token (puede pedir validación biométrica),
  * lo re-guarda sin protección biométrica y actualiza la preferencia.
  */
-export async function disableBiometrics(): Promise<boolean> {
+export async function disableBiometrics(userId: string | null = null): Promise<boolean> {
   try {
-    const token = await getSecureToken();
+    const token = await getSecureToken(userId);
     if (!token) return false;
     await setSecureToken(token, false);
-    await setBiometricsEnabled(false);
+    await setBiometricsEnabledForUser(userId, false);
     return true;
   } catch {
     return false;

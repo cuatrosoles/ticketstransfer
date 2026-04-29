@@ -6,12 +6,14 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import { auth } from '../lib/firebase';
-import { api, setTokenGetter, getEmailForLogin } from '../lib/api';
+import { api, setTokenGetter, getEmailForLogin, getBiometricPreference, updateBiometricPreference } from '../lib/api';
 import {
   setSecureToken,
   removeSecureToken,
-  setBiometricsEnabled,
+  setBiometricsEnabledForUser,
+  getBiometricsEnabledForUser,
   isBiometricAvailable,
   promptBiometric,
   disableBiometrics as disableBiometricsStorage,
@@ -29,7 +31,11 @@ type AuthContextType = {
   clearPostRegisterRedirectToKyc: () => void;
   enableBiometrics: () => Promise<boolean>;
   disableBiometrics: () => Promise<boolean>;
+  biometricEnabled: boolean;
   biometricAvailability: { available: boolean; type: 'FaceID' | 'TouchID' | 'Biometrics' | null } | null;
+  isAppUnlocked: boolean;
+  unlockWithBiometrics: () => Promise<boolean>;
+  lockApp: () => void;
   getPendingBiometricPrompt: () => boolean;
   clearPendingBiometricPrompt: () => void;
   fetchUser: () => Promise<void>;
@@ -44,8 +50,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     available: boolean;
     type: 'FaceID' | 'TouchID' | 'Biometrics' | null;
   } | null>(null);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [isAppUnlocked, setIsAppUnlocked] = useState(true);
   const postRegisterRedirectToKycRef = useRef(false);
   const pendingBiometricPromptRef = useRef(false);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+
+  const mapBiometricMethod = useCallback(
+    (type: 'FaceID' | 'TouchID' | 'Biometrics' | null): 'face' | 'fingerprint' | 'device' | null => {
+      if (type === 'FaceID') return 'face';
+      if (type === 'TouchID') return 'fingerprint';
+      if (type === 'Biometrics') return 'device';
+      return null;
+    },
+    []
+  );
+
+  const refreshBiometricEnabled = useCallback(async (userId: string): Promise<boolean> => {
+    const localEnabled = await getBiometricsEnabledForUser(userId);
+    try {
+      const pref = await getBiometricPreference();
+      const next = Boolean(pref.biometricEnabled) && localEnabled;
+      setBiometricEnabled(next);
+      return next;
+    } catch {
+      setBiometricEnabled(localEnabled);
+      return localEnabled;
+    }
+  }, []);
 
   const setFirebaseTokenGetter = useCallback(() => {
     setTokenGetter(async () => {
@@ -67,6 +99,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await removeSecureToken();
       setTokenGetter(() => null);
       setUser(null);
+      setBiometricEnabled(false);
+      setIsAppUnlocked(true);
       setLoading(false);
       return;
     }
@@ -83,15 +117,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         lastName: data.lastName as string | null,
         role: data.role as string,
       });
+      const enabled = await refreshBiometricEnabled(data.id as string);
+      setIsAppUnlocked(!enabled);
     } catch {
       await auth().signOut();
       await removeSecureToken();
       setTokenGetter(() => null);
       setUser(null);
+      setBiometricEnabled(false);
+      setIsAppUnlocked(true);
     } finally {
       setLoading(false);
     }
-  }, [setFirebaseTokenGetter]);
+  }, [refreshBiometricEnabled, setFirebaseTokenGetter]);
 
   useEffect(() => {
     const unsub = auth().onAuthStateChanged((firebaseUser) => {
@@ -99,6 +137,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loadUser();
       } else {
         setUser(null);
+        setBiometricEnabled(false);
+        setIsAppUnlocked(true);
         setLoading(false);
       }
     });
@@ -128,6 +168,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       lastName: data.lastName as string | null,
       role: data.role as string,
     });
+    await refreshBiometricEnabled(data.id as string);
+    setIsAppUnlocked(true);
   };
 
   const register = async (payload: Record<string, unknown>) => {
@@ -150,6 +192,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const token = await userData.getIdToken();
     await setSecureToken(token, false);
     setUser(res.user);
+    await refreshBiometricEnabled(res.user.id);
+    setIsAppUnlocked(true);
   };
 
   const enableBiometrics = useCallback(async (): Promise<boolean> => {
@@ -160,16 +204,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const token = await currentUser.getIdToken(true);
       await setSecureToken(token, true);
-      await setBiometricsEnabled(true);
+      await setBiometricsEnabledForUser(currentUser.uid, true);
+      await updateBiometricPreference({
+        enabled: true,
+        method: mapBiometricMethod(biometricAvailability?.type ?? null),
+      });
+      setBiometricEnabled(true);
+      setIsAppUnlocked(true);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [biometricAvailability?.type, mapBiometricMethod]);
+
+  const disableBiometrics = useCallback(async (): Promise<boolean> => {
+    const currentUser = auth().currentUser;
+    if (!currentUser) return false;
+    const ok = await disableBiometricsStorage(currentUser.uid);
+    if (!ok) return false;
+    try {
+      await setBiometricsEnabledForUser(currentUser.uid, false);
+      await updateBiometricPreference({ enabled: false, method: null });
+      setBiometricEnabled(false);
+      setIsAppUnlocked(true);
       return true;
     } catch {
       return false;
     }
   }, []);
 
-  const disableBiometrics = useCallback(async (): Promise<boolean> => {
-    return disableBiometricsStorage();
-  }, []);
+  const unlockWithBiometrics = useCallback(async (): Promise<boolean> => {
+    if (!user || !biometricEnabled) {
+      setIsAppUnlocked(true);
+      return true;
+    }
+    const passed = await promptBiometric('Validá tu identidad para acceder a la app');
+    setIsAppUnlocked(passed);
+    return passed;
+  }, [biometricEnabled, user]);
+
+  const lockApp = useCallback(() => {
+    if (!user || !biometricEnabled) return;
+    setIsAppUnlocked(false);
+  }, [biometricEnabled, user]);
 
   const getPostRegisterRedirectToKyc = () => postRegisterRedirectToKycRef.current;
   const clearPostRegisterRedirectToKyc = () => {
@@ -190,19 +267,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         lastName: data.lastName as string | null,
         role: data.role as string,
       });
+      await refreshBiometricEnabled(data.id as string);
     } catch {
       await auth().signOut();
       await removeSecureToken();
       setUser(null);
+      setBiometricEnabled(false);
+      setIsAppUnlocked(true);
     }
-  }, []);
+  }, [refreshBiometricEnabled]);
 
   const logout = useCallback(async () => {
     await auth().signOut();
     await removeSecureToken();
     setTokenGetter(() => null);
     setUser(null);
+    setBiometricEnabled(false);
+    setIsAppUnlocked(true);
   }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      const prev = appStateRef.current;
+      appStateRef.current = nextState;
+      if (!user || !biometricEnabled) return;
+      if (prev === 'active' && (nextState === 'background' || nextState === 'inactive')) {
+        setIsAppUnlocked(false);
+        return;
+      }
+      if ((prev === 'background' || prev === 'inactive') && nextState === 'active') {
+        void unlockWithBiometrics();
+      }
+    });
+    return () => sub.remove();
+  }, [biometricEnabled, unlockWithBiometrics, user]);
 
   return (
     <AuthContext.Provider
@@ -216,7 +314,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearPostRegisterRedirectToKyc,
         enableBiometrics,
         disableBiometrics,
+        biometricEnabled,
         biometricAvailability,
+        isAppUnlocked,
+        unlockWithBiometrics,
+        lockApp,
         getPendingBiometricPrompt,
         clearPendingBiometricPrompt,
         fetchUser,

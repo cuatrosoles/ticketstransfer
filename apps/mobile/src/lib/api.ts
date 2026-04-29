@@ -211,6 +211,26 @@ export async function updateProfile(data: ProfileUpdate): Promise<Profile> {
   return api<Profile>('/api/users/profile', { method: 'PATCH', body: JSON.stringify(data) });
 }
 
+export type BiometricPreference = {
+  biometricEnabled: boolean;
+  biometricMethod: 'face' | 'fingerprint' | 'device' | null;
+  biometricUpdatedAt: string | null;
+};
+
+export async function getBiometricPreference(): Promise<BiometricPreference> {
+  return api<BiometricPreference>('/api/users/security/biometric-preference');
+}
+
+export async function updateBiometricPreference(data: {
+  enabled: boolean;
+  method?: 'face' | 'fingerprint' | 'device' | null;
+}): Promise<{ ok: boolean; biometricEnabled: boolean; biometricMethod: 'face' | 'fingerprint' | 'device' | null }> {
+  return api('/api/users/security/biometric-preference', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
 /** Solicitar código de verificación de teléfono */
 export async function requestPhoneVerification(phone: string): Promise<{ ok: boolean }> {
   return api<{ ok: boolean }>('/api/users/phone/verify-request', {

@@ -19,7 +19,6 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { useAuth } from '../context/AuthContext';
-import { getBiometricsEnabled } from '../lib/secureStorage';
 import { BiometricActivationModal } from '../components/BiometricActivationModal';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -54,6 +53,7 @@ export function HomeScreen() {
     getPendingBiometricPrompt,
     clearPendingBiometricPrompt,
     enableBiometrics,
+    biometricEnabled,
     biometricAvailability,
   } = useAuth();
   const navigation = useNavigation<Nav>();
@@ -74,12 +74,10 @@ export function HomeScreen() {
   useEffect(() => {
     if (!getPendingBiometricPrompt() || !biometricAvailability) return;
     clearPendingBiometricPrompt();
-    getBiometricsEnabled().then((enabled) => {
-      if (biometricAvailability.available && !enabled) {
-        setShowBiometricModal(true);
-      }
-    });
-  }, [biometricAvailability, getPendingBiometricPrompt, clearPendingBiometricPrompt]);
+    if (biometricAvailability.available && !biometricEnabled) {
+      setShowBiometricModal(true);
+    }
+  }, [biometricAvailability, biometricEnabled, getPendingBiometricPrompt, clearPendingBiometricPrompt]);
 
   useEffect(() => {
     let cancelled = false;
