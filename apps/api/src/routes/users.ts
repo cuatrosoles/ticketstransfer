@@ -101,6 +101,52 @@ const upload = multer({
 
 router.use(requireAuth);
 
+type BiometricMethod = 'face' | 'fingerprint' | 'device' | null;
+
+function normalizeBiometricMethod(value: unknown): BiometricMethod {
+  if (value === 'face' || value === 'fingerprint' || value === 'device') return value;
+  return null;
+}
+
+router.get('/security/biometric-preference', async (req: AuthRequest, res) => {
+  const userId = req.user!.id;
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+  if (!userDoc.exists) return res.status(404).json({ error: 'No encontrado' });
+  const data = userDoc.data()!;
+  res.json({
+    biometricEnabled: Boolean(data.biometricEnabled),
+    biometricMethod: normalizeBiometricMethod(data.biometricMethod),
+    biometricUpdatedAt: data.biometricUpdatedAt ?? null,
+  });
+});
+
+router.patch('/security/biometric-preference', async (req: AuthRequest, res) => {
+  const enabled = req.body?.enabled;
+  const method = req.body?.method;
+  if (typeof enabled !== 'boolean') {
+    return res.status(400).json({ error: 'enabled debe ser boolean' });
+  }
+  const normalizedMethod = normalizeBiometricMethod(method);
+  if (method != null && normalizedMethod == null) {
+    return res.status(400).json({ error: 'method inválido' });
+  }
+  const userId = req.user!.id;
+  await db().collection(COLLECTIONS.USERS).doc(userId).set(
+    {
+      biometricEnabled: enabled,
+      biometricMethod: enabled ? normalizedMethod : null,
+      biometricUpdatedAt: new Date(),
+      updatedAt: new Date(),
+    },
+    { merge: true }
+  );
+  return res.json({
+    ok: true,
+    biometricEnabled: enabled,
+    biometricMethod: enabled ? normalizedMethod : null,
+  });
+});
+
 router.get('/profile', async (req: AuthRequest, res) => {
   const userId = req.user!.id;
   const [userDoc, kycDoc, firebaseUser] = await Promise.all([
