@@ -16,6 +16,7 @@ import { OrderDetail } from './pages/OrderDetail';
 import { Transfers } from './pages/Transfers';
 import { Tickets } from './pages/Tickets';
 import { TicketDetail } from './pages/TicketDetail';
+import { InvoiceRequests } from './pages/InvoiceRequests';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -40,6 +41,7 @@ export function App() {
         <Route path="conversations/:id" element={<Conversations />} />
         <Route path="orders" element={<Orders />} />
         <Route path="orders/:id" element={<OrderDetail />} />
+        <Route path="invoice-requests" element={<InvoiceRequests />} />
         <Route path="transfers" element={<Transfers />} />
         <Route path="tickets" element={<Tickets />} />
         <Route path="tickets/:id" element={<TicketDetail />} />
