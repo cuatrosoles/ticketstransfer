@@ -1024,4 +1024,53 @@ router.get('/orders', async (req: AuthRequest, res) => {
   res.json({ orders, total: snap.size });
 });
 
+/** Solicitudes de factura de transacción (desde app móvil / web). */
+router.get('/invoice-requests', async (_req: AuthRequest, res) => {
+  const snap = await db()
+    .collection(COLLECTIONS.TRANSACTION_INVOICE_REQUESTS)
+    .orderBy('createdAt', 'desc')
+    .limit(500)
+    .get();
+
+  const items = snap.docs.map((doc) => {
+    const x = doc.data();
+    return {
+      id: doc.id,
+      orderId: x.orderId,
+      requestedByUserId: x.requestedByUserId,
+      requesterEmail: x.requesterEmail ?? '',
+      role: x.role,
+      status: x.status ?? 'PENDIENTE',
+      orderStatus: x.orderStatus,
+      totalAmount: x.totalAmount,
+      currency: x.currency ?? 'ARS',
+      eventName: x.eventName ?? '',
+      note: x.note ?? null,
+      createdAt: x.createdAt?.toDate?.() ?? x.createdAt,
+      updatedAt: x.updatedAt?.toDate?.() ?? x.updatedAt ?? null,
+    };
+  });
+  res.json({ items });
+});
+
+router.patch('/invoice-requests/:requestId', async (req: AuthRequest, res) => {
+  const { requestId } = req.params;
+  const status = (req.body as { status?: string })?.status;
+  if (status !== 'PENDIENTE' && status !== 'ATENDIDA') {
+    return res.status(400).json({ error: 'status debe ser PENDIENTE o ATENDIDA' });
+  }
+  const docRef = db().collection(COLLECTIONS.TRANSACTION_INVOICE_REQUESTS).doc(requestId);
+  const doc = await docRef.get();
+  if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
+  await docRef.update({ status, updatedAt: new Date(), handledByUserId: req.user!.id });
+  const updated = await docRef.get();
+  const x = updated.data()!;
+  res.json({
+    id: updated.id,
+    ...x,
+    createdAt: x.createdAt?.toDate?.() ?? x.createdAt,
+    updatedAt: x.updatedAt?.toDate?.() ?? x.updatedAt,
+  });
+});
+
 export const adminRouter = router;

@@ -2,7 +2,7 @@
  * Rutas de ?rdenes - Firestore + Firebase Storage + MercadoPago.
  */
 
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import multer from 'multer';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { uploadFile } from '../lib/firebase-storage.js';
@@ -22,6 +22,86 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
 });
+
+function normalizeUid(u: unknown): string {
+  return u == null ? '' : String(u).trim();
+}
+
+/** Solicitud de factura: comprador o vendedor de la orden (UID alineado con Firestore). */
+async function processTransactionInvoiceRequest(
+  req: AuthRequest,
+  res: Response,
+  orderIdRaw: string
+): Promise<void> {
+  const orderId = orderIdRaw.trim();
+  if (!orderId) {
+    res.status(400).json({ error: 'Identificador de orden inválido' });
+    return;
+  }
+
+  const uid = normalizeUid(req.user!.id);
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
+  if (!doc.exists) {
+    res.status(404).json({ error: 'No encontrado' });
+    return;
+  }
+  const d = doc.data()!;
+  const buyerId = normalizeUid(d.buyerId);
+  const sellerId = normalizeUid(d.sellerId);
+  if (buyerId !== uid && sellerId !== uid) {
+    res.status(404).json({ error: 'No encontrado' });
+    return;
+  }
+
+  const role = buyerId === uid ? 'buyer' : 'seller';
+  const noteRaw = req.body && typeof req.body === 'object' ? (req.body as { note?: unknown }).note : undefined;
+  const note = typeof noteRaw === 'string' ? noteRaw.trim().slice(0, 500) : '';
+
+  const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(String(d.ticketListingId)).get();
+  const eventName = (listingDoc.exists && listingDoc.data()?.eventName) || '';
+
+  const requesterDoc = await db().collection(COLLECTIONS.USERS).doc(uid).get();
+  const requesterEmail = requesterDoc.exists ? requesterDoc.data()?.email ?? '' : '';
+
+  const existingSnap = await db()
+    .collection(COLLECTIONS.TRANSACTION_INVOICE_REQUESTS)
+    .where('orderId', '==', orderId)
+    .get();
+  const pendingDup = existingSnap.docs.find((x) => {
+    const row = x.data();
+    return normalizeUid(row.requestedByUserId) === uid && row.status === 'PENDIENTE';
+  });
+  if (pendingDup) {
+    res.json({
+      ok: true,
+      id: pendingDup.id,
+      alreadyExists: true,
+      status: 'PENDIENTE',
+    });
+    return;
+  }
+
+  const requestId = db().collection(COLLECTIONS.TRANSACTION_INVOICE_REQUESTS).doc().id;
+  await db()
+    .collection(COLLECTIONS.TRANSACTION_INVOICE_REQUESTS)
+    .doc(requestId)
+    .set({
+      id: requestId,
+      orderId,
+      requestedByUserId: uid,
+      requesterEmail,
+      role,
+      status: 'PENDIENTE',
+      orderStatus: d.status,
+      totalAmount: d.totalAmount,
+      currency: d.currency || 'ARS',
+      eventName,
+      note: note || null,
+      createdAt: new Date(),
+    });
+
+  res.status(201).json({ ok: true, id: requestId, alreadyExists: false });
+}
 
 router.use(requireAuth);
 
@@ -171,6 +251,16 @@ router.get('/my/sales', async (req: AuthRequest, res) => {
   res.json(orders);
 });
 
+/**
+ * Factura de transacción (preferido en Vercel: body JSON evita problemas de path con dos segmentos).
+ * POST /api/orders/invoice-request  body: { orderId: string, note?: string }
+ */
+router.post('/invoice-request', async (req: AuthRequest, res) => {
+  const body = req.body as { orderId?: unknown } | undefined;
+  const oid = typeof body?.orderId === 'string' ? body.orderId : '';
+  await processTransactionInvoiceRequest(req, res, oid);
+});
+
 router.get('/:id/checkout-url', async (req: AuthRequest, res) => {
   const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
@@ -207,6 +297,11 @@ router.get('/:id/checkout-url', async (req: AuthRequest, res) => {
   }
   if (!checkoutUrl) return res.status(503).json({ error: 'Mercado Pago no configurado' });
   res.json({ checkoutUrl });
+});
+
+/** Misma acción con orderId en la URL (compatibilidad). */
+router.post('/:id/invoice-request', async (req: AuthRequest, res) => {
+  await processTransactionInvoiceRequest(req, res, req.params.id ?? '');
 });
 
 router.get('/:id', async (req: AuthRequest, res) => {

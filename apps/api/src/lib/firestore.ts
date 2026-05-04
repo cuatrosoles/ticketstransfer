@@ -22,6 +22,8 @@ export const COLLECTIONS = {
   MESSAGES: 'messages',
   PLATFORM_SETTINGS: 'platformSettings',
   SELLER_TRANSFERS: 'sellerTransfers',
+  /** Solicitudes de factura por transacción (usuarios → revisión admin). */
+  TRANSACTION_INVOICE_REQUESTS: 'transactionInvoiceRequests',
 } as const;
 
 export type FirestoreFieldValue = FieldValue;
