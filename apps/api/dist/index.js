@@ -13542,7 +13542,9 @@ var COLLECTIONS = {
   CONVERSATIONS: "conversations",
   MESSAGES: "messages",
   PLATFORM_SETTINGS: "platformSettings",
-  SELLER_TRANSFERS: "sellerTransfers"
+  SELLER_TRANSFERS: "sellerTransfers",
+  /** Solicitudes de factura por transacción (usuarios → revisión admin). */
+  TRANSACTION_INVOICE_REQUESTS: "transactionInvoiceRequests"
 };
 
 // ../../packages/shared/src/constants.ts
@@ -17665,7 +17667,16 @@ var updateTicketListingSchema = createTicketListingSchema.partial().extend({
 });
 var createOrderSchema = external_exports.object({
   ticketListingId: external_exports.string().min(1, "ID de publicaci\xF3n requerido"),
-  paymentMethod: external_exports.enum(["mercadopago", "stripe"])
+  paymentMethod: external_exports.enum(["mercadopago", "stripe"]),
+  /** Medio principal donde el comprador recibirá la transferencia del ticket */
+  deliveryMethod: external_exports.enum(["usuario", "id", "email", "telefono", "otro"]).optional(),
+  deliveryUsername: external_exports.string().max(400).optional().transform((s) => s != null && String(s).trim() ? String(s).trim() : void 0),
+  deliveryIdNumber: external_exports.string().max(200).optional().transform((s) => s != null && String(s).trim() ? String(s).trim() : void 0),
+  deliveryEmail: external_exports.string().max(320).optional().transform((s) => s != null && String(s).trim() ? String(s).trim() : void 0),
+  deliveryPhone: external_exports.string().max(40).optional().transform((s) => s != null && String(s).trim() ? String(s).trim() : void 0),
+  deliveryOther: external_exports.string().max(500).optional().transform((s) => s != null && String(s).trim() ? String(s).trim() : void 0),
+  /** Compatibilidad con clientes que envían un solo texto (p. ej. app móvil antigua con OTRO) */
+  deliveryDetail: external_exports.string().max(500).optional().transform((s) => s != null && String(s).trim() ? String(s).trim() : void 0)
 });
 var confirmReceivedSchema = external_exports.object({
   orderId: external_exports.string().uuid(),
@@ -19412,6 +19423,66 @@ var upload3 = multer3({
   storage: multer3.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }
 });
+function normalizeUid(u) {
+  return u == null ? "" : String(u).trim();
+}
+async function processTransactionInvoiceRequest(req, res, orderIdRaw) {
+  const orderId = orderIdRaw.trim();
+  if (!orderId) {
+    res.status(400).json({ error: "Identificador de orden inv\xE1lido" });
+    return;
+  }
+  const uid = normalizeUid(req.user.id);
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
+  if (!doc.exists) {
+    res.status(404).json({ error: "No encontrado" });
+    return;
+  }
+  const d = doc.data();
+  const buyerId = normalizeUid(d.buyerId);
+  const sellerId = normalizeUid(d.sellerId);
+  if (buyerId !== uid && sellerId !== uid) {
+    res.status(404).json({ error: "No encontrado" });
+    return;
+  }
+  const role = buyerId === uid ? "buyer" : "seller";
+  const noteRaw = req.body && typeof req.body === "object" ? req.body.note : void 0;
+  const note = typeof noteRaw === "string" ? noteRaw.trim().slice(0, 500) : "";
+  const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(String(d.ticketListingId)).get();
+  const eventName = listingDoc.exists && listingDoc.data()?.eventName || "";
+  const requesterDoc = await db().collection(COLLECTIONS.USERS).doc(uid).get();
+  const requesterEmail = requesterDoc.exists ? requesterDoc.data()?.email ?? "" : "";
+  const existingSnap = await db().collection(COLLECTIONS.TRANSACTION_INVOICE_REQUESTS).where("orderId", "==", orderId).get();
+  const pendingDup = existingSnap.docs.find((x) => {
+    const row = x.data();
+    return normalizeUid(row.requestedByUserId) === uid && row.status === "PENDIENTE";
+  });
+  if (pendingDup) {
+    res.json({
+      ok: true,
+      id: pendingDup.id,
+      alreadyExists: true,
+      status: "PENDIENTE"
+    });
+    return;
+  }
+  const requestId = db().collection(COLLECTIONS.TRANSACTION_INVOICE_REQUESTS).doc().id;
+  await db().collection(COLLECTIONS.TRANSACTION_INVOICE_REQUESTS).doc(requestId).set({
+    id: requestId,
+    orderId,
+    requestedByUserId: uid,
+    requesterEmail,
+    role,
+    status: "PENDIENTE",
+    orderStatus: d.status,
+    totalAmount: d.totalAmount,
+    currency: d.currency || "ARS",
+    eventName,
+    note: note || null,
+    createdAt: /* @__PURE__ */ new Date()
+  });
+  res.status(201).json({ ok: true, id: requestId, alreadyExists: false });
+}
 router4.use(requireAuth);
 router4.post("/", async (req, res) => {
   const parsed = createOrderSchema.safeParse(req.body);
@@ -19419,7 +19490,20 @@ router4.post("/", async (req, res) => {
     res.status(400).json({ error: "Datos inv\xE1lidos", details: parsed.error.flatten() });
     return;
   }
-  const { ticketListingId, paymentMethod } = parsed.data;
+  const pd = parsed.data;
+  const { ticketListingId, paymentMethod } = pd;
+  const hasDelivery = pd.deliveryMethod != null || pd.deliveryUsername || pd.deliveryIdNumber || pd.deliveryEmail || pd.deliveryPhone || pd.deliveryOther || pd.deliveryDetail;
+  const hasStructuredContact = pd.deliveryUsername || pd.deliveryIdNumber || pd.deliveryEmail || pd.deliveryPhone;
+  const inferredDeliveryMethod = pd.deliveryMethod ?? ((pd.deliveryDetail || pd.deliveryOther) && !hasStructuredContact ? "otro" : null);
+  const deliveryFields = !hasDelivery ? {} : {
+    deliveryMethod: inferredDeliveryMethod,
+    deliveryUsername: pd.deliveryUsername ?? null,
+    deliveryIdNumber: pd.deliveryIdNumber ?? null,
+    deliveryEmail: pd.deliveryEmail ?? null,
+    deliveryPhone: pd.deliveryPhone ?? null,
+    deliveryOther: pd.deliveryOther ?? null,
+    deliveryDetail: pd.deliveryDetail ?? null
+  };
   const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(ticketListingId).get();
   if (!listingDoc.exists) {
     res.status(404).json({ error: "Ticket no disponible" });
@@ -19430,7 +19514,14 @@ router4.post("/", async (req, res) => {
     res.status(404).json({ error: "Ticket no disponible" });
     return;
   }
-  if (listing.sellerId === req.user.id) {
+  const sellerIdCandidates = [listing.sellerId, listing.userId, listing.seller?.id];
+  const sellerId = sellerIdCandidates.find((v) => typeof v === "string" && v.trim().length > 0)?.trim();
+  const buyerId = req.user.id.trim();
+  if (!sellerId) {
+    res.status(409).json({ error: "La publicaci\xF3n no tiene vendedor asignado. Volv\xE9 a publicar el ticket." });
+    return;
+  }
+  if (sellerId === buyerId) {
     res.status(400).json({ error: "No puedes comprar tu propio ticket" });
     return;
   }
@@ -19442,8 +19533,8 @@ router4.post("/", async (req, res) => {
   const orderId = db().collection(COLLECTIONS.ORDERS).doc().id;
   const orderData = {
     ticketListingId,
-    buyerId: req.user.id,
-    sellerId: listing.sellerId,
+    buyerId,
+    sellerId,
     status: "PENDIENTE_PAGO",
     totalAmount,
     commissionAmount,
@@ -19451,7 +19542,8 @@ router4.post("/", async (req, res) => {
     paymentMethod,
     transferDeadline,
     createdAt: /* @__PURE__ */ new Date(),
-    updatedAt: /* @__PURE__ */ new Date()
+    updatedAt: /* @__PURE__ */ new Date(),
+    ...deliveryFields
   };
   await db().collection(COLLECTIONS.ORDERS).doc(orderId).set(orderData);
   let checkoutUrl;
@@ -19485,12 +19577,12 @@ router4.post("/", async (req, res) => {
     res.status(503).json({ error: "Mercado Pago no est? configurado. Contact? al administrador." });
     return;
   }
-  const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(listing.sellerId).get();
+  const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(sellerId).get();
   const order = {
     id: orderId,
     ...orderData,
     ticketListing: { id: listingDoc.id, ...listing },
-    seller: { id: listing.sellerId, email: sellerDoc.data()?.email }
+    seller: { id: sellerId, email: sellerDoc.data()?.email }
   };
   res.status(201).json({
     order,
@@ -19538,6 +19630,11 @@ router4.get("/my/sales", async (req, res) => {
   );
   res.json(orders);
 });
+router4.post("/invoice-request", async (req, res) => {
+  const body = req.body;
+  const oid = typeof body?.orderId === "string" ? body.orderId : "";
+  await processTransactionInvoiceRequest(req, res, oid);
+});
 router4.get("/:id/checkout-url", async (req, res) => {
   const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
@@ -19573,6 +19670,9 @@ router4.get("/:id/checkout-url", async (req, res) => {
   }
   if (!checkoutUrl) return res.status(503).json({ error: "Mercado Pago no configurado" });
   res.json({ checkoutUrl });
+});
+router4.post("/:id/invoice-request", async (req, res) => {
+  await processTransactionInvoiceRequest(req, res, req.params.id ?? "");
 });
 router4.get("/:id", async (req, res) => {
   const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
@@ -21188,6 +21288,47 @@ router7.get("/orders", async (req, res) => {
     })
   );
   res.json({ orders, total: snap.size });
+});
+router7.get("/invoice-requests", async (_req, res) => {
+  const snap = await db().collection(COLLECTIONS.TRANSACTION_INVOICE_REQUESTS).orderBy("createdAt", "desc").limit(500).get();
+  const items = snap.docs.map((doc) => {
+    const x = doc.data();
+    return {
+      id: doc.id,
+      orderId: x.orderId,
+      requestedByUserId: x.requestedByUserId,
+      requesterEmail: x.requesterEmail ?? "",
+      role: x.role,
+      status: x.status ?? "PENDIENTE",
+      orderStatus: x.orderStatus,
+      totalAmount: x.totalAmount,
+      currency: x.currency ?? "ARS",
+      eventName: x.eventName ?? "",
+      note: x.note ?? null,
+      createdAt: x.createdAt?.toDate?.() ?? x.createdAt,
+      updatedAt: x.updatedAt?.toDate?.() ?? x.updatedAt ?? null
+    };
+  });
+  res.json({ items });
+});
+router7.patch("/invoice-requests/:requestId", async (req, res) => {
+  const { requestId } = req.params;
+  const status = req.body?.status;
+  if (status !== "PENDIENTE" && status !== "ATENDIDA") {
+    return res.status(400).json({ error: "status debe ser PENDIENTE o ATENDIDA" });
+  }
+  const docRef = db().collection(COLLECTIONS.TRANSACTION_INVOICE_REQUESTS).doc(requestId);
+  const doc = await docRef.get();
+  if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
+  await docRef.update({ status, updatedAt: /* @__PURE__ */ new Date(), handledByUserId: req.user.id });
+  const updated = await docRef.get();
+  const x = updated.data();
+  res.json({
+    id: updated.id,
+    ...x,
+    createdAt: x.createdAt?.toDate?.() ?? x.createdAt,
+    updatedAt: x.updatedAt?.toDate?.() ?? x.updatedAt
+  });
 });
 var adminRouter = router7;
 

@@ -111,19 +111,52 @@ router.post('/', async (req: AuthRequest, res) => {
     res.status(400).json({ error: 'Datos inválidos', details: parsed.error.flatten() });
     return;
   }
-  const { ticketListingId, paymentMethod } = parsed.data;
+  const pd = parsed.data;
+  const { ticketListingId, paymentMethod } = pd;
+  const hasDelivery =
+    pd.deliveryMethod != null ||
+    pd.deliveryUsername ||
+    pd.deliveryIdNumber ||
+    pd.deliveryEmail ||
+    pd.deliveryPhone ||
+    pd.deliveryOther ||
+    pd.deliveryDetail;
+  const hasStructuredContact =
+    pd.deliveryUsername || pd.deliveryIdNumber || pd.deliveryEmail || pd.deliveryPhone;
+  const inferredDeliveryMethod =
+    pd.deliveryMethod ??
+    ((pd.deliveryDetail || pd.deliveryOther) && !hasStructuredContact ? 'otro' : null);
+  const deliveryFields = !hasDelivery
+    ? {}
+    : {
+        deliveryMethod: inferredDeliveryMethod,
+        deliveryUsername: pd.deliveryUsername ?? null,
+        deliveryIdNumber: pd.deliveryIdNumber ?? null,
+        deliveryEmail: pd.deliveryEmail ?? null,
+        deliveryPhone: pd.deliveryPhone ?? null,
+        deliveryOther: pd.deliveryOther ?? null,
+        deliveryDetail: pd.deliveryDetail ?? null,
+      };
 
   const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(ticketListingId).get();
   if (!listingDoc.exists) {
     res.status(404).json({ error: 'Ticket no disponible' });
     return;
   }
-  const listing = listingDoc.data()!;
+  const listing = listingDoc.data() as Record<string, unknown>;
   if (listing.status !== 'DISPONIBLE') {
     res.status(404).json({ error: 'Ticket no disponible' });
     return;
   }
-  if (listing.sellerId === req.user!.id) {
+  const sellerIdCandidates = [listing.sellerId, listing.userId, (listing.seller as { id?: unknown } | undefined)?.id];
+  const sellerId = sellerIdCandidates.find((v): v is string => typeof v === 'string' && v.trim().length > 0)?.trim();
+  const buyerId = req.user!.id.trim();
+
+  if (!sellerId) {
+    res.status(409).json({ error: 'La publicación no tiene vendedor asignado. Volvé a publicar el ticket.' });
+    return;
+  }
+  if (sellerId === buyerId) {
     res.status(400).json({ error: 'No puedes comprar tu propio ticket' });
     return;
   }
@@ -137,8 +170,8 @@ router.post('/', async (req: AuthRequest, res) => {
   const orderId = db().collection(COLLECTIONS.ORDERS).doc().id;
   const orderData = {
     ticketListingId,
-    buyerId: req.user!.id,
-    sellerId: listing.sellerId,
+    buyerId,
+    sellerId,
     status: 'PENDIENTE_PAGO',
     totalAmount,
     commissionAmount,
@@ -147,6 +180,7 @@ router.post('/', async (req: AuthRequest, res) => {
     transferDeadline,
     createdAt: new Date(),
     updatedAt: new Date(),
+    ...deliveryFields,
   };
 
   await db().collection(COLLECTIONS.ORDERS).doc(orderId).set(orderData);
@@ -184,12 +218,12 @@ router.post('/', async (req: AuthRequest, res) => {
     return;
   }
 
-  const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(listing.sellerId).get();
+      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(sellerId).get();
   const order = {
     id: orderId,
     ...orderData,
     ticketListing: { id: listingDoc.id, ...listing },
-    seller: { id: listing.sellerId, email: sellerDoc.data()?.email },
+        seller: { id: sellerId, email: sellerDoc.data()?.email },
   };
 
   res.status(201).json({
