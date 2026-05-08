@@ -19426,6 +19426,28 @@ var upload3 = multer3({
 function normalizeUid(u) {
   return u == null ? "" : String(u).trim();
 }
+var createOrderRequestSchema = createOrderSchema.extend({
+  deliveryMethod: external_exports.enum(["usuario", "id", "email", "telefono", "otro"]).optional(),
+  deliveryUsername: external_exports.string().max(400).optional(),
+  deliveryIdNumber: external_exports.string().max(200).optional(),
+  deliveryEmail: external_exports.string().max(320).optional(),
+  deliveryPhone: external_exports.string().max(40).optional(),
+  deliveryOther: external_exports.string().max(500).optional(),
+  deliveryDetail: external_exports.string().max(500).optional()
+});
+function asTrimmedOptionalString(v) {
+  if (typeof v !== "string") return void 0;
+  const t = v.trim();
+  return t.length > 0 ? t : void 0;
+}
+function asPositiveNumber(v) {
+  if (typeof v === "number" && Number.isFinite(v) && v > 0) return v;
+  if (typeof v === "string") {
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
 async function processTransactionInvoiceRequest(req, res, orderIdRaw) {
   const orderId = orderIdRaw.trim();
   if (!orderId) {
@@ -19485,7 +19507,7 @@ async function processTransactionInvoiceRequest(req, res, orderIdRaw) {
 }
 router4.use(requireAuth);
 router4.post("/", async (req, res) => {
-  const parsed = createOrderSchema.safeParse(req.body);
+  const parsed = createOrderRequestSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Datos inv\xE1lidos", details: parsed.error.flatten() });
     return;
@@ -19514,6 +19536,13 @@ router4.post("/", async (req, res) => {
     res.status(404).json({ error: "Ticket no disponible" });
     return;
   }
+  const listingPrice = asPositiveNumber(listing.price);
+  if (listingPrice == null) {
+    res.status(409).json({ error: "La publicaci\xF3n tiene un precio inv\xE1lido. Edit\xE1 y volv\xE9 a publicar el ticket." });
+    return;
+  }
+  const listingCurrency = asTrimmedOptionalString(listing.currency) ?? "ARS";
+  const listingEventName = asTrimmedOptionalString(listing.eventName) ?? "Ticket";
   const sellerIdCandidates = [listing.sellerId, listing.userId, listing.seller?.id];
   const sellerId = sellerIdCandidates.find((v) => typeof v === "string" && v.trim().length > 0)?.trim();
   const buyerId = req.user.id.trim();
@@ -19526,8 +19555,8 @@ router4.post("/", async (req, res) => {
     return;
   }
   const commissionRate = await getCommissionPercentage() / 100;
-  const commissionAmount = listing.price * commissionRate;
-  const totalAmount = listing.price + commissionAmount;
+  const commissionAmount = listingPrice * commissionRate;
+  const totalAmount = listingPrice + commissionAmount;
   const transferDeadline = /* @__PURE__ */ new Date();
   transferDeadline.setHours(transferDeadline.getHours() + HORAS_MAX_TRANSFERENCIA_VENDEDOR);
   const orderId = db().collection(COLLECTIONS.ORDERS).doc().id;
@@ -19538,7 +19567,7 @@ router4.post("/", async (req, res) => {
     status: "PENDIENTE_PAGO",
     totalAmount,
     commissionAmount,
-    currency: listing.currency || "ARS",
+    currency: listingCurrency,
     paymentMethod,
     transferDeadline,
     createdAt: /* @__PURE__ */ new Date(),
@@ -19552,10 +19581,10 @@ router4.post("/", async (req, res) => {
       const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
       const { initPoint, preferenceId: prefId } = await createCheckoutPreference({
         orderId,
-        title: listing.eventName || "Ticket",
+        title: listingEventName,
         unitPrice: totalAmount,
         quantity: 1,
-        currency: listing.currency || "ARS",
+        currency: listingCurrency,
         payerEmail: buyerDoc.data()?.email,
         payerUserId: req.user.id
       });

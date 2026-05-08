@@ -4,6 +4,7 @@
 
 import { Router, type Response } from 'express';
 import multer from 'multer';
+import { z } from 'zod';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { uploadFile } from '../lib/firebase-storage.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
@@ -25,6 +26,31 @@ const upload = multer({
 
 function normalizeUid(u: unknown): string {
   return u == null ? '' : String(u).trim();
+}
+
+const createOrderRequestSchema = createOrderSchema.extend({
+  deliveryMethod: z.enum(['usuario', 'id', 'email', 'telefono', 'otro']).optional(),
+  deliveryUsername: z.string().max(400).optional(),
+  deliveryIdNumber: z.string().max(200).optional(),
+  deliveryEmail: z.string().max(320).optional(),
+  deliveryPhone: z.string().max(40).optional(),
+  deliveryOther: z.string().max(500).optional(),
+  deliveryDetail: z.string().max(500).optional(),
+});
+
+function asTrimmedOptionalString(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  const t = v.trim();
+  return t.length > 0 ? t : undefined;
+}
+
+function asPositiveNumber(v: unknown): number | null {
+  if (typeof v === 'number' && Number.isFinite(v) && v > 0) return v;
+  if (typeof v === 'string') {
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
 }
 
 /** Solicitud de factura: comprador o vendedor de la orden (UID alineado con Firestore). */
@@ -106,7 +132,7 @@ async function processTransactionInvoiceRequest(
 router.use(requireAuth);
 
 router.post('/', async (req: AuthRequest, res) => {
-  const parsed = createOrderSchema.safeParse(req.body);
+  const parsed = createOrderRequestSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Datos inválidos', details: parsed.error.flatten() });
     return;
@@ -148,6 +174,13 @@ router.post('/', async (req: AuthRequest, res) => {
     res.status(404).json({ error: 'Ticket no disponible' });
     return;
   }
+  const listingPrice = asPositiveNumber(listing.price);
+  if (listingPrice == null) {
+    res.status(409).json({ error: 'La publicación tiene un precio inválido. Editá y volvé a publicar el ticket.' });
+    return;
+  }
+  const listingCurrency = asTrimmedOptionalString(listing.currency) ?? 'ARS';
+  const listingEventName = asTrimmedOptionalString(listing.eventName) ?? 'Ticket';
   const sellerIdCandidates = [listing.sellerId, listing.userId, (listing.seller as { id?: unknown } | undefined)?.id];
   const sellerId = sellerIdCandidates.find((v): v is string => typeof v === 'string' && v.trim().length > 0)?.trim();
   const buyerId = req.user!.id.trim();
@@ -162,8 +195,8 @@ router.post('/', async (req: AuthRequest, res) => {
   }
 
   const commissionRate = (await getCommissionPercentage()) / 100;
-  const commissionAmount = listing.price * commissionRate;
-  const totalAmount = listing.price + commissionAmount;
+  const commissionAmount = listingPrice * commissionRate;
+  const totalAmount = listingPrice + commissionAmount;
   const transferDeadline = new Date();
   transferDeadline.setHours(transferDeadline.getHours() + HORAS_MAX_TRANSFERENCIA_VENDEDOR);
 
@@ -175,7 +208,7 @@ router.post('/', async (req: AuthRequest, res) => {
     status: 'PENDIENTE_PAGO',
     totalAmount,
     commissionAmount,
-    currency: listing.currency || 'ARS',
+    currency: listingCurrency,
     paymentMethod,
     transferDeadline,
     createdAt: new Date(),
@@ -192,10 +225,10 @@ router.post('/', async (req: AuthRequest, res) => {
       const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
       const { initPoint, preferenceId: prefId } = await createCheckoutPreference({
         orderId,
-        title: listing.eventName || 'Ticket',
+        title: listingEventName,
         unitPrice: totalAmount,
         quantity: 1,
-        currency: listing.currency || 'ARS',
+        currency: listingCurrency,
         payerEmail: buyerDoc.data()?.email,
         payerUserId: req.user!.id,
       });

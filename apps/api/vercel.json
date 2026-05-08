@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "buildCommand": "bash scripts/build-vercel.sh",
   "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
   "functions": {
     "api/index.ts": {

@@ -7,6 +7,7 @@
     "deploy:firestore:indexes": "firebase deploy --only firestore:indexes",
     "dev": "tsx watch src/index.ts",
     "build": "node build.mjs",
+    "build:vercel": "bash scripts/build-vercel.sh",
     "start": "node dist/index.js",
     "start:prod": "node dist/index.js",
     "migrate:postgres-to-firebase": "node scripts/migrate-postgres-to-firebase.mjs"
