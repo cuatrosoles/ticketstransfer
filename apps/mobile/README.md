@@ -11,7 +11,7 @@ App Android/iOS usando React Native CLI (sin Expo), integrada con la API de v2.
 
 ## Generar carpetas nativas (android / ios)
 
-Esta carpeta contiene el código JavaScript/TypeScript. Para obtener los proyectos nativos **android** e **ios**, hay que crear un proyecto React Native con la CLI y copiar esas carpetas:
+Esta carpeta contiene todo el código JavaScript/TypeScript. Para obtener los proyectos nativos **android** e **ios**, hay que crear un proyecto React Native con la CLI y copiar esas carpetas:
 
 ```bash
 # Desde la raíz del repo (ticketTransfer)
