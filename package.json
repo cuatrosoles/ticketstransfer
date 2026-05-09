@@ -8,6 +8,9 @@
     "apps/*",
     "packages/*"
   ],
+  "dependencies": {
+    "esbuild": "^0.24.0"
+  },
   "scripts": {
     "postinstall": "node scripts/postinstall-patches.cjs",
     "install:clean": "node -e \"const fs=require('fs');const t=Date.now();['node_modules','apps/api/node_modules','apps/web/node_modules','apps/admin/node_modules','apps/mobile/node_modules','packages/shared/node_modules'].forEach(d=>{if(fs.existsSync(d)){try{fs.renameSync(d,d+'.old.'+t);}catch(e){console.error('Renombrar falló:',d,e.message);}}});['package-lock.json','pnpm-lock.yaml'].forEach(f=>{if(fs.existsSync(f))fs.unlinkSync(f);});\" && npx --yes pnpm@9.15.5 install",

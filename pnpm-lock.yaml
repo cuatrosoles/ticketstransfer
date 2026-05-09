@@ -10,6 +10,10 @@ overrides:
 importers:
 
   .:
+    dependencies:
+      esbuild:
+        specifier: ^0.24.0
+        version: 0.24.2
     devDependencies:
       patch-package:
         specifier: ^8.0.0
