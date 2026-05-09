@@ -1,1 +1,6 @@
-../../../Target Support Files/PromisesObjC/PromisesObjC.modulemap
+module FBLPromises {
+  umbrella header "PromisesObjC-umbrella.h"
+
+  export *
+  module * { export * }
+}

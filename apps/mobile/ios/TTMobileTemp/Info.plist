@@ -51,12 +51,14 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>Tickets Transfer usa Face ID para iniciar sesión de forma rápida y segura.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string/>
 	<key>UIAppFonts</key>
 	<array>
 		<string>FontAwesome.ttf</string>
 		<string>FontAwesome5_Solid.ttf</string>
 		<string>FontAwesome5_Brands.ttf</string>
+		<string>Cooper-Regular.ttf</string>
+		<string>Cooper-Black.ttf</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>

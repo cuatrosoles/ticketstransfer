@@ -1,1 +1,6 @@
-../../../Target Support Files/RNFBAuth/RNFBAuth.modulemap
+module RNFBAuth {
+  umbrella header "RNFBAuth-umbrella.h"
+
+  export *
+  module * { export * }
+}

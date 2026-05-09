@@ -1,0 +1,17 @@
+{
+  "migIndex": 1,
+  "data": [
+    {
+      "path": "assets/fonts/Cooper-Black.ttf",
+      "sha1": "6c1bb201d243d5e6751dd4721cae8e3e18886a90"
+    },
+    {
+      "path": "assets/fonts/Cooper-Regular.ttf",
+      "sha1": "90c4c59372713c4c23e9c0b28331d098cea3bd6e"
+    },
+    {
+      "path": "assets/fonts/README.md",
+      "sha1": "86b74c16a87bee6471d2e8b8a9cb11a3531190e0"
+    }
+  ]
+}

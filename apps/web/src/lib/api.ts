@@ -213,6 +213,14 @@ export type OrderItem = {
   createdAt: string;
   ticketListing: { id: string; eventName?: string; eventDate?: string; price?: number } | null;
   buyer?: { email?: string } | null;
+  /** Datos de recepción del ticket (comprador) */
+  deliveryMethod?: 'usuario' | 'id' | 'email' | 'telefono' | 'otro' | null;
+  deliveryUsername?: string | null;
+  deliveryIdNumber?: string | null;
+  deliveryEmail?: string | null;
+  deliveryPhone?: string | null;
+  deliveryOther?: string | null;
+  deliveryDetail?: string | null;
 };
 
 export async function getMySales() {

@@ -74,6 +74,17 @@ export type CreatePreferenceParams = {
   payerUserId?: string;
 };
 
+/** Monedas admitidas en Checkout Pro (Mercado Pago). */
+const MP_CURRENCY_IDS = new Set(['ARS', 'BRL', 'CLP', 'COP', 'MXN', 'PEN', 'UYU', 'USD']);
+
+export function mercadoPagoCurrencyIdForListing(currency?: string): string {
+  const c = (currency?.trim() || 'ARS').toUpperCase();
+  if (!MP_CURRENCY_IDS.has(c)) {
+    throw new Error(`Moneda no soportada para Mercado Pago: ${c}. Usá ARS, USD o una moneda MP admitida.`);
+  }
+  return c;
+}
+
 export async function createCheckoutPreference(params: CreatePreferenceParams): Promise<{ initPoint: string; preferenceId: string }> {
   const { preference } = await getMercadoPagoClient();
   const settings = await getPlatformSettings();
@@ -105,6 +116,10 @@ export async function createCheckoutPreference(params: CreatePreferenceParams): 
     ? `${basePath}orden/${params.orderId}/pago?status=pending`
     : `${basePath}/orden/${params.orderId}/pago?status=pending`;
 
+  const currencyId = mercadoPagoCurrencyIdForListing(params.currency);
+
+  const notificationUrl = process.env.MERCADOPAGO_NOTIFICATION_URL?.trim();
+
   const pref = await preference.create({
     body: {
       items: [
@@ -113,7 +128,7 @@ export async function createCheckoutPreference(params: CreatePreferenceParams): 
           title: params.title,
           quantity: params.quantity ?? 1,
           unit_price: params.unitPrice,
-          currency_id: params.currency === 'ARS' ? 'ARS' : 'ARS',
+          currency_id: currencyId,
         },
       ],
       external_reference: params.orderId,
@@ -124,6 +139,7 @@ export async function createCheckoutPreference(params: CreatePreferenceParams): 
       },
       auto_return: 'approved' as const,
       payer: payerEmail ? { email: payerEmail } : undefined,
+      ...(notificationUrl ? { notification_url: notificationUrl } : {}),
     },
   });
 
@@ -139,13 +155,22 @@ export type PaymentInfo = {
   id: string;
   status: string;
   external_reference?: string;
+  transaction_amount?: number;
+  currency_id?: string;
 };
 
 export async function getPaymentById(paymentId: string): Promise<PaymentInfo | null> {
   try {
     const { payment } = await getMercadoPagoClient();
     const result = await payment.get({ id: paymentId });
-    return result as unknown as { id: string; status: string; external_reference?: string };
+    const r = result as unknown as PaymentInfo;
+    return {
+      id: String(r.id),
+      status: r.status,
+      external_reference: r.external_reference,
+      transaction_amount: typeof r.transaction_amount === 'number' ? r.transaction_amount : undefined,
+      currency_id: r.currency_id,
+    };
   } catch {
     return null;
   }
@@ -245,6 +270,8 @@ export async function createPaymentWithToken(params: {
   orderId: string;
   title: string;
   amount: number;
+  /** Moneda de la orden (debe coincidir con la publicación) */
+  currency?: string;
   payerEmail: string;
   /** userId del comprador; si sandboxMode, se usa email @testuser.com para evitar error 300 */
   payerUserId?: string;
@@ -263,8 +290,11 @@ export async function createPaymentWithToken(params: {
         ? getCustomerEmailForMp(params.payerUserId, params.payerEmail, true)
         : params.payerEmail;
 
+  const currencyId = mercadoPagoCurrencyIdForListing(params.currency);
+
   const body: Record<string, unknown> = {
     transaction_amount: params.amount,
+    currency_id: currencyId,
     token: params.token,
     payment_method_id: params.paymentMethodId,
     payer: { email: mpPayerEmail },

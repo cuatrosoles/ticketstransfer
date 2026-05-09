@@ -1,1 +1,6 @@
-../../../Target Support Files/GTMSessionFetcher/GTMSessionFetcher.modulemap
+module GTMSessionFetcher {
+  umbrella header "GTMSessionFetcher-umbrella.h"
+
+  export *
+  module * { export * }
+}

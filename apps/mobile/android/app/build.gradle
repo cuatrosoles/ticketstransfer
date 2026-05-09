@@ -9,8 +9,10 @@ apply plugin: 'com.google.gms.google-services'
  */
 // node-linker=hoisted: packages en monorepo root. android/app/ -> ../../../../ = v2
 def nodeModules = file("../../../../node_modules")
-def osBin = System.getProperty("os.name").toLowerCase().contains("mac") ? "osx-bin" : "linux64-bin"
-def hermescFile = file("${nodeModules}/react-native/sdks/hermesc/${osBin}/hermesc")
+def osName = System.getProperty("os.name").toLowerCase()
+def osBin = osName.contains("mac") ? "osx-bin" : (osName.contains("win") ? "win64-bin" : "linux64-bin")
+def hermescExecutable = osName.contains("win") ? "hermesc.exe" : "hermesc"
+def hermescFile = file("${nodeModules}/react-native/sdks/hermesc/${osBin}/${hermescExecutable}")
 react {
     /* Folders */
     root = file("../../")

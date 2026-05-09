@@ -1,1 +1,6 @@
-../../../Target Support Files/FirebaseCoreInternal/FirebaseCoreInternal.modulemap
+module FirebaseCoreInternal {
+  umbrella header "FirebaseCoreInternal-umbrella.h"
+
+  export *
+  module * { export * }
+}

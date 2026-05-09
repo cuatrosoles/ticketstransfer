@@ -1,1 +1,6 @@
-../../../Target Support Files/RCT-Folly/RCT-Folly.modulemap
+module folly {
+  umbrella header "RCT-Folly-umbrella.h"
+
+  export *
+  module * { export * }
+}

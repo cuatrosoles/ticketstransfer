@@ -1,1 +1,6 @@
-../../../Target Support Files/react-native-biometrics/react-native-biometrics.modulemap
+module react_native_biometrics {
+  umbrella header "react-native-biometrics-umbrella.h"
+
+  export *
+  module * { export * }
+}

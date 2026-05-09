@@ -21,7 +21,7 @@ import {
   Alert,
   PermissionsAndroid,
 } from 'react-native';
-import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import { launchCameraSafe, launchImageLibrarySafe } from '../lib/imagePickerSafe';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useProfileImage } from '../context/ProfileImageContext';
@@ -210,17 +210,14 @@ export function ProfileScreen() {
       }
     }
     setTimeout(() => {
-      launchCamera(
-        { mediaType: 'photo', quality: 0.8, saveToPhotos: false },
-        (res) => {
-          if (res.errorCode) {
-            setError(res.errorMessage || 'Error al abrir la cámara');
-            return;
-          }
-          if (res.didCancel || !res.assets?.[0]) return;
-          uploadAvatarFromAsset(res.assets[0]);
+      launchCameraSafe({ mediaType: 'photo', quality: 0.8, saveToPhotos: false }, (res) => {
+        if (res.errorCode) {
+          setError(res.errorMessage || 'Error al abrir la cámara');
+          return;
         }
-      );
+        if (res.didCancel || !res.assets?.[0]) return;
+        void uploadAvatarFromAsset(res.assets[0]);
+      });
     }, 300);
   };
 
@@ -230,9 +227,13 @@ export function ProfileScreen() {
       {
         text: 'Elegir de galería',
         onPress: () =>
-          launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, (res) => {
+          launchImageLibrarySafe({ mediaType: 'photo', quality: 0.8 }, (res) => {
+            if (res.errorCode) {
+              setError(res.errorMessage || 'No se pudo abrir la galería');
+              return;
+            }
             if (res.didCancel || !res.assets?.[0]) return;
-            uploadAvatarFromAsset(res.assets[0]);
+            void uploadAvatarFromAsset(res.assets[0]);
           }),
       },
       { text: 'Cancelar', style: 'cancel' },

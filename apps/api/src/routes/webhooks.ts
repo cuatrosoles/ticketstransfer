@@ -170,21 +170,44 @@ router.post('/mercadopago', async (req: Request, res: Response) => {
 
   const orderRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
   const orderDoc = await orderRef.get();
-  if (orderDoc.exists && orderDoc.data()?.status === 'PENDIENTE_PAGO') {
-    if (payment.status === 'approved') {
-      await orderRef.update({
-        status: 'ESPERANDO_TRANSFERENCIA',
-        paymentIntentId: paymentId,
-        mercadopagoPaymentId: paymentId,
-        updatedAt: new Date(),
+  const ord = orderDoc.data();
+  if (!orderDoc.exists || ord?.status !== 'PENDIENTE_PAGO') {
+    return res.status(200).json({ received: true });
+  }
+
+  const expectedTotal = typeof ord.totalAmount === 'number' ? ord.totalAmount : null;
+  const orderCurrency = String(ord.currency || 'ARS').toUpperCase();
+  const payCurrency = (payment.currency_id || 'ARS').toUpperCase();
+
+  const amountOk =
+    payment.transaction_amount == null ||
+    expectedTotal == null ||
+    Math.abs(payment.transaction_amount - expectedTotal) <= 0.02;
+  const currencyOk = orderCurrency === payCurrency;
+
+  if (payment.status === 'approved') {
+    if (!amountOk || !currencyOk) {
+      console.warn('Webhook MercadoPago: pago aprobado no coincide con la orden (no se actualiza)', {
+        orderId,
+        expectedTotal,
+        orderCurrency,
+        gotAmount: payment.transaction_amount,
+        gotCurrency: payCurrency,
       });
-    } else if (payment.status === 'pending' || payment.status === 'in_process') {
-      await orderRef.update({
-        mercadopagoPaymentId: paymentId,
-        mercadopagoPaymentStatus: payment.status,
-        updatedAt: new Date(),
-      });
+      return res.status(200).json({ received: true });
     }
+    await orderRef.update({
+      status: 'ESPERANDO_TRANSFERENCIA',
+      paymentIntentId: paymentId,
+      mercadopagoPaymentId: paymentId,
+      updatedAt: new Date(),
+    });
+  } else if (payment.status === 'pending' || payment.status === 'in_process') {
+    await orderRef.update({
+      mercadopagoPaymentId: paymentId,
+      mercadopagoPaymentStatus: payment.status,
+      updatedAt: new Date(),
+    });
   }
 
   return res.status(200).json({ received: true });

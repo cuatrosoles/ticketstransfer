@@ -1,1 +1,6 @@
-../../../Target Support Files/FirebaseFirestore/FirebaseFirestore.modulemap
+module FirebaseFirestore {
+  umbrella header "FirebaseFirestore-umbrella.h"
+
+  export *
+  module * { export * }
+}

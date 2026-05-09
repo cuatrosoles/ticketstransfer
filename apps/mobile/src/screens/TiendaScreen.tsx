@@ -25,20 +25,9 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { MarketplaceTicketCard } from '../components/MarketplaceTicketCard';
 import { colors, spacing } from '../theme';
+import { formatDateTime } from '../lib/datetime';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Tienda'>;
-
-function formatEventDateTime(iso: string | Date): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString('es-AR', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
 
 export function TiendaScreen() {
   const navigation = useNavigation<Nav>();
@@ -118,7 +107,7 @@ export function TiendaScreen() {
                   item={item}
                   compact={false}
                   minFrameHeight={storeCardMinHeight}
-                  formatEventDateTime={formatEventDateTime}
+                  formatEventDateTime={formatDateTime}
                   onPress={() => goDetail(item.id)}
                 />
               </View>

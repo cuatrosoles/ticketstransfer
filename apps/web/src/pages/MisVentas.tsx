@@ -36,6 +36,46 @@ const LISTING_STATUS: Record<string, string> = {
   PAUSADO: 'Pausado',
 };
 
+const DELIVERY_METHOD_LABEL: Record<string, string> = {
+  usuario: 'Nombre de usuario',
+  id: 'Número de ID',
+  email: 'Email',
+  telefono: 'Teléfono',
+  otro: 'Otro',
+};
+
+function orderHasDeliveryInfo(o: OrderItem): boolean {
+  return !!(
+    o.deliveryMethod ||
+    o.deliveryUsername ||
+    o.deliveryIdNumber ||
+    o.deliveryEmail ||
+    o.deliveryPhone ||
+    o.deliveryOther ||
+    o.deliveryDetail
+  );
+}
+
+function OrderDeliveryForSeller({ order }: { order: OrderItem }) {
+  if (!orderHasDeliveryInfo(order)) return null;
+  return (
+    <div className="mis-ventas-delivery">
+      <span className="mis-ventas-delivery-title">Datos del comprador para recibir el ticket</span>
+      {order.deliveryMethod ? (
+        <p className="mis-ventas-delivery-line">
+          Medio principal: {DELIVERY_METHOD_LABEL[order.deliveryMethod] ?? order.deliveryMethod}
+        </p>
+      ) : null}
+      {order.deliveryUsername ? <p className="mis-ventas-delivery-line">Nombre de usuario: {order.deliveryUsername}</p> : null}
+      {order.deliveryIdNumber ? <p className="mis-ventas-delivery-line">Número de ID: {order.deliveryIdNumber}</p> : null}
+      {order.deliveryEmail ? <p className="mis-ventas-delivery-line">Email: {order.deliveryEmail}</p> : null}
+      {order.deliveryPhone ? <p className="mis-ventas-delivery-line">Teléfono: {order.deliveryPhone}</p> : null}
+      {order.deliveryOther ? <p className="mis-ventas-delivery-line">Otro: {order.deliveryOther}</p> : null}
+      {order.deliveryDetail ? <p className="mis-ventas-delivery-line">Detalle adicional: {order.deliveryDetail}</p> : null}
+    </div>
+  );
+}
+
 export function MisVentas() {
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [listings, setListings] = useState<TicketListingItem[]>([]);
@@ -99,6 +139,7 @@ export function MisVentas() {
                     Comprador: {item.buyer.email}
                   </div>
                 )}
+                <OrderDeliveryForSeller order={item} />
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
                   {new Date(item.createdAt).toLocaleDateString('es-AR')}
                 </div>

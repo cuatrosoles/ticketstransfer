@@ -1,3 +1,21 @@
+@font-face {
+  font-family: 'Cooper';
+  src: url('/fonts/cooper/Cooper-Regular.woff2') format('woff2'),
+       url('/fonts/cooper/Cooper-Regular.woff') format('woff');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Cooper Black';
+  src: url('/fonts/cooper/Cooper-Black.woff2') format('woff2'),
+       url('/fonts/cooper/Cooper-Black.woff') format('woff');
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+}
+
 :root {
   --bg: #0f172a;
   --bg-card: #1e293b;
@@ -9,7 +27,15 @@
   --success: #22c55e;
 }
 * { box-sizing: border-box; }
-body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+body {
+  margin: 0;
+  font-family: 'Cooper', 'Cooper Std', 'CooperBT', 'Bookman Old Style', serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+h1, h2, h3, h4, h5 { font-family: 'Cooper Black', 'CooperBlack', 'Cooper Std Black', 'Cooper', serif; }
+p, span, label, input, textarea, select, button, li, a { font-family: 'Cooper', 'Cooper Std', 'CooperBT', 'Bookman Old Style', serif; }
 #root { min-height: 100vh; }
 
 .admin-layout { display: flex; min-height: 100vh; }

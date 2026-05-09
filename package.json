@@ -3,13 +3,15 @@
   "private": true,
   "description": "Plataforma de intercambio y reventa segura de entradas digitales - Tickets Transfer (TT)",
   "version": "2.0.0",
+  "packageManager": "pnpm@9.15.5",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "postinstall": "((cd apps/mobile && pnpm exec patch-package) && node apps/mobile/scripts/patch-react-native-screens-cpp.js) || true",
-    "install:clean": "node -e \"const fs=require('fs');const t=Date.now();['node_modules','apps/api/node_modules','apps/web/node_modules','apps/admin/node_modules','apps/mobile/node_modules','packages/shared/node_modules'].forEach(d=>{if(fs.existsSync(d)){try{fs.renameSync(d,d+'.old.'+t);}catch(e){console.error('Renombrar falló:',d,e.message);}}});['package-lock.json','pnpm-lock.yaml'].forEach(f=>{if(fs.existsSync(f))fs.unlinkSync(f);});\" && pnpm install",
+    "postinstall": "node -e \"const cp=require('child_process');try{cp.execSync('npx --yes patch-package --patch-dir apps/mobile/patches',{stdio:'inherit',shell:true});cp.execSync('node apps/mobile/scripts/patch-react-native-screens-cpp.js',{stdio:'inherit',shell:true});}catch(e){console.warn('[postinstall] Aviso (continuando):',e?.message||e);}\"",
+    "install:clean": "node -e \"const fs=require('fs');const t=Date.now();['node_modules','apps/api/node_modules','apps/web/node_modules','apps/admin/node_modules','apps/mobile/node_modules','packages/shared/node_modules'].forEach(d=>{if(fs.existsSync(d)){try{fs.renameSync(d,d+'.old.'+t);}catch(e){console.error('Renombrar falló:',d,e.message);}}});['package-lock.json','pnpm-lock.yaml'].forEach(f=>{if(fs.existsSync(f))fs.unlinkSync(f);});\" && npx --yes pnpm@9.15.5 install",
+    "setup:pnpm": "node scripts/ensure-pnpm.mjs",
     "dev": "npm run dev --workspaces --if-present",
     "dev:api": "npm run dev --workspace=api",
     "dev:api:run": "cd apps/api && npx tsx watch src/index.ts",
@@ -33,6 +35,7 @@
     "node": ">=20.0.0"
   },
   "pnpm": {
+    "nodeLinker": "hoisted",
     "overrides": {
       "react": "18.2.0"
     }

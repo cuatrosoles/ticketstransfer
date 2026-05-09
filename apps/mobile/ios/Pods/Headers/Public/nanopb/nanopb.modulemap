@@ -1,1 +1,6 @@
-../../../Target Support Files/nanopb/nanopb.modulemap
+module nanopb {
+  umbrella header "nanopb-umbrella.h"
+
+  export *
+  module * { export * }
+}

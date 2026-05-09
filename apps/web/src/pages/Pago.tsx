@@ -13,7 +13,34 @@ type Order = {
   status: string;
   ticketListing?: { eventName: string };
   checkoutUrl?: string;
+  deliveryMethod?: 'usuario' | 'id' | 'email' | 'telefono' | 'otro' | null;
+  deliveryUsername?: string | null;
+  deliveryIdNumber?: string | null;
+  deliveryEmail?: string | null;
+  deliveryPhone?: string | null;
+  deliveryOther?: string | null;
+  deliveryDetail?: string | null;
 };
+
+const DELIVERY_METHOD_LABEL: Record<string, string> = {
+  usuario: 'Nombre de usuario',
+  id: 'Número de ID',
+  email: 'Email',
+  telefono: 'Teléfono',
+  otro: 'Otro',
+};
+
+function orderHasDeliveryInfo(o: Order): boolean {
+  return !!(
+    o.deliveryMethod ||
+    o.deliveryUsername ||
+    o.deliveryIdNumber ||
+    o.deliveryEmail ||
+    o.deliveryPhone ||
+    o.deliveryOther ||
+    o.deliveryDetail
+  );
+}
 
 export function Pago() {
   const { id } = useParams<{ id: string }>();
@@ -112,6 +139,48 @@ export function Pago() {
         <p className="escrow-notice">
           Tu dinero será retenido hasta que el vendedor transfiera el ticket a tu cuenta oficial.
         </p>
+
+        {orderHasDeliveryInfo(order) && (
+          <div className="pago-delivery-summary" style={{ marginTop: 12, marginBottom: 8 }}>
+            <strong style={{ display: 'block', marginBottom: 8, fontSize: '0.95rem' }}>Datos indicados para recibir el ticket</strong>
+            {order.deliveryMethod ? (
+              <p className="text-muted" style={{ fontSize: '0.85rem', margin: '0 0 4px' }}>
+                Medio principal: {DELIVERY_METHOD_LABEL[order.deliveryMethod] ?? order.deliveryMethod}
+              </p>
+            ) : null}
+            {order.deliveryUsername ? (
+              <p className="text-muted" style={{ fontSize: '0.85rem', margin: '0 0 4px' }}>
+                Nombre de usuario: {order.deliveryUsername}
+              </p>
+            ) : null}
+            {order.deliveryIdNumber ? (
+              <p className="text-muted" style={{ fontSize: '0.85rem', margin: '0 0 4px' }}>
+                Número de ID: {order.deliveryIdNumber}
+              </p>
+            ) : null}
+            {order.deliveryEmail ? (
+              <p className="text-muted" style={{ fontSize: '0.85rem', margin: '0 0 4px' }}>
+                Email: {order.deliveryEmail}
+              </p>
+            ) : null}
+            {order.deliveryPhone ? (
+              <p className="text-muted" style={{ fontSize: '0.85rem', margin: '0 0 4px' }}>
+                Teléfono: {order.deliveryPhone}
+              </p>
+            ) : null}
+            {order.deliveryOther ? (
+              <p className="text-muted" style={{ fontSize: '0.85rem', margin: '0 0 4px' }}>
+                Otro: {order.deliveryOther}
+              </p>
+            ) : null}
+            {order.deliveryDetail ? (
+              <p className="text-muted" style={{ fontSize: '0.85rem', margin: '0 0 4px' }}>
+                Detalle adicional: {order.deliveryDetail}
+              </p>
+            ) : null}
+          </div>
+        )}
+
         <p className="text-muted" style={{ fontSize: '0.85rem', marginTop: 8 }}>
           Podés usar tarjeta, débito o cuenta de Mercado Pago. Agregá tarjetas desde esta pantalla o desde Perfil. En el checkout de Mercado Pago también podés usar medios guardados en tu cuenta MP.
         </p>

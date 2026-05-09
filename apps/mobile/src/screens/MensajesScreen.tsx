@@ -35,13 +35,14 @@ import {
 import { requestNotificationPermission, getFcmToken } from '../lib/pushNotifications';
 import { subscribeNewMessageHint } from '../lib/messageSync';
 import { colors, spacing, radius, glassCard } from '../theme';
+import { parseDateInput } from '../lib/datetime';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Mensajes'>;
 
 function formatTime(iso: string): string {
   if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
+  const d = parseDateInput(iso);
+  if (!d) return '';
   const now = new Date();
   const diff = now.getTime() - d.getTime();
   if (diff < 86400000) return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });

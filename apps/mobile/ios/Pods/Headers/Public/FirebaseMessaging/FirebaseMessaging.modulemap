@@ -1,1 +1,6 @@
-../../../Target Support Files/FirebaseMessaging/FirebaseMessaging.modulemap
+module FirebaseMessaging {
+  umbrella header "FirebaseMessaging-umbrella.h"
+
+  export *
+  module * { export * }
+}

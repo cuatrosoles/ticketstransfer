@@ -1,1 +1,6 @@
-../../../Target Support Files/React-RCTAppDelegate/React-RCTAppDelegate.modulemap
+module React_RCTAppDelegate {
+  umbrella header "React-RCTAppDelegate-umbrella.h"
+
+  export *
+  module * { export * }
+}

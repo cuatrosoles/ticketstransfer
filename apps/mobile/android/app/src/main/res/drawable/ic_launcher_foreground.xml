@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Mismo arte que ic_launcher.png, encogido con inset para dejar aire respecto a la máscara.
+  El color ic_launcher_background debe contrastar con el PNG (p. ej. blanco) para que ese
+  margen sea visible en el launcher.
+-->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@mipmap/ic_launcher_art"
+    android:insetLeft="24%"
+    android:insetTop="24%"
+    android:insetRight="24%"
+    android:insetBottom="24%" />

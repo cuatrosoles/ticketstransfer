@@ -1,1 +1,6 @@
-../../../Target Support Files/RecaptchaInterop/RecaptchaInterop.modulemap
+module RecaptchaInterop {
+  umbrella header "RecaptchaInterop-umbrella.h"
+
+  export *
+  module * { export * }
+}

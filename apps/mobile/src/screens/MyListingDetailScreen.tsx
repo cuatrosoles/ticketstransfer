@@ -25,6 +25,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { TicketStubBackground } from '../components/TicketStubBackground';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { colors, spacing, radius } from '../theme';
+import { formatDate } from '../lib/datetime';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'MyListingDetail'>;
 type Route = RouteProp<RootStackParamList, 'MyListingDetail'>;
@@ -84,7 +85,7 @@ export function MyListingDetailScreen() {
           </Text>
           <Text style={styles.row}>EVENTO: {listing.eventName}</Text>
           <Text style={styles.row}>
-            FECHA: {new Date(listing.eventDate).toLocaleDateString('es-AR')}
+            FECHA: {formatDate(listing.eventDate)}
           </Text>
           <Text style={styles.row}>LUGAR: {listing.eventPlace || '—'}</Text>
           {listing.sector ? <Text style={styles.row}>SECTOR: {listing.sector}</Text> : null}

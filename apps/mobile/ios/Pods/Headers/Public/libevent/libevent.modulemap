@@ -1,1 +1,6 @@
-../../../Target Support Files/libevent/libevent.modulemap
+module libevent {
+  umbrella header "libevent-umbrella.h"
+
+  export *
+  module * { export * }
+}

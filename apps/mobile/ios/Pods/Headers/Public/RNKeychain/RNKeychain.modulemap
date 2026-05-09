@@ -1,1 +1,6 @@
-../../../Target Support Files/RNKeychain/RNKeychain.modulemap
+module RNKeychain {
+  umbrella header "RNKeychain-umbrella.h"
+
+  export *
+  module * { export * }
+}

@@ -1,1 +1,6 @@
-../../../Target Support Files/React-runtimescheduler/React-runtimescheduler.modulemap
+module react_renderer_runtimescheduler {
+  umbrella header "React-runtimescheduler-umbrella.h"
+
+  export *
+  module * { export * }
+}

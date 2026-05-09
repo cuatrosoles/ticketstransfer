@@ -1,1 +1,6 @@
-../../../Target Support Files/RNFBApp/RNFBApp.modulemap
+module RNFBApp {
+  umbrella header "RNFBApp-umbrella.h"
+
+  export *
+  module * { export * }
+}

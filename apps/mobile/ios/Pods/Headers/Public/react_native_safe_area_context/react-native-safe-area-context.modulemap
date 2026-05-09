@@ -1,1 +1,6 @@
-../../../Target Support Files/react-native-safe-area-context/react-native-safe-area-context.modulemap
+module react_native_safe_area_context {
+  umbrella header "react-native-safe-area-context-umbrella.h"
+
+  export *
+  module * { export * }
+}

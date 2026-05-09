@@ -35,6 +35,7 @@ import {
 } from '../lib/api';
 import { colors, spacing, radius, glassCard } from '../theme';
 import { subscribeNewMessageHint } from '../lib/messageSync';
+import { formatTime } from '../lib/datetime';
 
 /** Polling moderado; refuerzo con FCM en primer plano y al volver a active */
 const POLL_INTERVAL_MS = 10000;
@@ -42,7 +43,7 @@ const POLL_INTERVAL_MS = 10000;
 type Route = RouteProp<RootStackParamList, 'MensajesConversation'>;
 
 function formatMessageTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  return formatTime(iso);
 }
 
 export function MensajesConversationScreen() {

@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(96, 165, 250, 0.3)',
   },
   menuItem: { paddingVertical: 14, paddingHorizontal: 24 },
-  menuItemText: { color: '#f8fafc', fontSize: 16, fontFamily: 'serif', fontWeight: '700' },
+  menuItemText: { color: '#f8fafc', fontSize: 16, fontFamily: 'Cooper-Black', fontWeight: '700' },
   menuItemLink: { color: '#60a5fa' },
   logoutBtn: {
     marginTop: 8,
@@ -105,5 +105,5 @@ const styles = StyleSheet.create({
     borderColor: '#ffffff',
     borderRadius: 12,
   },
-  logoutText: { color: '#ffffff', fontWeight: '600', fontSize: 16 },
+  logoutText: { color: '#ffffff', fontWeight: '600', fontSize: 16, fontFamily: 'Cooper-Black' },
 });

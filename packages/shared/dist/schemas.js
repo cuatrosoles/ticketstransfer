@@ -86,9 +86,43 @@ export const updateTicketListingSchema = createTicketListingSchema.partial().ext
     appBoletosOtra: z.string().optional().transform((s) => (s === '' ? undefined : s)),
     tipoEntradaOtro: z.string().optional().transform((s) => (s === '' ? undefined : s)),
 });
-export const createOrderSchema = z.object({
+export const createOrderSchema = z
+    .object({
     ticketListingId: z.string().min(1, 'ID de publicación requerido'),
     paymentMethod: z.enum(['mercadopago', 'stripe']),
+    /** Medio principal donde el comprador recibirá la transferencia del ticket */
+    deliveryMethod: z.enum(['usuario', 'id', 'email', 'telefono', 'otro']).optional(),
+    deliveryUsername: z
+        .string()
+        .max(400)
+        .optional()
+        .transform((s) => (s != null && String(s).trim() ? String(s).trim() : undefined)),
+    deliveryIdNumber: z
+        .string()
+        .max(200)
+        .optional()
+        .transform((s) => (s != null && String(s).trim() ? String(s).trim() : undefined)),
+    deliveryEmail: z
+        .string()
+        .max(320)
+        .optional()
+        .transform((s) => (s != null && String(s).trim() ? String(s).trim() : undefined)),
+    deliveryPhone: z
+        .string()
+        .max(40)
+        .optional()
+        .transform((s) => (s != null && String(s).trim() ? String(s).trim() : undefined)),
+    deliveryOther: z
+        .string()
+        .max(500)
+        .optional()
+        .transform((s) => (s != null && String(s).trim() ? String(s).trim() : undefined)),
+    /** Compatibilidad con clientes que envían un solo texto (p. ej. app móvil antigua con OTRO) */
+    deliveryDetail: z
+        .string()
+        .max(500)
+        .optional()
+        .transform((s) => (s != null && String(s).trim() ? String(s).trim() : undefined)),
 });
 export const confirmReceivedSchema = z.object({
     orderId: z.string().uuid(),

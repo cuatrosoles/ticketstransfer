@@ -1,1 +1,6 @@
-../../../Target Support Files/React-RCTText/React-RCTText.modulemap
+module RCTText {
+  umbrella header "React-RCTText-umbrella.h"
+
+  export *
+  module * { export * }
+}

@@ -95,6 +95,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '800',
+    fontFamily: 'Cooper-Black',
     letterSpacing: 0.5,
     color: '#f8fafc',
     textAlign: 'center',

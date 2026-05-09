@@ -19,12 +19,13 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../navigation/types';
-import { ensureImageUrl } from '../lib/api';
+import { ensureImageUrl, api } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { TicketStubBackground } from '../components/TicketStubBackground';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { colors, spacing, radius } from '../theme';
+import { formatDate } from '../lib/datetime';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ComprarTicketDetalle'>;
 type Route = RouteProp<RootStackParamList, 'ComprarTicketDetalle'>;
@@ -124,7 +125,7 @@ export function ComprarTicketDetalleScreen() {
           <View style={styles.perforation} />
           <Text style={styles.previewRow}>EVENTO: {preview.eventName}</Text>
           <Text style={styles.previewRow}>
-            FECHA: {new Date(preview.eventDate).toLocaleDateString('es-AR')}
+            FECHA: {formatDate(preview.eventDate)}
           </Text>
           <Text style={styles.previewRow}>LUGAR: {preview.eventPlace || '—'}</Text>
           {preview.sector ? <Text style={styles.previewRow}>SECTOR: {preview.sector}</Text> : null}

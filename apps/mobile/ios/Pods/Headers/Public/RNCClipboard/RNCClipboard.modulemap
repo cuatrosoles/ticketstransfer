@@ -1,1 +1,6 @@
-../../../Target Support Files/RNCClipboard/RNCClipboard.modulemap
+module RNCClipboard {
+  umbrella header "RNCClipboard-umbrella.h"
+
+  export *
+  module * { export * }
+}

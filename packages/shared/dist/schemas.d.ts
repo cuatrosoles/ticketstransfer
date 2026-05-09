@@ -312,12 +312,35 @@ export declare const updateTicketListingSchema: z.ZodObject<{
 export declare const createOrderSchema: z.ZodObject<{
     ticketListingId: z.ZodString;
     paymentMethod: z.ZodEnum<["mercadopago", "stripe"]>;
+    /** Medio principal donde el comprador recibirá la transferencia del ticket */
+    deliveryMethod: z.ZodOptional<z.ZodEnum<["usuario", "id", "email", "telefono", "otro"]>>;
+    deliveryUsername: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
+    deliveryIdNumber: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
+    deliveryEmail: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
+    deliveryPhone: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
+    deliveryOther: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
+    /** Compatibilidad con clientes que envían un solo texto (p. ej. app móvil antigua con OTRO) */
+    deliveryDetail: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
 }, "strip", z.ZodTypeAny, {
     ticketListingId: string;
     paymentMethod: "mercadopago" | "stripe";
+    deliveryMethod?: "email" | "usuario" | "id" | "telefono" | "otro" | undefined;
+    deliveryUsername?: string | undefined;
+    deliveryIdNumber?: string | undefined;
+    deliveryEmail?: string | undefined;
+    deliveryPhone?: string | undefined;
+    deliveryOther?: string | undefined;
+    deliveryDetail?: string | undefined;
 }, {
     ticketListingId: string;
     paymentMethod: "mercadopago" | "stripe";
+    deliveryMethod?: "email" | "usuario" | "id" | "telefono" | "otro" | undefined;
+    deliveryUsername?: string | undefined;
+    deliveryIdNumber?: string | undefined;
+    deliveryEmail?: string | undefined;
+    deliveryPhone?: string | undefined;
+    deliveryOther?: string | undefined;
+    deliveryDetail?: string | undefined;
 }>;
 export declare const confirmReceivedSchema: z.ZodObject<{
     orderId: z.ZodString;

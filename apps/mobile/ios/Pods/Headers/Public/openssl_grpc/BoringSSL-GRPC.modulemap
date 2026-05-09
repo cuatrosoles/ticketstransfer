@@ -1,1 +1,6 @@
-../../../Target Support Files/BoringSSL-GRPC/BoringSSL-GRPC.modulemap
+module openssl_grpc {
+  umbrella header "BoringSSL-GRPC-umbrella.h"
+
+  export *
+  module * { export * }
+}

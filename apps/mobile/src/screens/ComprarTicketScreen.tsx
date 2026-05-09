@@ -22,6 +22,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { TicketStubBackground } from '../components/TicketStubBackground';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { colors, spacing, radius } from '../theme';
+import { formatDate } from '../lib/datetime';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ComprarTicket'>;
 
@@ -130,6 +131,9 @@ export function ComprarTicketScreen() {
           Podés elegir un ticket desde Inicio (Tickets a la Venta) o ingresá el ID que te pasó el vendedor para
           publicaciones privadas.
         </Text>
+        <TouchableOpacity style={styles.linkPurchases} onPress={() => navigation.navigate('MyPurchases')} activeOpacity={0.85}>
+          <Text style={styles.linkPurchasesText}>¿Ya pagaste? Ver mis compras, captura de transferencia y reintegros →</Text>
+        </TouchableOpacity>
 
         <Text style={styles.label}>ID de la publicación</Text>
         <TextInput
@@ -157,7 +161,7 @@ export function ComprarTicketScreen() {
               <View style={styles.perforation} />
               <Text style={styles.previewRow}>EVENTO: {preview.eventName}</Text>
               <Text style={styles.previewRow}>
-                FECHA: {new Date(preview.eventDate).toLocaleDateString('es-AR')}
+                FECHA: {formatDate(preview.eventDate)}
               </Text>
               <Text style={styles.previewRow}>LUGAR: {preview.eventPlace || '—'}</Text>
               {preview.sector ? <Text style={styles.previewRow}>SECTOR: {preview.sector}</Text> : null}
@@ -231,7 +235,17 @@ export function ComprarTicketScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
-  subtitle: { fontSize: 14, color: colors.textMuted, marginBottom: spacing.lg },
+  subtitle: { fontSize: 14, color: colors.textMuted, marginBottom: spacing.sm },
+  linkPurchases: {
+    marginBottom: spacing.lg,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: radius,
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.4)',
+    backgroundColor: 'rgba(30, 58, 138, 0.35)',
+  },
+  linkPurchasesText: { fontSize: 13, color: colors.primaryLight, fontWeight: '600' },
   label: {
     fontSize: 14,
     fontWeight: '600',

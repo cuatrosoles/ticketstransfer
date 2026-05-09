@@ -1,1 +1,6 @@
-../../../Target Support Files/FirebaseAuthInterop/FirebaseAuthInterop.modulemap
+module FirebaseAuthInterop {
+  umbrella header "FirebaseAuthInterop-umbrella.h"
+
+  export *
+  module * { export * }
+}

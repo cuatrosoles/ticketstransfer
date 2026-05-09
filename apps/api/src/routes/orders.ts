@@ -194,6 +194,15 @@ router.post('/', async (req: AuthRequest, res) => {
     return;
   }
 
+  if (paymentMethod === 'stripe') {
+    res.status(400).json({ error: 'Stripe aún no está disponible. Usá Mercado Pago.' });
+    return;
+  }
+  if (paymentMethod === 'mercadopago' && !(await isMercadoPagoConfigured())) {
+    res.status(503).json({ error: 'Mercado Pago no está configurado. Contactá al administrador.' });
+    return;
+  }
+
   const commissionRate = (await getCommissionPercentage()) / 100;
   const commissionAmount = listingPrice * commissionRate;
   const totalAmount = listingPrice + commissionAmount;
@@ -220,7 +229,7 @@ router.post('/', async (req: AuthRequest, res) => {
 
   let checkoutUrl: string | undefined;
 
-  if (paymentMethod === 'mercadopago' && (await isMercadoPagoConfigured())) {
+  if (paymentMethod === 'mercadopago') {
     try {
       const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
       const { initPoint, preferenceId: prefId } = await createCheckoutPreference({
@@ -240,23 +249,22 @@ router.post('/', async (req: AuthRequest, res) => {
       });
     } catch (e) {
       console.error('Error creando preferencia MercadoPago:', e);
-      res.status(500).json({ error: 'No se pudo iniciar el checkout. Intent? de nuevo.' });
+      try {
+        await db().collection(COLLECTIONS.ORDERS).doc(orderId).delete();
+      } catch (delErr) {
+        console.error('No se pudo revertir orden tras fallo de MP:', delErr);
+      }
+      res.status(500).json({ error: 'No se pudo iniciar el checkout. Intentá de nuevo.' });
       return;
     }
-  } else if (paymentMethod === 'stripe') {
-    res.status(400).json({ error: 'Stripe a?n no est? disponible. Us? Mercado Pago.' });
-    return;
-  } else if (paymentMethod === 'mercadopago' && !(await isMercadoPagoConfigured())) {
-    res.status(503).json({ error: 'Mercado Pago no est? configurado. Contact? al administrador.' });
-    return;
   }
 
-      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(sellerId).get();
+  const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(sellerId).get();
   const order = {
     id: orderId,
     ...orderData,
     ticketListing: { id: listingDoc.id, ...listing },
-        seller: { id: sellerId, email: sellerDoc.data()?.email },
+    seller: { id: sellerId, email: sellerDoc.data()?.email },
   };
 
   res.status(201).json({
@@ -333,7 +341,7 @@ router.get('/:id/checkout-url', async (req: AuthRequest, res) => {
   if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
   const d = doc.data()!;
   if (d.buyerId !== req.user!.id) return res.status(404).json({ error: 'No encontrado' });
-  if (d.status !== 'PENDIENTE_PAGO') return res.status(400).json({ error: 'La orden ya no est? pendiente de pago' });
+  if (d.status !== 'PENDIENTE_PAGO') return res.status(400).json({ error: 'La orden ya no está pendiente de pago' });
   if (d.paymentMethod !== 'mercadopago') return res.status(400).json({ error: 'Solo Mercado Pago soporta checkout URL' });
 
   let checkoutUrl = d.mercadopagoCheckoutUrl;
@@ -409,7 +417,7 @@ router.post('/:id/pay', async (req: AuthRequest, res) => {
   const d = doc.data()!;
   if (d.buyerId !== req.user!.id) return res.status(404).json({ error: 'No encontrado' });
   if (d.status !== 'PENDIENTE_PAGO') {
-    return res.status(400).json({ error: 'La orden ya no est? pendiente de pago' });
+    return res.status(400).json({ error: 'La orden ya no está pendiente de pago' });
   }
   if (d.paymentMethod !== 'mercadopago') {
     return res.status(400).json({ error: 'Solo Mercado Pago soporta pago con tarjeta' });
@@ -430,6 +438,7 @@ router.post('/:id/pay', async (req: AuthRequest, res) => {
       orderId,
       title,
       amount: d.totalAmount,
+      currency: typeof d.currency === 'string' ? d.currency : 'ARS',
       payerEmail,
       payerUserId: req.user!.id,
       token,
@@ -439,6 +448,7 @@ router.post('/:id/pay', async (req: AuthRequest, res) => {
 
     await db().collection(COLLECTIONS.ORDERS).doc(orderId).update({
       mercadopagoPaymentId: payment.id,
+      ...(payment.status === 'approved' ? { paymentIntentId: payment.id } : {}),
       status: payment.status === 'approved' ? 'ESPERANDO_TRANSFERENCIA' : d.status,
       updatedAt: new Date(),
     });
@@ -462,7 +472,8 @@ router.post('/:id/confirm-payment', async (req: AuthRequest, res) => {
   if (d.buyerId !== req.user!.id || d.status !== 'PENDIENTE_PAGO') return res.status(404).json({ error: 'No encontrado' });
   if (d.paymentMethod === 'mercadopago') {
     return res.status(400).json({
-      error: 'El pago se confirma al completar el checkout de Mercado Pago. Us? el bot?n "Pagar con Mercado Pago".',
+      error:
+        'El pago se confirma al completar el checkout de Mercado Pago. Usá el botón «Pagar con Mercado Pago» o el pago con tarjeta.',
     });
   }
   await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({ status: 'ESPERANDO_TRANSFERENCIA', updatedAt: new Date() });

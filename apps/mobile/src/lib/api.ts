@@ -140,7 +140,7 @@ export async function getMe() {
 /** Porcentaje de comisión de la plataforma (para cálculos de precio) */
 export async function getCommissionPercentage(): Promise<number> {
   const data = await api<{ commissionPercentage: number }>('/api/settings/commission');
-  return data.commissionPercentage ?? 5;
+  return data.commissionPercentage ?? 6.5;
 }
 
 /** Tickets públicos para la grilla del inicio (marketplace) */
@@ -328,6 +328,14 @@ export type OrderItem = {
   updatedAt?: string;
   transferDeadline?: string;
   checkoutUrl?: string;
+  /** Datos de entrega / recepción del ticket indicados por el comprador */
+  deliveryMethod?: 'usuario' | 'id' | 'email' | 'telefono' | 'otro' | null;
+  deliveryUsername?: string | null;
+  deliveryIdNumber?: string | null;
+  deliveryEmail?: string | null;
+  deliveryPhone?: string | null;
+  deliveryOther?: string | null;
+  deliveryDetail?: string | null;
   ticketListing: {
     id?: string;
     eventName: string;
@@ -383,6 +391,17 @@ export async function openOrderDispute(orderId: string, reason: string): Promise
   return api<{ id: string }>('/api/disputes', {
     method: 'POST',
     body: JSON.stringify({ orderId, reason }),
+  });
+}
+
+/** Solicitud de factura de transacción (registrada para administración). POST body evita 404 en Vercel con rutas anidadas. */
+export async function requestTransactionInvoice(
+  orderId: string,
+  body?: { note?: string }
+): Promise<{ ok: boolean; id: string; alreadyExists?: boolean }> {
+  return api<{ ok: boolean; id: string; alreadyExists?: boolean }>('/api/orders/invoice-request', {
+    method: 'POST',
+    body: JSON.stringify({ orderId, ...body }),
   });
 }
 

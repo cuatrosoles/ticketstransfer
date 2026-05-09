@@ -1,1 +1,6 @@
-../../../Target Support Files/React-jserrorhandler/React-jserrorhandler.modulemap
+module jserrorhandler {
+  umbrella header "React-jserrorhandler-umbrella.h"
+
+  export *
+  module * { export * }
+}

@@ -27,20 +27,9 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { colors, spacing, radius, glassCard } from '../theme';
 import { getMarketplacePublicListings, type MarketplacePublicItem } from '../lib/api';
 import { MarketplaceTicketCard } from '../components/MarketplaceTicketCard';
+import { formatDateTime } from '../lib/datetime';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
-
-function formatEventDateTime(iso: string | Date): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString('es-AR', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
 
 export function HomeScreen() {
   const [showBiometricModal, setShowBiometricModal] = useState(false);
@@ -144,7 +133,7 @@ export function HomeScreen() {
                         compact
                         minFrameHeight={homeMarketplaceCardMinHeight}
                         item={item}
-                        formatEventDateTime={formatEventDateTime}
+                        formatEventDateTime={formatDateTime}
                         onPress={() =>
                           navigation.navigate('ComprarTicketDetalle', {
                             listingId: item.id,
@@ -256,7 +245,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.md,
   },
-  cardTitle: { color: colors.text, fontWeight: '800', fontSize: 18, fontFamily: 'serif' },
+  cardTitle: { color: colors.text, fontWeight: '800', fontSize: 18, fontFamily: 'Cooper-Black' },
   cardSubtitle: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
   socialTitle: { fontWeight: '700', color: colors.text, marginTop: spacing.lg, marginBottom: spacing.sm, textAlign: 'center' },
   socialRow: { flexDirection: 'row', justifyContent: 'center', gap: spacing.lg, marginBottom: spacing.lg },

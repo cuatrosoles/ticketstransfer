@@ -21,7 +21,7 @@ import {
 import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../navigation/types';
-import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import { launchCameraSafe, launchImageLibrarySafe } from '../lib/imagePickerSafe';
 import Clipboard from '@react-native-clipboard/clipboard';
 import {
   createTicketListing,
@@ -205,7 +205,7 @@ export function PublishTicketScreen() {
 
   const launchCameraWithPermission = (setter: (a: ImageAsset | null) => void) => {
     const doLaunch = () => {
-      launchCamera({ mediaType: 'photo', quality: 0.8 }, (res) => processImageResult(res, setter));
+      launchCameraSafe({ mediaType: 'photo', quality: 0.8 }, (res) => processImageResult(res, setter));
     };
     if (Platform.OS === 'android') {
       PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA, {
@@ -237,7 +237,7 @@ export function PublishTicketScreen() {
       {
         text: 'Elegir de galería',
         onPress: () =>
-          launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, (res) => processImageResult(res, setter)),
+          launchImageLibrarySafe({ mediaType: 'photo', quality: 0.8 }, (res) => processImageResult(res, setter)),
       },
     ]);
   };

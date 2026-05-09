@@ -1,1 +1,6 @@
-../../../Target Support Files/RNFBFirestore/RNFBFirestore.modulemap
+module RNFBFirestore {
+  umbrella header "RNFBFirestore-umbrella.h"
+
+  export *
+  module * { export * }
+}

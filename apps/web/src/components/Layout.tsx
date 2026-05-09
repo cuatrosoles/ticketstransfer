@@ -72,6 +72,7 @@ export function Layout({ children }: Props) {
             onClick={() => setMenuOpen(false)}
           />
           <nav className="user-dropdown glass">
+            <Link to="/home" onClick={() => setMenuOpen(false)}>Inicio</Link>
             <Link to="/perfil" onClick={() => setMenuOpen(false)}>Información de tu perfil</Link>
             <Link to="/tickets" onClick={() => setMenuOpen(false)}>Tickets</Link>
             <Link to="/tarjetas" onClick={() => setMenuOpen(false)}>Tarjetas adheridas</Link>

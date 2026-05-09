@@ -4,7 +4,7 @@
  */
 
 import * as React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text, TextInput } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { AuthProvider } from './src/context/AuthContext';
@@ -23,6 +23,18 @@ const linking = {
     },
   },
 };
+
+const BODY_FONT = 'Cooper-Regular';
+
+if (!Text.defaultProps) {
+  Text.defaultProps = {};
+}
+Text.defaultProps.style = [{ fontFamily: BODY_FONT }, Text.defaultProps.style];
+
+if (!TextInput.defaultProps) {
+  TextInput.defaultProps = {};
+}
+TextInput.defaultProps.style = [{ fontFamily: BODY_FONT }, TextInput.defaultProps.style];
 
 export default function App() {
   const navigationRef = useNavigationContainerRef<RootStackParamList>();

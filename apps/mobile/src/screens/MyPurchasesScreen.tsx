@@ -11,6 +11,7 @@ import { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { getMyPurchases, type OrderItem } from '../lib/api';
+import { formatDate } from '../lib/datetime';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
@@ -64,7 +65,7 @@ export function MyPurchasesScreen() {
       <Text style={styles.meta}>
         {item.totalAmount} {item.currency} · {statusLabel(item.status)}
       </Text>
-      <Text style={styles.date}>{new Date(item.createdAt).toLocaleDateString()}</Text>
+      <Text style={styles.date}>{formatDate(item.createdAt)}</Text>
       <TouchableOpacity
         style={styles.viewBtn}
         onPress={() => navigation.navigate('OrderDetail', { orderId: item.id, source: 'buyer' })}

@@ -11,6 +11,25 @@ Instrucciones para generar un APK actualizado y enviarlo a tu cliente para prueb
 - **JDK 17** (recomendado para React Native 0.73)
 - **Android SDK** con `ANDROID_HOME` configurado
 
+### Gradle y Java en la terminal (macOS)
+
+Si en `apps/mobile/android` ejecutás `./gradlew` y macOS dice **Unable to locate a Java Runtime**, es porque esa terminal **no tiene** `JAVA_HOME` (los comandos `npm run android` / `npm run apk:debug` sí lo resuelven con scripts del repo).
+
+Desde **`apps/mobile`** (no hace falta entrar en `android/`):
+
+```bash
+npm run gradle:stop
+npm run gradle -- assembleDebug
+```
+
+Cualquier tarea de Gradle: `npm run gradle -- <argumentos>` (por ejemplo `npm run gradle -- clean`).
+
+Alternativa manual antes de `./gradlew`:
+
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 17 2>/dev/null)
+```
+
 ---
 
 ## Paso 1: Ir al directorio del proyecto

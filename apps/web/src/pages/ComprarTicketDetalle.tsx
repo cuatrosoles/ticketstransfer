@@ -1,8 +1,8 @@
 /**
- * Comprar Ticket – Paso 2: ticket completo (stub) y continuar compra.
+ * Comprar Ticket – Paso 2: ticket completo (stub), datos de recepción y continuar compra.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { api, ensureImageUrl } from '../lib/api';
 
@@ -39,6 +39,67 @@ type TicketPreview = {
 
 type LocationState = { listingId: string; password: string } | null;
 
+const BASE_INPUTS: Array<{
+  key: 'deliveryUsername' | 'deliveryIdNumber' | 'deliveryEmail' | 'deliveryPhone';
+  label: string;
+  placeholder: string;
+  type?: string;
+  autoComplete?: string;
+}> = [
+  {
+    key: 'deliveryUsername',
+    label: 'Nombre de usuario',
+    placeholder: 'Ej.: tu usuario en la app de boletos (Quentro, Enigma, etc.)',
+    autoComplete: 'username',
+  },
+  {
+    key: 'deliveryIdNumber',
+    label: 'Número de ID',
+    placeholder: 'Ej.: DNI, pasaporte o ID de cuenta en la ticketera',
+  },
+  {
+    key: 'deliveryEmail',
+    label: 'Email',
+    placeholder: 'Correo donde recibirás la confirmación o la transferencia',
+    type: 'email',
+    autoComplete: 'email',
+  },
+  {
+    key: 'deliveryPhone',
+    label: 'Número de teléfono',
+    placeholder: 'Incluí código de país, ej. +54 9 11 2345-6789',
+    type: 'tel',
+    autoComplete: 'tel',
+  },
+];
+
+type DeliveryForm = {
+  deliveryUsername: string;
+  deliveryIdNumber: string;
+  deliveryEmail: string;
+  deliveryPhone: string;
+  deliveryOther: string;
+};
+
+const emptyForm: DeliveryForm = {
+  deliveryUsername: '',
+  deliveryIdNumber: '',
+  deliveryEmail: '',
+  deliveryPhone: '',
+  deliveryOther: '',
+};
+
+function hasAnyDeliveryData(form: DeliveryForm, showOtherField: boolean): boolean {
+  const t = (s: string) => s.trim().length > 0;
+  return (
+    t(form.deliveryUsername) ||
+    t(form.deliveryIdNumber) ||
+    t(form.deliveryEmail) ||
+    t(form.deliveryPhone) ||
+    (showOtherField && t(form.deliveryOther))
+  );
+}
+
 export function ComprarTicketDetalle() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -48,6 +109,8 @@ export function ComprarTicketDetalle() {
   const [error, setError] = useState('');
   const [payLoading, setPayLoading] = useState(false);
   const [imageModal, setImageModal] = useState<'qr' | 'factura' | null>(null);
+  const [deliveryForm, setDeliveryForm] = useState<DeliveryForm>(emptyForm);
+  const [showOtherField, setShowOtherField] = useState(false);
 
   useEffect(() => {
     if (!state?.listingId) {
@@ -66,17 +129,49 @@ export function ComprarTicketDetalle() {
       .finally(() => setLoading(false));
   }, [state?.listingId, state?.password]);
 
+  const deliveryOk = useMemo(() => hasAnyDeliveryData(deliveryForm, showOtherField), [deliveryForm, showOtherField]);
+  const canContinue = !payLoading && !!preview?.showFull && deliveryOk;
+
+  const setField = (key: keyof DeliveryForm, value: string) => {
+    setDeliveryForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const toggleOtro = useCallback(() => {
+    setShowOtherField((prev) => {
+      if (prev) {
+        setDeliveryForm((f) => ({ ...f, deliveryOther: '' }));
+      }
+      return !prev;
+    });
+  }, []);
+
   const handleContinue = async () => {
     if (!preview?.showFull) return;
+    if (!deliveryOk) {
+      setError('Completá al menos uno de los datos o el campo «Otro» si lo activaste.');
+      return;
+    }
     setError('');
     setPayLoading(true);
+    const trimOrUndef = (s: string) => {
+      const t = s.trim();
+      return t.length > 0 ? t : undefined;
+    };
     try {
+      const body: Record<string, unknown> = {
+        ticketListingId: preview.id,
+        paymentMethod: 'mercadopago',
+        deliveryUsername: trimOrUndef(deliveryForm.deliveryUsername),
+        deliveryIdNumber: trimOrUndef(deliveryForm.deliveryIdNumber),
+        deliveryEmail: trimOrUndef(deliveryForm.deliveryEmail),
+        deliveryPhone: trimOrUndef(deliveryForm.deliveryPhone),
+      };
+      if (showOtherField) {
+        body.deliveryOther = trimOrUndef(deliveryForm.deliveryOther);
+      }
       const res = await api<{ order: { id: string }; checkoutUrl?: string }>('/api/orders', {
         method: 'POST',
-        body: JSON.stringify({
-          ticketListingId: preview.id,
-          paymentMethod: 'mercadopago',
-        }),
+        body: JSON.stringify(body),
       });
       navigate(`/orden/${res.order.id}/pago`, { state: { checkoutUrl: res.checkoutUrl } });
     } catch (e) {
@@ -196,8 +291,50 @@ export function ComprarTicketDetalle() {
 
       {preview.showFull && (
         <>
+          <section className="comprar-delivery-section" aria-labelledby="comprar-delivery-heading">
+            <h2 id="comprar-delivery-heading">Detalles de compra</h2>
+            <p className="comprar-delivery-help">
+              Corroborá tener instalada la app donde recibirás el ticket. Completá los datos que correspondan. Si necesitás indicar
+              algo más (por ejemplo una dirección), tocá OTRO.
+            </p>
+            {BASE_INPUTS.map((field) => (
+              <div className="input-wrap" key={field.key}>
+                <label htmlFor={`delivery-${field.key}`}>{field.label}</label>
+                <input
+                  id={`delivery-${field.key}`}
+                  className="input-field"
+                  value={deliveryForm[field.key]}
+                  onChange={(e) => setField(field.key, e.target.value)}
+                  placeholder={field.placeholder}
+                  type={field.type ?? 'text'}
+                  autoComplete={field.autoComplete}
+                />
+              </div>
+            ))}
+            <button
+              type="button"
+              className={showOtherField ? 'comprar-otro-toggle comprar-otro-toggle--active' : 'comprar-otro-toggle'}
+              onClick={toggleOtro}
+            >
+              OTRO
+            </button>
+            {showOtherField ? (
+              <div className="input-wrap comprar-otro-field">
+                <label htmlFor="delivery-other">Otro</label>
+                <textarea
+                  id="delivery-other"
+                  className="input-field comprar-otro-textarea"
+                  value={deliveryForm.deliveryOther}
+                  onChange={(e) => setField('deliveryOther', e.target.value)}
+                  placeholder="Ej.: dirección de entrega, indicaciones o cualquier dato adicional"
+                  rows={3}
+                />
+              </div>
+            ) : null}
+          </section>
+
           {error && <p className="form-error">{error}</p>}
-          <button type="button" className="btn-primary" onClick={handleContinue} disabled={payLoading}>
+          <button type="button" className="btn-primary" onClick={handleContinue} disabled={!canContinue}>
             {payLoading ? 'Procesando…' : 'Continuar con la compra'}
           </button>
         </>
