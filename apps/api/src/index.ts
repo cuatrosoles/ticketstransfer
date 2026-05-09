@@ -5,7 +5,7 @@
  */
 
 import 'dotenv/config';
-import express, { type Request } from 'express';
+import express, { type Request, type Response } from 'express';
 import { getFirebaseAdmin } from './lib/firebase-admin.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -65,7 +65,7 @@ app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(
   express.json({
     limit: '2mb',
-    verify: (req, _res, buf) => {
+    verify: (req: Request, _res: Response, buf: Buffer) => {
       (req as Request & { rawBody?: string }).rawBody = buf.toString('utf8');
     },
   })
@@ -105,7 +105,7 @@ if (!isVercel) {
   app.use(
     '/uploads',
     express.static(uploadsDir, {
-      setHeaders: (res) => {
+      setHeaders: (res: Response) => {
         res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
       },
     })
@@ -125,7 +125,7 @@ app.use('/api/disputes', disputesRouter);
 app.use('/api/messages', messagesLimiter, messagesRouter);
 app.use('/api/admin', adminRouter);
 
-app.use((_req, res) => {
+app.use((_req: Request, res: Response) => {
   res.status(404).json({ error: 'No encontrado' });
 });
 
