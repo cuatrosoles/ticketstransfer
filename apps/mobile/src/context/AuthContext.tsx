@@ -18,6 +18,7 @@ import {
   promptBiometric,
   disableBiometrics as disableBiometricsStorage,
 } from '../lib/secureStorage';
+import { biometricLockBypassPickerOpenRef } from '../lib/biometricLockBypass';
 
 type User = { id: string; email: string; firstName?: string | null; lastName?: string | null; role: string };
 
@@ -292,6 +293,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       appStateRef.current = nextState;
       if (!user || !biometricEnabled) return;
       if (prev === 'active' && (nextState === 'background' || nextState === 'inactive')) {
+        // Cámara/galería ponen la app en segundo plano sin que el usuario “salga” de la app.
+        if (biometricLockBypassPickerOpenRef.current) return;
         setIsAppUnlocked(false);
         return;
       }

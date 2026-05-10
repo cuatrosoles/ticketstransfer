@@ -22,6 +22,7 @@ import {
   PermissionsAndroid,
 } from 'react-native';
 import { launchCameraSafe, launchImageLibrarySafe } from '../lib/imagePickerSafe';
+import { biometricLockBypassPickerOpenRef } from '../lib/biometricLockBypass';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useProfileImage } from '../context/ProfileImageContext';
@@ -197,6 +198,7 @@ export function ProfileScreen() {
   };
 
   const openCamera = async () => {
+    biometricLockBypassPickerOpenRef.current = true;
     if (Platform.OS === 'android') {
       const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA, {
         title: 'Permiso de cámara',
@@ -205,6 +207,7 @@ export function ProfileScreen() {
         buttonNegative: 'Cancelar',
       });
       if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        biometricLockBypassPickerOpenRef.current = false;
         setError('Se necesita permiso de cámara para tomar fotos.');
         return;
       }

@@ -22,6 +22,7 @@ import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/nativ
 import type { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../navigation/types';
 import { launchCameraSafe, launchImageLibrarySafe } from '../lib/imagePickerSafe';
+import { biometricLockBypassPickerOpenRef } from '../lib/biometricLockBypass';
 import Clipboard from '@react-native-clipboard/clipboard';
 import {
   createTicketListing,
@@ -166,13 +167,22 @@ export function PublishTicketScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
+      let cancelled = false;
       Promise.all([getProfile(), getCommissionPercentage()])
         .then(([p, c]) => {
+          if (cancelled) return;
           setProfile(p);
           setCommissionPercentage(c);
         })
-        .catch(() => setProfile(null))
-        .finally(() => setProfileLoading(false));
+        .catch(() => {
+          // No borrar profile: si falla la red al volver de cámara, no mostrar la pantalla de verificación vacía.
+        })
+        .finally(() => {
+          if (!cancelled) setProfileLoading(false);
+        });
+      return () => {
+        cancelled = true;
+      };
     }, [])
   );
 
@@ -204,6 +214,7 @@ export function PublishTicketScreen() {
   };
 
   const launchCameraWithPermission = (setter: (a: ImageAsset | null) => void) => {
+    biometricLockBypassPickerOpenRef.current = true;
     const doLaunch = () => {
       launchCameraSafe({ mediaType: 'photo', quality: 0.8 }, (res) => processImageResult(res, setter));
     };
@@ -218,6 +229,7 @@ export function PublishTicketScreen() {
         if (granted === PermissionsAndroid.RESULTS.GRANTED) {
           doLaunch();
         } else {
+          biometricLockBypassPickerOpenRef.current = false;
           Alert.alert(
             'Sin permiso',
             'Se necesita permiso de cámara para tomar fotos. Podés usar "Elegir de galería" en su lugar.',

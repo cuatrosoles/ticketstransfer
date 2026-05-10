@@ -1,7 +1,21 @@
 rootProject.name = 'TTMobileTemp'
-// node-linker=hoisted: packages en monorepo root (v2/node_modules). android/ -> ../../../ = v2
-def nodeModules = "../../../node_modules"
-apply from: file("${nodeModules}/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesSettingsGradle(settings)
+
+// Monorepo pnpm: RN CLI suele estar en apps/mobile/node_modules; con hoisted puede estar en v2/node_modules.
+def nativeModulesGradle = '@react-native-community/cli-platform-android/native_modules.gradle'
+def nodeModulesDirs = [
+  new File(settingsDir, '../node_modules'),
+  new File(settingsDir, '../../../node_modules'),
+]
+def nodeModules = nodeModulesDirs.find { new File(it, nativeModulesGradle).exists() }
+if (nodeModules == null) {
+  throw new GradleException(
+    'No se encontró ' + nativeModulesGradle +
+      '. ¿Corriste `pnpm install` en la carpeta apps/mobile y en la raíz v2?'
+  )
+}
+def nodeModulesPath = nodeModules.absolutePath.replace('\\', '/')
+
+apply from: file(new File(nodeModules, nativeModulesGradle)); applyNativeModulesSettingsGradle(settings)
 
 include ':app'
-includeBuild("${nodeModules}/@react-native/gradle-plugin")
+includeBuild("${nodeModulesPath}/@react-native/gradle-plugin")

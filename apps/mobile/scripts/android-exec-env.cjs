@@ -17,15 +17,41 @@ function resolveJavaHome() {
   }
 
   if (process.platform === 'darwin') {
-    const asJbrHome = '/Applications/Android Studio.app/Contents/jbr/Contents/Home';
-    if (fs.existsSync(path.join(asJbrHome, 'bin', javaBinName))) return asJbrHome;
-    const asJbrRoot = '/Applications/Android Studio.app/Contents/jbr';
-    if (fs.existsSync(path.join(asJbrRoot, 'bin', javaBinName))) return asJbrRoot;
+    const preferStudioJbr = process.env.RN_CLI_USE_ANDROID_STUDIO_JAVA === '1';
 
-    const versions = ['17', '21', '11', '1.17'];
-    for (const v of versions) {
+    /** JBR ~21 desde Android Studio: en macOS Darwin 25+ ha dado SIGSEGV en C1 al compilar clases de Gradle (p. ej. FileHierarchySet$Node). */
+    function androidStudioJbr() {
+      const asJbrHome = '/Applications/Android Studio.app/Contents/jbr/Contents/Home';
+      if (fs.existsSync(path.join(asJbrHome, 'bin', javaBinName))) return asJbrHome;
+      const asJbrRoot = '/Applications/Android Studio.app/Contents/jbr';
+      if (fs.existsSync(path.join(asJbrRoot, 'bin', javaBinName))) return asJbrRoot;
+      return null;
+    }
+
+    if (!preferStudioJbr) {
+      const versionsPreferred = ['17', '11', '1.17'];
+      for (const v of versionsPreferred) {
+        try {
+          const out = execSync(`/usr/libexec/java_home -v ${v}`, {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+          }).trim();
+          if (out && fs.existsSync(path.join(out, 'bin', javaBinName))) return out;
+        } catch {
+          /* siguiente */
+        }
+      }
+    }
+
+    const studio = androidStudioJbr();
+    if (studio) return studio;
+
+    for (const v of ['21', '17', '11', '1.17']) {
       try {
-        const out = execSync(`/usr/libexec/java_home -v ${v}`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+        const out = execSync(`/usr/libexec/java_home -v ${v}`, {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
         if (out && fs.existsSync(path.join(out, 'bin', javaBinName))) return out;
       } catch {
         /* siguiente */

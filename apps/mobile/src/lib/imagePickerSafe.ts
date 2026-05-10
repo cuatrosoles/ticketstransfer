@@ -3,6 +3,7 @@
  * evita en Hermes/Android: "No callback found for ImagePicker.launchImageLibrary — callback was already invoked".
  */
 import { launchCamera, launchImageLibrary, type ImagePickerResponse } from 'react-native-image-picker';
+import { biometricLockBypassPickerOpenRef } from './biometricLockBypass';
 
 type LibraryOptions = Parameters<typeof launchImageLibrary>[0];
 type CameraOptions = Parameters<typeof launchCamera>[0];
@@ -10,7 +11,11 @@ type CameraOptions = Parameters<typeof launchCamera>[0];
 function deferCallback(onResponse: (response: ImagePickerResponse) => void) {
   return (response: ImagePickerResponse) => {
     setTimeout(() => {
-      onResponse(response);
+      try {
+        onResponse(response);
+      } finally {
+        biometricLockBypassPickerOpenRef.current = false;
+      }
     }, 0);
   };
 }
@@ -19,6 +24,7 @@ export function launchImageLibrarySafe(
   options: LibraryOptions,
   onResponse: (response: ImagePickerResponse) => void
 ) {
+  biometricLockBypassPickerOpenRef.current = true;
   launchImageLibrary(options, deferCallback(onResponse));
 }
 
@@ -26,5 +32,6 @@ export function launchCameraSafe(
   options: CameraOptions,
   onResponse: (response: ImagePickerResponse) => void
 ) {
+  biometricLockBypassPickerOpenRef.current = true;
   launchCamera(options, deferCallback(onResponse));
 }

@@ -7,8 +7,18 @@ apply plugin: 'com.google.gms.google-services'
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
-// node-linker=hoisted: packages en monorepo root. android/app/ -> ../../../../ = v2
-def nodeModules = file("../../../../node_modules")
+def nativeModulesMarker = "@react-native-community/cli-platform-android/native_modules.gradle"
+def nodeModulesDirs = [
+  file("${projectDir}/../../node_modules"),
+  file("${projectDir}/../../../../node_modules"),
+]
+def nodeModules = nodeModulesDirs.find { file("${it}/${nativeModulesMarker}").exists() }
+if (nodeModules == null) {
+  throw new GradleException(
+    'No se encontró ' + nativeModulesMarker +
+      '. Ejecutá `pnpm install` desde v2 y desde apps/mobile si hace falta.'
+  )
+}
 def osName = System.getProperty("os.name").toLowerCase()
 def osBin = osName.contains("mac") ? "osx-bin" : (osName.contains("win") ? "win64-bin" : "linux64-bin")
 def hermescExecutable = osName.contains("win") ? "hermesc.exe" : "hermesc"
@@ -117,8 +127,12 @@ android {
 }
 
 dependencies {
+    // Por encima de los @react-native-firebase/* que traen BOM 32.8.x: BOM 33.x alinea gRPC/proto/protolite
+    // con la misma línea protobuf (corrige mergeExtDex D8 sobre clases protobuf).
+    implementation platform('com.google.firebase:firebase-bom:33.10.0')
+
     // The version of react-native is set by the React Native Gradle Plugin
-    implementation("com.facebook.react:react-android")
+    implementation('com.facebook.react:react-android')
 
     // GIF animados en <Image> (sin esto Android solo muestra el primer frame)
     implementation("com.facebook.fresco:animated-gif:3.1.3")

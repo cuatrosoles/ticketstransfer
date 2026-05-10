@@ -1,6 +1,8 @@
 'use strict';
 
 const { execSync } = require('child_process');
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { withAndroidPathEnv } = require('./android-exec-env.cjs');
 
@@ -22,6 +24,31 @@ if (isRelease && !finalEnv.NODE_OPTIONS) {
 
 const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
 const androidDir = path.join(__dirname, '..', 'android');
+
+/** AGP/transforms: cachés "inmutables" en ~/.gradle/caches/transforms-4 se corrompen y fallan con checkReleaseAarMetadata */
+function purgeGradleTransformsCacheForRelease() {
+  if (process.env.MOBILE_SKIP_GRADLE_TRANSFORM_PURGE === '1') return;
+  try {
+    execSync(`${gradlew} --stop`, { cwd: androidDir, stdio: 'pipe', shell: true, env: finalEnv });
+  } catch (_) {
+    /* sin daemons */
+  }
+  const transformsRoot = path.join(os.homedir(), '.gradle', 'caches', 'transforms-4');
+  try {
+    if (fs.existsSync(transformsRoot)) {
+      fs.rmSync(transformsRoot, { recursive: true, force: true });
+      console.log('[mobile] Caché ~/.gradle/caches/transforms-4 eliminada (recrea workspaces AGP corruptos).');
+    }
+  } catch (e) {
+    console.warn('[mobile] No se pudo borrar transforms-4. Probá: rm -rf ~/.gradle/caches/transforms-4');
+    console.warn('[mobile]', e.message);
+  }
+}
+
+if (isRelease) {
+  purgeGradleTransformsCacheForRelease();
+}
+
 const argStr = argv.map((a) => (/\s/.test(a) ? JSON.stringify(a) : a)).join(' ');
 const cmd = argStr ? `${gradlew} ${argStr}` : gradlew;
 
