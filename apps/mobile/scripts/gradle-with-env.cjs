@@ -19,7 +19,19 @@ const argv = process.argv.slice(2);
 const isRelease = argv.some((a) => a.includes('assembleRelease') || a.includes('bundleRelease'));
 const finalEnv = { ...env };
 if (isRelease && !finalEnv.NODE_OPTIONS) {
-  finalEnv.NODE_OPTIONS = '--max-old-space-size=4096';
+  finalEnv.NODE_OPTIONS = '--max-old-space-size=8192';
+}
+
+const nodeMajor = parseInt(String(process.versions.node).split('.')[0], 10) || 0;
+if (isRelease && nodeMajor >= 25) {
+  console.warn(
+    '[mobile] Aviso: estás usando Node.js ' +
+      process.version +
+      '. React Native 0.73 / Metro no están soportados en Node 25+.',
+  );
+  console.warn(
+    '[mobile] Si falla :app:createBundleReleaseJsAndAssets con exit 139 (SIGSEGV), usá Node 20 LTS desde apps/mobile: `nvm use` o `fnm use` (ver archivo .nvmrc).',
+  );
 }
 
 const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';

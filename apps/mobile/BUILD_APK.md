@@ -6,10 +6,65 @@ Instrucciones para generar un APK actualizado y enviarlo a tu cliente para prueb
 
 ## Requisitos previos
 
-- **Node.js** ≥ 18 (el monorepo pide ≥ 20)
-- **pnpm** instalado
+- **Node.js** **20 LTS** (hay un `.nvmrc` en `apps/mobile`). Con **Node 25+** el paso `:app:createBundleReleaseJsAndAssets` a veces cae con **exit 139** (Metro). Node 18 suele servir; 20 es lo más estable para RN 0.73.
+- **pnpm** en la versión del monorepo (**9.15.5**, ver `packageManager` en `v2/package.json`). Si instalaste **pnpm 10+** con `npm i -g pnpm`, con Node 20 falla con `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite` y avisos de “pnpm requires Node.js v22.13”. **No mezcles** ese pnpm global con Node 20: usá Corepack (abajo) o `npx pnpm@9.15.5`.
 - **JDK 17** (recomendado para React Native 0.73)
 - **Android SDK** con `ANDROID_HOME` configurado
+
+### Node 20 en macOS si no usás nvm
+
+Si `nvm` no existe en tu terminal (`command not found`), elegí **una** de estas vías:
+
+**A) Homebrew (simple)**
+
+```bash
+brew install node@20
+echo 'export PATH="/opt/homebrew/opt/node@20/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+node -v   # v20.x
+```
+
+En Mac Intel la ruta suele ser `/usr/local/opt/node@20/bin`.
+
+**B) fnm (gestor liviano, similar a nvm)**
+
+```bash
+brew install fnm
+echo 'eval "$(fnm env --use-on-cd --shell zsh)"' >> ~/.zshrc
+source ~/.zshrc
+cd /ruta/a/ticketTransfer/v2/apps/mobile
+fnm install
+fnm use
+node -v
+```
+
+**C) Instalador oficial**
+
+Descargá el instalador **LTS 20** desde [https://nodejs.org/](https://nodejs.org/) y volvé a abrir la terminal.
+
+**D) nvm (si lo querés usar)**
+
+Instalación típica: [https://github.com/nvm-sh/nvm#installing-and-updating](https://github.com/nvm-sh/nvm#installing-and-updating) (después reiniciá la terminal o `source ~/.zshrc` para cargar `nvm`).
+
+### pnpm con Node 20 (evitar `node:sqlite` / pnpm “pide Node 22”)
+
+**Opción rápida** (sin tocar el pnpm global), desde `apps/mobile`:
+
+```bash
+npx --yes pnpm@9.15.5 apk:release
+```
+
+**Opción recomendada** (dejá `pnpm` en PATH alineado al repo):
+
+```bash
+corepack enable
+corepack prepare pnpm@9.15.5 --activate
+pnpm -v   # debe mostrar 9.15.5
+```
+
+Si seguís viendo la versión vieja, el `pnpm` del principio del `PATH` suele ser el global: `which -a pnpm` y, si hace falta, `npm uninstall -g pnpm` y volvé a activar Corepack.
+
+**Alternativa:** subir a **Node 22 LTS** (suele ir bien con Metro en RN 0.73 y permite pnpm 10+ si lo necesitás). Evitá **Node 25+** para el bundle release.
 
 ### Gradle y Java en la terminal (macOS)
 
@@ -161,39 +216,30 @@ En macOS, agregá esto a `~/.zshrc` o `~/.bash_profile`.
 
 ### Error: "Gradle build daemon disappeared unexpectedly" (crash JVM)
 
-Es un bug conocido de Zulu JDK 17 en macOS. Probá en este orden:
+No es un error de tu código React Native: el proceso **Java de Gradle** (Temurin 17 u otro JDK) se cae con **SIGSEGV** en macOS reciente (**Darwin 25/26**). En los logs `android/hs_err_pid*.log` suele aparecer el frame `Klass::search_secondary_supers` (compilador **C2** del HotSpot).
 
-**1. Ejecutar sin daemon (evita el crash del daemon):**
+**Ya aplicado en el repo:** en `android/gradle.properties`, `org.gradle.jvmargs` incluye **`-XX:TieredStopAtLevel=1`** (solo compilación hasta C1; evita el bug de C2 en el daemon) y **ParallelGC** (no usar SerialGC aquí: en algunos setups rompe D8/R8).
+
+Pasos si aún falló con una copia vieja de `gradle.properties`:
 
 ```bash
 cd apps/mobile/android
 ./gradlew --stop
-./gradlew assembleRelease --no-daemon
+rm -f hs_err_pid*.log
+cd ..
+npx --yes pnpm@9.15.5 apk:release
 ```
 
-**2. Si sigue fallando, usar JDK 11 o Temurin:**
+**Si sigue fallando:** probá otro JDK solo para la terminal del build, por ejemplo Temurin 21 (a veces va mejor con macOS muy nuevo):
 
 ```bash
-# Con SDKMAN (si lo tenés):
-sdk install java 11.0.21-tem
-sdk use java 11.0.21-tem
-
-# O con Homebrew:
-brew install openjdk@11
-export JAVA_HOME=$(/usr/libexec/java_home -v 11)
+brew install --cask temurin@21
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
 cd apps/mobile
-pnpm apk:release
+npx --yes pnpm@9.15.5 apk:release
 ```
 
-**3. Reducir uso de memoria del compilador (gradle.properties):**
-
-Agregar a `android/gradle.properties` en `org.gradle.jvmargs`:
-
-```
--XX:+UseSerialGC
-```
-
----
+(O JDK 11 como último recurso, con el mismo `export JAVA_HOME=...`.)
 
 ### Error: "Illegal type at constant pool entry" / "Constant pool index invalid" (TestComponentImpl)
 
