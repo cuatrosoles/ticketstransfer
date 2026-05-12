@@ -22,8 +22,10 @@ import { useNavigation } from '@react-navigation/native';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
+import { SupportChannelsBlock } from '../components/SupportChannelsBlock';
 import { colors, spacing, radius, glassCard } from '../theme';
 import { sendMessage, generateMessageId, type ChatMessage } from '../lib/chatService';
+import { useBranding } from '../context/BrandingContext';
 
 const WELCOME_MESSAGE: ChatMessage = {
   id: 'welcome',
@@ -36,6 +38,7 @@ const WELCOME_MESSAGE: ChatMessage = {
 export function ChatSoporteScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const brand = useBranding();
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -103,10 +106,12 @@ export function ChatSoporteScreen() {
         >
           <ScreenHeader
             title="Chat Soporte"
+            logoUri={brand.logoUrl}
             showBack
             onBack={() => navigation.goBack()}
             rightSlot={<UserMenuButton />}
           />
+          <SupportChannelsBlock />
           {messages.map((msg) => (
             <View key={msg.id} style={[styles.messageRow, msg.isUser && styles.messageRowUser]}>
               <View style={[styles.bubble, msg.isUser ? styles.bubbleUser : styles.bubbleBot]}>
@@ -133,7 +138,7 @@ export function ChatSoporteScreen() {
           {loading && (
             <View style={styles.messageRow}>
               <View style={[styles.bubble, styles.bubbleBot, styles.typingBubble]}>
-                <ActivityIndicator size="small" color={colors.primaryLight} />
+                <ActivityIndicator size="small" color={brand.primaryLight} />
                 <Text style={styles.typingText}>Escribiendo...</Text>
               </View>
             </View>
@@ -154,7 +159,7 @@ export function ChatSoporteScreen() {
             editable={!loading}
           />
           <TouchableOpacity
-            style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
+            style={[styles.sendBtn, { backgroundColor: brand.primaryHex }, (!input.trim() || loading) && styles.sendBtnDisabled]}
             onPress={() => handleSend(input)}
             disabled={!input.trim() || loading}
           >

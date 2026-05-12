@@ -8,6 +8,7 @@ import { View, StyleSheet, Text, TextInput } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { AuthProvider } from './src/context/AuthContext';
+import { BrandingProvider } from './src/context/BrandingContext';
 import { ProfileImageProvider } from './src/context/ProfileImageContext';
 import { FcmConversationOpener } from './src/components/FcmConversationOpener';
 import { FcmForegroundMessageSync } from './src/components/FcmForegroundMessageSync';
@@ -46,16 +47,18 @@ export default function App() {
   return (
     <SafeAreaProvider style={styles.flex}>
       <View style={styles.flex}>
-        <AuthProvider>
-          <ProfileImageProvider>
-            <NavigationContainer ref={navigationRef} linking={linking}>
-              <FcmConversationOpener navigationRef={navigationRef} />
-              <FcmForegroundMessageSync />
-              <RootNavigator />
-            </NavigationContainer>
-          </ProfileImageProvider>
-        </AuthProvider>
-        {!splashFinished ? <SplashScreen onFinished={onSplashFinished} /> : null}
+        <BrandingProvider>
+          <AuthProvider>
+            <ProfileImageProvider>
+              <NavigationContainer ref={navigationRef} linking={linking}>
+                <FcmConversationOpener navigationRef={navigationRef} />
+                <FcmForegroundMessageSync />
+                <RootNavigator />
+              </NavigationContainer>
+            </ProfileImageProvider>
+          </AuthProvider>
+          {!splashFinished ? <SplashScreen onFinished={onSplashFinished} /> : null}
+        </BrandingProvider>
       </View>
     </SafeAreaProvider>
   );

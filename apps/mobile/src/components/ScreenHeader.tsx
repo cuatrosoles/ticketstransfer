@@ -16,9 +16,11 @@ type Props = {
   rightSlot?: React.ReactNode;
   /** Contenido junto al título (ej. avatar del contacto en chat) */
   titleRight?: React.ReactNode;
+  /** Logo remoto (URL https); si no hay, se usa el recurso local. */
+  logoUri?: string | null;
 };
 
-export function ScreenHeader({ title, showBack, onBack, rightSlot, titleRight }: Props) {
+export function ScreenHeader({ title, showBack, onBack, rightSlot, titleRight, logoUri }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.row}>
@@ -30,7 +32,7 @@ export function ScreenHeader({ title, showBack, onBack, rightSlot, titleRight }:
           <View style={styles.spacer} />
         )}
         <Image
-          source={require('../assets/images/LogoTT-v01.png')}
+          source={logoUri ? { uri: logoUri } : require('../assets/images/LogoTT-v01.png')}
           style={styles.logo}
           resizeMode="contain"
         />

@@ -7,6 +7,7 @@ type DisputeDetailType = {
   id: string;
   status: string;
   reason: string | null;
+  adminNotes?: string | null;
   order: {
     id: string;
     ticketListing: { eventName: string };
@@ -20,12 +21,18 @@ export function DisputeDetail() {
   const { id } = useParams<{ id: string }>();
   const [dispute, setDispute] = useState<DisputeDetailType | null>(null);
   const [message, setMessage] = useState('');
+  const [adminNotesDraft, setAdminNotesDraft] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [modBusy, setModBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = () => {
     if (!id) return;
     api<DisputeDetailType>(`/api/disputes/${id}`)
-      .then(setDispute)
+      .then((d) => {
+        setDispute(d);
+        setAdminNotesDraft(typeof d.adminNotes === 'string' ? d.adminNotes : '');
+      })
       .catch(() => setDispute(null))
       .finally(() => setLoading(false));
   };
@@ -56,6 +63,51 @@ export function DisputeDetail() {
     }
   };
 
+  const saveAdminNotes = async () => {
+    if (!id) return;
+    setSavingNotes(true);
+    try {
+      await api(`/api/admin/disputes/${id}/notes`, {
+        method: 'PATCH',
+        body: JSON.stringify({ adminNotes: adminNotesDraft }),
+      });
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
+  const redactDisputeMessage = async (messageId: string) => {
+    if (!confirm('¿Redactar este mensaje?')) return;
+    setModBusy(messageId);
+    try {
+      await api(`/api/admin/dispute-messages/${messageId}`, { method: 'PATCH', body: JSON.stringify({ redact: true }) });
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setModBusy(null);
+    }
+  };
+
+  const editDisputeMessage = async (messageId: string) => {
+    const next = window.prompt('Nuevo contenido:');
+    if (next === null) return;
+    const t = next.trim();
+    if (!t) return;
+    setModBusy(messageId);
+    try {
+      await api(`/api/admin/dispute-messages/${messageId}`, { method: 'PATCH', body: JSON.stringify({ content: t }) });
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setModBusy(null);
+    }
+  };
+
   if (loading) return <p>Cargando…</p>;
   if (!dispute) return <p>Disputa no encontrada.</p>;
 
@@ -74,6 +126,22 @@ export function DisputeDetail() {
         {dispute.reason && <p><strong>Motivo:</strong> {dispute.reason}</p>}
       </div>
       <div className="card">
+        <h3 style={{ marginTop: 0 }}>Notas internas (admin)</h3>
+        <p className="text-muted" style={{ fontSize: '0.875rem', marginTop: 0 }}>
+          Solo para el equipo; no se muestran en la app salvo que lo implementes en el cliente.
+        </p>
+        <textarea
+          className="input"
+          rows={4}
+          value={adminNotesDraft}
+          onChange={(e) => setAdminNotesDraft(e.target.value)}
+          placeholder="Observaciones, enlaces a evidencia externa, etc."
+        />
+        <button type="button" className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={saveAdminNotes} disabled={savingNotes}>
+          {savingNotes ? 'Guardando…' : 'Guardar notas'}
+        </button>
+      </div>
+      <div className="card">
         <h3 style={{ marginTop: 0 }}>Mensajes</h3>
         {dispute.messages.length === 0 ? <p className="text-muted">Sin mensajes.</p> : (
           <ul style={{ listStyle: 'none', padding: 0 }}>
@@ -82,6 +150,14 @@ export function DisputeDetail() {
                 <strong>{m.user.email}</strong> {m.isModerator && <span className="badge badge-pending">Mod</span>}
                 <div>{m.content}</div>
                 <small style={{ color: 'var(--text-muted)' }}>{new Date(m.createdAt).toLocaleString()}</small>
+                <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                  <button type="button" className="btn btn-sm" disabled={modBusy === m.id} onClick={() => editDisputeMessage(m.id)}>
+                    Editar
+                  </button>
+                  <button type="button" className="btn btn-sm btn-danger" disabled={modBusy === m.id} onClick={() => redactDisputeMessage(m.id)}>
+                    Redactar
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

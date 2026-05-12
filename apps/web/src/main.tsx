@@ -8,14 +8,17 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
 import { AuthProvider } from './context/AuthContext';
+import { BrandingProvider } from './context/BrandingContext';
 import './styles/global.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <BrandingProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </BrandingProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

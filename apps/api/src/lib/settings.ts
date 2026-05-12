@@ -32,6 +32,8 @@ export type PlatformSettings = {
   marketplaceHomePublicListingsLimit: number;
   users?: Record<string, unknown>;
   visual?: Record<string, unknown>;
+  /** Textos y flags de notificaciones (consumo futuro en API / plantillas). */
+  notifications?: Record<string, unknown>;
   updatedAt?: Date;
 };
 
@@ -50,6 +52,7 @@ const DEFAULTS: PlatformSettings = {
   },
   users: {},
   visual: {},
+  notifications: {},
 };
 
 const SETTINGS_DOC_ID = 'main';
@@ -86,6 +89,7 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
     },
     users: d.users ?? {},
     visual: d.visual ?? {},
+    notifications: d.notifications ?? {},
     updatedAt: d.updatedAt?.toDate?.() ?? undefined,
   };
   cacheExpiry = Date.now() + CACHE_TTL_MS;

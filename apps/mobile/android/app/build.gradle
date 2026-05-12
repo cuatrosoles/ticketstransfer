@@ -14,7 +14,7 @@ def nodeModulesDirs = [
 ]
 def nodeModules = nodeModulesDirs.find { file("${it}/${nativeModulesMarker}").exists() }
 if (nodeModules == null) {
-  throw new GradleException(
+  throw new IllegalStateException(
     'No se encontró ' + nativeModulesMarker +
       '. Ejecutá `pnpm install` desde v2 y desde apps/mobile si hace falta.'
   )

@@ -5,6 +5,7 @@
 import * as React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, ActivityIndicator, StyleProp } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import { useBranding } from '../context/BrandingContext';
 
 type Props = {
   title: string;
@@ -25,18 +26,19 @@ export function GradientButton({
   style,
   textStyle,
 }: Props) {
+  const { primaryGradient, primaryLight } = useBranding();
   if (variant === 'secondary') {
     return (
       <TouchableOpacity
-        style={[styles.secondary, style]}
+        style={[styles.secondary, { borderColor: primaryLight }, style]}
         onPress={onPress}
         disabled={disabled}
         activeOpacity={0.8}
       >
         {loading ? (
-          <ActivityIndicator color="#60a5fa" />
+          <ActivityIndicator color={primaryLight} />
         ) : (
-          <Text style={[styles.secondaryText, textStyle]}>{title}</Text>
+          <Text style={[styles.secondaryText, { color: primaryLight }, textStyle]}>{title}</Text>
         )}
       </TouchableOpacity>
     );
@@ -44,13 +46,13 @@ export function GradientButton({
 
   return (
     <TouchableOpacity
-      style={[styles.primaryWrap, style]}
+      style={[styles.primaryWrap, { shadowColor: primaryGradient[1] }, style]}
       onPress={onPress}
       disabled={disabled}
       activeOpacity={0.9}
     >
       <LinearGradient
-        colors={['#2563eb', '#3b82f6', '#60a5fa']}
+        colors={primaryGradient}
         locations={[0, 0.5, 1]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -74,7 +76,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
-    shadowColor: '#3b82f6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 20,
@@ -88,8 +89,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#60a5fa',
     backgroundColor: 'transparent',
   },
-  secondaryText: { color: '#60a5fa', fontWeight: '600', fontSize: 16 },
+  secondaryText: { fontWeight: '600', fontSize: 16 },
 });

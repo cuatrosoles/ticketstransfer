@@ -4,10 +4,13 @@ import { useNavigation } from '@react-navigation/native';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
+import { SupportChannelsBlock } from '../components/SupportChannelsBlock';
+import { useBranding } from '../context/BrandingContext';
 import { colors, glassCard, spacing } from '../theme';
 
 export function RecomendacionesQuejasScreen() {
   const navigation = useNavigation();
+  const { supportEmail } = useBranding();
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
@@ -17,12 +20,13 @@ export function RecomendacionesQuejasScreen() {
           onBack={() => navigation.goBack()}
           rightSlot={<UserMenuButton />}
         />
+        <SupportChannelsBlock />
         <View style={[styles.card, glassCard]}>
           <Text style={styles.title}>Canal de sugerencias</Text>
           <Text style={styles.body}>
-            Si querés dejarnos una recomendación o reportar una queja, escribinos por `Chat Soporte` indicando:
-            número de orden, fecha y una breve descripción. Nuestro equipo revisa cada caso y da respuesta por la
-            misma vía.
+            Si querés dejarnos una recomendación o reportar una queja, escribinos por Chat Soporte (asistente) o, si
+            figura arriba, por email al equipo{supportEmail ? ` (${supportEmail})` : ''}, indicando: número de orden,
+            fecha y una breve descripción. Nuestro equipo revisa cada caso.
           </Text>
         </View>
       </ScrollView>

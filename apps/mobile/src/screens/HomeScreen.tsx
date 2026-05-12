@@ -28,6 +28,7 @@ import { colors, spacing, radius, glassCard } from '../theme';
 import { getMarketplacePublicListings, type MarketplacePublicItem } from '../lib/api';
 import { MarketplaceTicketCard } from '../components/MarketplaceTicketCard';
 import { formatDateTime } from '../lib/datetime';
+import { useBranding } from '../context/BrandingContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
@@ -46,6 +47,7 @@ export function HomeScreen() {
     biometricAvailability,
   } = useAuth();
   const navigation = useNavigation<Nav>();
+  const brand = useBranding();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const marketplaceMaxHeight = windowHeight * 0.4;
   /** Columna ~48% del ancho útil: altura mínima > ancho para que el stub se lea en vertical */
@@ -92,6 +94,7 @@ export function HomeScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <ScreenHeader
           title="INICIO"
+          logoUri={brand.logoUrl}
           showBack={navigation.canGoBack()}
           onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
           rightSlot={<UserMenuButton />}
@@ -102,19 +105,19 @@ export function HomeScreen() {
         <View style={[styles.marketplaceSection, { height: marketplaceMaxHeight }]}>
           {marketplaceLoading ? (
             <View style={styles.marketplaceLoading}>
-              <ActivityIndicator color={colors.primaryLight} />
+              <ActivityIndicator color={brand.primaryLight} />
             </View>
           ) : marketplaceError ? (
             <View style={styles.marketplaceFallback}>
               <Text style={styles.marketplaceError}>{marketplaceError}</Text>
-              <TouchableOpacity style={styles.tiendaBtn} onPress={() => navigation.navigate('Tienda')}>
+              <TouchableOpacity style={[styles.tiendaBtn, { backgroundColor: brand.primaryHex }]} onPress={() => navigation.navigate('Tienda')}>
                 <Text style={styles.tiendaBtnText}>Ir a la Tienda</Text>
               </TouchableOpacity>
             </View>
           ) : marketplaceItems.length === 0 ? (
             <View style={styles.marketplaceFallback}>
               <Text style={styles.marketplaceEmpty}>No hay tickets públicos por el momento.</Text>
-              <TouchableOpacity style={styles.tiendaBtn} onPress={() => navigation.navigate('Tienda')}>
+              <TouchableOpacity style={[styles.tiendaBtn, { backgroundColor: brand.primaryHex }]} onPress={() => navigation.navigate('Tienda')}>
                 <Text style={styles.tiendaBtnText}>Ir a la Tienda</Text>
               </TouchableOpacity>
             </View>
@@ -145,7 +148,7 @@ export function HomeScreen() {
                   ))}
                 </View>
               </ScrollView>
-              <TouchableOpacity style={styles.tiendaBtn} onPress={() => navigation.navigate('Tienda')}>
+              <TouchableOpacity style={[styles.tiendaBtn, { backgroundColor: brand.primaryHex }]} onPress={() => navigation.navigate('Tienda')}>
                 <Text style={styles.tiendaBtnText}>Ir a la Tienda</Text>
               </TouchableOpacity>
             </>
@@ -232,7 +235,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   tiendaBtn: {
-    backgroundColor: colors.primary,
     paddingVertical: 12,
     borderRadius: radius,
     alignItems: 'center',

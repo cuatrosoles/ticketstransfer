@@ -8,6 +8,7 @@ import { requireAuth, requireAdmin, type AuthRequest } from '../middleware/auth.
 import { getPlatformSettings, invalidateSettingsCache } from '../lib/settings.js';
 import { getOrCreateCustomer, listCustomerCards } from '../lib/mercadopago.js';
 import { getDiditSessionDecision, updateDiditSessionStatus } from '../lib/didit.js';
+import { ORDER_STATUS, TICKET_LISTING_STATUS, DISPUTE_STATUS } from '@tickets-transfer/shared';
 import {
   createPayoutToSeller,
   getSellerAmount,
@@ -15,8 +16,13 @@ import {
   markTransferAsManualComplete,
   retryTransfer,
 } from '../lib/payouts.js';
+import { sendPushNotification } from '../lib/firebase-messaging.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
+
+const PUNTOS_POR_RATING_POSITIVO = 5;
+const REDACTED_MESSAGE = '[Contenido removido por moderación]';
 
 router.use(requireAuth);
 router.use(requireAdmin);
@@ -79,6 +85,10 @@ router.put('/settings', async (req: AuthRequest, res) => {
     updates.visual = { ...current.visual, ...body.visual };
   }
 
+  if (body.notifications && typeof body.notifications === 'object') {
+    updates.notifications = { ...(current.notifications ?? {}), ...body.notifications };
+  }
+
   await docRef.set(updates, { merge: true });
   invalidateSettingsCache();
 
@@ -116,6 +126,132 @@ router.get('/stats', async (_req, res) => {
     kycPending: kycSnap.size,
     listingsCount: listingsSnap.size,
     ticketsPending: ticketsPendingSnap.size,
+  });
+});
+
+const TRANSFER_STATUSES = ['PENDIENTE', 'ENVIADO', 'COMPLETADO', 'FALLIDO', 'PENDIENTE_MANUAL', 'ENVIADO_MANUAL'] as const;
+
+/** Estadísticas ampliadas para panel admin (agregaciones en memoria + conteos). */
+router.get('/analytics', async (_req, res) => {
+  const [
+    usersSnap,
+    ordersSnap,
+    listingsSnap,
+    disputesSnap,
+    transfersSnap,
+    ratingsPositiveCount,
+    ratingsNegativeCount,
+    conversationsCountSnap,
+    messagesCountSnap,
+    invoicePendingSnap,
+    kycEnRevisionSnap,
+    ticketsPendingSnap,
+    disputesOpenSnap,
+    listingsDisponibleSnap,
+    ordersCompletedSnap,
+  ] = await Promise.all([
+    db().collection(COLLECTIONS.USERS).get(),
+    db().collection(COLLECTIONS.ORDERS).get(),
+    db().collection(COLLECTIONS.TICKET_LISTINGS).get(),
+    db().collection(COLLECTIONS.DISPUTES).get(),
+    db().collection(COLLECTIONS.SELLER_TRANSFERS).get(),
+    db().collection(COLLECTIONS.ORDER_RATINGS).where('positive', '==', true).count().get(),
+    db().collection(COLLECTIONS.ORDER_RATINGS).where('positive', '==', false).count().get(),
+    db().collection(COLLECTIONS.CONVERSATIONS).count().get(),
+    db().collection(COLLECTIONS.MESSAGES).count().get(),
+    db().collection(COLLECTIONS.TRANSACTION_INVOICE_REQUESTS).where('status', '==', 'PENDIENTE').count().get(),
+    db().collection(COLLECTIONS.KYC_VERIFICATIONS).where('status', '==', 'EN_REVISION').get(),
+    db().collection(COLLECTIONS.TICKET_LISTINGS).where('status', '==', 'PENDIENTE_VERIFICACION').get(),
+    db()
+      .collection(COLLECTIONS.DISPUTES)
+      .where('status', 'in', ['ABIERTA', 'EN_REVISION', 'ESPERANDO_INFO'])
+      .get(),
+    db().collection(COLLECTIONS.TICKET_LISTINGS).where('status', '==', 'DISPONIBLE').get(),
+    db().collection(COLLECTIONS.ORDERS).where('status', '==', 'COMPLETADA').get(),
+  ]);
+
+  const ordersByStatus: Record<string, number> = {};
+  for (const s of ORDER_STATUS) ordersByStatus[s] = 0;
+  let revenueCompleted = 0;
+  const orderRows: Array<{ id: string; status: string; totalAmount: number; currency: string; createdAt: string | null }> = [];
+  for (const doc of ordersSnap.docs) {
+    const d = doc.data();
+    const st = typeof d.status === 'string' ? d.status : 'DESCONOCIDO';
+    ordersByStatus[st] = (ordersByStatus[st] ?? 0) + 1;
+    if (st === 'COMPLETADA') {
+      revenueCompleted += Number(d.totalAmount ?? 0);
+    }
+    const created = d.createdAt?.toDate?.() ?? d.createdAt;
+    orderRows.push({
+      id: doc.id,
+      status: st,
+      totalAmount: Number(d.totalAmount ?? 0),
+      currency: typeof d.currency === 'string' ? d.currency : 'ARS',
+      createdAt: created instanceof Date ? created.toISOString() : typeof created === 'string' ? created : null,
+    });
+  }
+  orderRows.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  const recentOrders = orderRows.slice(0, 12);
+
+  const listingsByStatus: Record<string, number> = {};
+  for (const s of TICKET_LISTING_STATUS) listingsByStatus[s] = 0;
+  for (const doc of listingsSnap.docs) {
+    const st = typeof doc.data().status === 'string' ? doc.data().status : 'PENDIENTE_VERIFICACION';
+    listingsByStatus[st] = (listingsByStatus[st] ?? 0) + 1;
+  }
+
+  const disputesByStatus: Record<string, number> = {};
+  for (const s of DISPUTE_STATUS) disputesByStatus[s] = 0;
+  for (const doc of disputesSnap.docs) {
+    const st = typeof doc.data().status === 'string' ? doc.data().status : 'ABIERTA';
+    disputesByStatus[st] = (disputesByStatus[st] ?? 0) + 1;
+  }
+
+  const transfersByStatus: Record<string, number> = {};
+  for (const s of TRANSFER_STATUSES) transfersByStatus[s] = 0;
+  let transferVolumePending = 0;
+  for (const doc of transfersSnap.docs) {
+    const d = doc.data();
+    const st = typeof d.status === 'string' ? d.status : 'PENDIENTE';
+    transfersByStatus[st] = (transfersByStatus[st] ?? 0) + 1;
+    if (['PENDIENTE', 'PENDIENTE_MANUAL', 'FALLIDO'].includes(st)) {
+      transferVolumePending += Number(d.amount ?? 0);
+    }
+  }
+
+  res.json({
+    generatedAt: new Date().toISOString(),
+    overview: {
+      usersCount: usersSnap.size,
+      ordersCount: ordersSnap.size,
+      ordersCompleted: ordersCompletedSnap.size,
+      listingsPublished: listingsSnap.size,
+      listingsAvailable: listingsDisponibleSnap.size,
+      ticketsPendingReview: ticketsPendingSnap.size,
+      disputesOpen: disputesOpenSnap.size,
+      kycPendingReview: kycEnRevisionSnap.size,
+      conversationsCount: conversationsCountSnap.data().count,
+      messagesCount: messagesCountSnap.data().count,
+      invoiceRequestsPending: invoicePendingSnap.data().count,
+    },
+    revenue: {
+      completedOrdersCount: ordersCompletedSnap.size,
+      totalAmountCompletedSum: revenueCompleted,
+      currency: 'ARS',
+    },
+    ratings: {
+      positive: ratingsPositiveCount.data().count,
+      negative: ratingsNegativeCount.data().count,
+    },
+    ordersByStatus,
+    listingsByStatus,
+    disputesByStatus,
+    transfersByStatus,
+    transfers: {
+      totalRecords: transfersSnap.size,
+      pendingVolumeApprox: transferVolumePending,
+    },
+    recentOrders,
   });
 });
 
@@ -1071,6 +1207,275 @@ router.patch('/invoice-requests/:requestId', async (req: AuthRequest, res) => {
     createdAt: x.createdAt?.toDate?.() ?? x.createdAt,
     updatedAt: x.updatedAt?.toDate?.() ?? x.updatedAt,
   });
+});
+
+/** Valoraciones de órdenes (reputación) */
+router.get('/ratings', async (req: AuthRequest, res) => {
+  const { page = '1', limit = '30', orderId } = req.query;
+  const pageNum = Math.max(1, Number(page));
+  const limitNum = Math.min(100, Math.max(1, Number(limit)));
+
+  let docs: FirebaseFirestore.QueryDocumentSnapshot[];
+  if (typeof orderId === 'string' && orderId) {
+    const q = await db().collection(COLLECTIONS.ORDER_RATINGS).where('orderId', '==', orderId).get();
+    docs = q.docs.sort((a, b) => {
+      const ta = a.data().createdAt?.toDate?.()?.getTime() ?? 0;
+      const tb = b.data().createdAt?.toDate?.()?.getTime() ?? 0;
+      return tb - ta;
+    });
+  } else {
+    const snap = await db()
+      .collection(COLLECTIONS.ORDER_RATINGS)
+      .orderBy('createdAt', 'desc')
+      .limit(500)
+      .get();
+    docs = [...snap.docs];
+  }
+  const total = docs.length;
+  const skip = (pageNum - 1) * limitNum;
+  const slice = docs.slice(skip, skip + limitNum);
+  const ratings = await Promise.all(
+    slice.map(async (doc) => {
+      const r = doc.data();
+      const [rater, rated] = await Promise.all([
+        db().collection(COLLECTIONS.USERS).doc(r.raterId).get(),
+        db().collection(COLLECTIONS.USERS).doc(r.ratedUserId).get(),
+      ]);
+      return {
+        id: doc.id,
+        orderId: r.orderId,
+        raterId: r.raterId,
+        ratedUserId: r.ratedUserId,
+        positive: !!r.positive,
+        points: typeof r.points === 'number' ? r.points : r.positive ? PUNTOS_POR_RATING_POSITIVO : 0,
+        createdAt: r.createdAt?.toDate?.() ?? r.createdAt,
+        rater: rater.exists ? { id: r.raterId, email: rater.data()?.email } : null,
+        ratedUser: rated.exists ? { id: r.ratedUserId, email: rated.data()?.email } : null,
+      };
+    })
+  );
+  res.json({ ratings, total });
+});
+
+router.get('/ratings/:ratingId', async (req: AuthRequest, res) => {
+  const doc = await db().collection(COLLECTIONS.ORDER_RATINGS).doc(req.params.ratingId).get();
+  if (!doc.exists) return res.status(404).json({ error: 'Valoración no encontrada' });
+  const r = doc.data()!;
+  const [rater, rated, orderDoc] = await Promise.all([
+    db().collection(COLLECTIONS.USERS).doc(r.raterId).get(),
+    db().collection(COLLECTIONS.USERS).doc(r.ratedUserId).get(),
+    db().collection(COLLECTIONS.ORDERS).doc(r.orderId).get(),
+  ]);
+  res.json({
+    id: doc.id,
+    orderId: r.orderId,
+    raterId: r.raterId,
+    ratedUserId: r.ratedUserId,
+    positive: !!r.positive,
+    points: typeof r.points === 'number' ? r.points : r.positive ? PUNTOS_POR_RATING_POSITIVO : 0,
+    createdAt: r.createdAt?.toDate?.() ?? r.createdAt,
+    rater: rater.exists ? { id: r.raterId, email: rater.data()?.email } : null,
+    ratedUser: rated.exists ? { id: r.ratedUserId, email: rated.data()?.email } : null,
+    order: orderDoc.exists ? { id: orderDoc.id, status: orderDoc.data()?.status } : null,
+  });
+});
+
+router.patch('/ratings/:ratingId', async (req: AuthRequest, res) => {
+  const { ratingId } = req.params;
+  const body = req.body as { positive?: boolean };
+  const ref = db().collection(COLLECTIONS.ORDER_RATINGS).doc(ratingId);
+  const doc = await ref.get();
+  if (!doc.exists) return res.status(404).json({ error: 'Valoración no encontrada' });
+  const r = doc.data()!;
+  const prevPositive = !!r.positive;
+  const nextPositive = typeof body.positive === 'boolean' ? body.positive : prevPositive;
+  if (prevPositive === nextPositive) {
+    const d = doc.data()!;
+    return res.json({
+      id: doc.id,
+      ...d,
+      positive: !!d.positive,
+      points: typeof d.points === 'number' ? d.points : d.positive ? PUNTOS_POR_RATING_POSITIVO : 0,
+      createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    });
+  }
+
+  const ratedRef = db().collection(COLLECTIONS.USERS).doc(r.ratedUserId);
+  const ratedSnap = await ratedRef.get();
+  const currentRep = ratedSnap.exists ? Number(ratedSnap.data()?.reputationScore ?? 0) : 0;
+
+  if (prevPositive && !nextPositive) {
+    const newRep = Math.max(0, currentRep - PUNTOS_POR_RATING_POSITIVO);
+    await ratedRef.update({ reputationScore: newRep, updatedAt: new Date() });
+  } else if (!prevPositive && nextPositive) {
+    await ratedRef.update({
+      reputationScore: currentRep + PUNTOS_POR_RATING_POSITIVO,
+      updatedAt: new Date(),
+    });
+  }
+
+  await ref.update({
+    positive: nextPositive,
+    points: nextPositive ? PUNTOS_POR_RATING_POSITIVO : 0,
+    updatedAt: new Date(),
+    lastEditedByAdminId: req.user!.id,
+  });
+  const updated = await ref.get();
+  const d = updated.data()!;
+  res.json({
+    id: updated.id,
+    ...d,
+    positive: !!d.positive,
+    points: typeof d.points === 'number' ? d.points : d.positive ? PUNTOS_POR_RATING_POSITIVO : 0,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+  });
+});
+
+router.delete('/ratings/:ratingId', async (req: AuthRequest, res) => {
+  const { ratingId } = req.params;
+  const ref = db().collection(COLLECTIONS.ORDER_RATINGS).doc(ratingId);
+  const doc = await ref.get();
+  if (!doc.exists) return res.status(404).json({ error: 'Valoración no encontrada' });
+  const r = doc.data()!;
+  if (r.positive) {
+    const ratedRef = db().collection(COLLECTIONS.USERS).doc(r.ratedUserId);
+    const ratedSnap = await ratedRef.get();
+    if (ratedSnap.exists) {
+      const currentRep = Number(ratedSnap.data()?.reputationScore ?? 0);
+      await ratedRef.update({
+        reputationScore: Math.max(0, currentRep - PUNTOS_POR_RATING_POSITIVO),
+        updatedAt: new Date(),
+      });
+    }
+  }
+  await ref.delete();
+  res.json({ ok: true });
+});
+
+/** Moderación: mensajes de chat entre usuarios */
+router.patch('/messages/:messageId', async (req: AuthRequest, res) => {
+  const { messageId } = req.params;
+  const body = req.body as { content?: string; redact?: boolean };
+  const ref = db().collection(COLLECTIONS.MESSAGES).doc(messageId);
+  const doc = await ref.get();
+  if (!doc.exists) return res.status(404).json({ error: 'Mensaje no encontrado' });
+
+  const updates: Record<string, unknown> = { updatedAt: new Date(), moderatedAt: new Date(), moderatedByUserId: req.user!.id };
+  if (body.redact === true) {
+    updates.content = REDACTED_MESSAGE;
+    updates.redactedByAdmin = true;
+  } else if (typeof body.content === 'string' && body.content.trim()) {
+    const text = body.content.trim().slice(0, 2000);
+    updates.content = text;
+    updates.editedByAdmin = true;
+  } else {
+    return res.status(400).json({ error: 'Enviá content (texto) o redact: true' });
+  }
+  await ref.update(updates);
+  const d = (await ref.get()).data()!;
+  res.json({
+    id: messageId,
+    conversationId: d.conversationId,
+    senderId: d.senderId,
+    content: d.content,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+  });
+});
+
+/** Moderación: mensajes dentro de una disputa */
+router.patch('/dispute-messages/:messageId', async (req: AuthRequest, res) => {
+  const { messageId } = req.params;
+  const body = req.body as { content?: string; redact?: boolean };
+  const ref = db().collection(COLLECTIONS.DISPUTE_MESSAGES).doc(messageId);
+  const doc = await ref.get();
+  if (!doc.exists) return res.status(404).json({ error: 'Mensaje no encontrado' });
+
+  const updates: Record<string, unknown> = { updatedAt: new Date(), moderatedAt: new Date(), moderatedByUserId: req.user!.id };
+  if (body.redact === true) {
+    updates.content = REDACTED_MESSAGE;
+    updates.redactedByAdmin = true;
+  } else if (typeof body.content === 'string' && body.content.trim()) {
+    updates.content = body.content.trim().slice(0, 2000);
+    updates.editedByAdmin = true;
+  } else {
+    return res.status(400).json({ error: 'Enviá content (texto) o redact: true' });
+  }
+  await ref.update(updates);
+  const d = (await ref.get()).data()!;
+  res.json({
+    id: messageId,
+    disputeId: d.disputeId,
+    userId: d.userId,
+    content: d.content,
+    createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
+  });
+});
+
+/** Notas internas de disputa (no visibles en app salvo que el cliente las lea — campo opcional). */
+router.patch('/disputes/:disputeId/notes', async (req: AuthRequest, res) => {
+  const { disputeId } = req.params;
+  const adminNotes = typeof (req.body as { adminNotes?: string }).adminNotes === 'string'
+    ? (req.body as { adminNotes: string }).adminNotes.slice(0, 5000)
+    : '';
+  const ref = db().collection(COLLECTIONS.DISPUTES).doc(disputeId);
+  const doc = await ref.get();
+  if (!doc.exists) return res.status(404).json({ error: 'Disputa no encontrada' });
+  await ref.update({ adminNotes, updatedAt: new Date() });
+  const d = (await ref.get()).data()!;
+  res.json({
+    id: disputeId,
+    adminNotes: d.adminNotes ?? '',
+    updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
+  });
+});
+
+/** Estado FCM del usuario (sin exponer el token completo). */
+router.get('/users/:userId/push', async (req: AuthRequest, res) => {
+  const { userId } = req.params;
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+  if (!userDoc.exists) return res.status(404).json({ error: 'Usuario no encontrado' });
+  const token = userDoc.data()?.fcmToken;
+  const t = typeof token === 'string' ? token : '';
+  const preview =
+    t.length > 14 ? `${t.slice(0, 6)}…${t.slice(-4)}` : t.length > 0 ? '••••' : null;
+  res.json({ hasToken: t.length > 0, tokenPreview: preview });
+});
+
+router.delete('/users/:userId/push', async (req: AuthRequest, res) => {
+  const { userId } = req.params;
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+  if (!userDoc.exists) return res.status(404).json({ error: 'Usuario no encontrado' });
+  await db().collection(COLLECTIONS.USERS).doc(userId).update({
+    fcmToken: FieldValue.delete(),
+    updatedAt: new Date(),
+  });
+  res.json({ ok: true });
+});
+
+router.post('/users/:userId/push-test', async (req: AuthRequest, res) => {
+  const { userId } = req.params;
+  const { title, body, data } = req.body as { title?: string; body?: string; data?: Record<string, string> };
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
+  if (!userDoc.exists) return res.status(404).json({ error: 'Usuario no encontrado' });
+  const fcmToken = userDoc.data()?.fcmToken;
+  if (!fcmToken || typeof fcmToken !== 'string') {
+    return res.status(400).json({ error: 'El usuario no tiene token FCM registrado' });
+  }
+  const pushTitle = typeof title === 'string' && title.trim() ? title.trim().slice(0, 80) : 'Mensaje de administración';
+  const pushBody = typeof body === 'string' && body.trim() ? body.trim().slice(0, 200) : 'Prueba de notificación';
+  const result = await sendPushNotification(fcmToken, pushTitle, pushBody, {
+    type: 'admin_test',
+    ...(data && typeof data === 'object' ? data : {}),
+  });
+  if (result.tokenInvalid) {
+    await db().collection(COLLECTIONS.USERS).doc(userId).update({ fcmToken: FieldValue.delete(), updatedAt: new Date() });
+    return res.status(410).json({ error: 'Token inválido; se eliminó del usuario' });
+  }
+  if (!result.success) {
+    return res.status(502).json({ error: 'No se pudo enviar la notificación' });
+  }
+  res.json({ ok: true, sent: true });
 });
 
 export const adminRouter = router;

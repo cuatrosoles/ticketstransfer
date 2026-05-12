@@ -8,6 +8,7 @@ import { useEffect, useRef } from 'react';
 import { View, Text, Image, StyleSheet, Animated, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing } from '../theme';
+import { useBranding } from '../context/BrandingContext';
 
 /**
  * Fondo del lienzo del GIF (negro). Si usás #e6e6e6 u otro color, las zonas transparentes
@@ -25,6 +26,7 @@ type Props = {
 export function SplashScreen({ onFinished }: Props) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
+  const brand = useBranding();
   const opacity = useRef(new Animated.Value(1)).current;
   const finishedRef = useRef(false);
 
@@ -70,7 +72,7 @@ export function SplashScreen({ onFinished }: Props) {
           },
         ]}
       >
-        <Text style={styles.appName}>Tickets Transfer</Text>
+        <Text style={[styles.appName, { color: brand.primaryLight }]}>{brand.appName}</Text>
       </View>
     </Animated.View>
   );

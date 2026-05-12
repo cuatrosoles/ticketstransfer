@@ -1,9 +1,10 @@
 /**
- * Cabecera – Logo Tickets Transfer (imagen PNG a ancho completo).
+ * Cabecera – Logo local o remoto (marca desde admin).
  */
 
 import { Link } from 'react-router-dom';
 import logoImg from '../assets/images/LogoTT-v01.png';
+import { useBranding } from '../context/BrandingContext';
 
 type Props = {
   title?: string;
@@ -12,11 +13,13 @@ type Props = {
 };
 
 export function AppHeader({ title, homePath = '/', rightSlot }: Props) {
+  const { appName, logoUrl } = useBranding();
+  const logoSrc = logoUrl || logoImg;
   return (
     <header className="app-header">
       <div className="app-header-content">
         <Link to={homePath} className="app-header-logo">
-          <img src={logoImg} alt="Tickets Transfer" className="app-header-logo-img" />
+          <img src={logoSrc} alt={appName} className="app-header-logo-img" />
         </Link>
         {rightSlot != null && <div className="app-header-right">{rightSlot}</div>}
       </div>

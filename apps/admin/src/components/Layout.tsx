@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Users, ShieldCheck, MessageSquare, ShoppingBag, MessagesSquare, Settings, LogOut, Ticket, Banknote, FileText } from 'lucide-react';
+import { LayoutDashboard, Users, ShieldCheck, MessageSquare, ShoppingBag, MessagesSquare, Settings, LogOut, Ticket, Banknote, FileText, Star } from 'lucide-react';
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -16,6 +16,7 @@ export function Layout() {
     { to: '/invoice-requests', label: 'Facturas transacción', icon: FileText },
     { to: '/transfers', label: 'Transferencias', icon: Banknote },
     { to: '/tickets', label: 'Tickets', icon: Ticket },
+    { to: '/ratings', label: 'Valoraciones', icon: Star },
     { to: '/configuracion', label: 'Configuración', icon: Settings },
   ];
 

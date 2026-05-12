@@ -19,6 +19,7 @@ import { Pago } from './pages/Pago';
 import { Acerca } from './pages/Acerca';
 import { PoliticaPrivacidad } from './pages/PoliticaPrivacidad';
 import { TerminosYCondiciones } from './pages/TerminosYCondiciones';
+import { Soporte } from './pages/Soporte';
 import { SolicitarBaja } from './pages/SolicitarBaja';
 import { Perfil } from './pages/Perfil';
 import { Publicar } from './pages/Publicar';
@@ -57,7 +58,7 @@ export function App() {
       <Route path="/perfil" element={<ProtectedRoute><Layout><Perfil /></Layout></ProtectedRoute>} />
       <Route path="/tickets" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Tickets</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />
       <Route path="/tarjetas" element={<ProtectedRoute><Layout><Tarjetas /></Layout></ProtectedRoute>} />
-      <Route path="/soporte" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Chat Soporte</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />
+      <Route path="/soporte" element={<ProtectedRoute><Layout><Soporte /></Layout></ProtectedRoute>} />
       <Route path="/mensajes" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Mensajes</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />
       <Route path="/acerca" element={<ProtectedRoute><Layout><Acerca /></Layout></ProtectedRoute>} />
       <Route path="/politica-privacidad" element={<ProtectedRoute><Layout><PoliticaPrivacidad /></Layout></ProtectedRoute>} />

@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import { Settings, CreditCard, Users, Palette } from 'lucide-react';
+import { Settings, CreditCard, Users, Palette, Bell } from 'lucide-react';
 
 type MercadoPagoSettings = {
   enabled: boolean;
@@ -23,9 +23,10 @@ type PlatformSettings = {
   mercadopago: MercadoPagoSettings;
   users?: Record<string, unknown>;
   visual?: Record<string, unknown>;
+  notifications?: Record<string, unknown>;
 };
 
-type TabId = 'general' | 'pasarelas' | 'usuarios' | 'visuales';
+type TabId = 'general' | 'pasarelas' | 'usuarios' | 'visuales' | 'notificaciones';
 
 export function Configuracion() {
   const [tab, setTab] = useState<TabId>('general');
@@ -36,13 +37,21 @@ export function Configuracion() {
     commissionPercentage: 6.5,
     marketplaceHomePublicListingsLimit: 6,
     mercadopago: { enabled: false, accessToken: '', publicKey: '', webhookSecret: '', sandboxMode: true },
+    users: {},
+    visual: {},
+    notifications: {},
   });
 
   useEffect(() => {
     api<PlatformSettings>('/api/admin/settings')
       .then((s) => {
         setSettings(s);
-        setForm(s);
+        setForm({
+          ...s,
+          users: s.users && typeof s.users === 'object' ? { ...s.users } : {},
+          visual: s.visual && typeof s.visual === 'object' ? { ...s.visual } : {},
+          notifications: s.notifications && typeof s.notifications === 'object' ? { ...s.notifications } : {},
+        });
       })
       .catch(() => setSettings(null))
       .finally(() => setLoading(false));
@@ -72,6 +81,7 @@ export function Configuracion() {
     { id: 'pasarelas' as TabId, label: 'Pasarelas de pago', icon: CreditCard },
     { id: 'usuarios' as TabId, label: 'Ajustes de usuarios', icon: Users },
     { id: 'visuales' as TabId, label: 'Ajustes visuales', icon: Palette },
+    { id: 'notificaciones' as TabId, label: 'Notificaciones / push', icon: Bell },
   ];
 
   return (
@@ -287,8 +297,52 @@ export function Configuracion() {
           <div className="config-section">
             <h2>Ajustes de usuarios</h2>
             <p className="text-muted">
-              Parámetros de registro, verificación y perfiles de usuario. (Próximamente)
+              Parámetros opcionales leídos por la app o documentación interna. Se guardan en Firestore bajo{' '}
+              <code>platformSettings/main.users</code>.
             </p>
+            <div className="form-group">
+              <label>Email de soporte (texto libre)</label>
+              <input
+                type="text"
+                className="input"
+                value={String(form.users?.supportEmail ?? '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    users: { ...(f.users || {}), supportEmail: e.target.value || undefined },
+                  }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label>URL centro de ayuda / FAQ</label>
+              <input
+                type="url"
+                className="input"
+                placeholder="https://…"
+                value={String(form.users?.helpCenterUrl ?? '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    users: { ...(f.users || {}), helpCenterUrl: e.target.value || undefined },
+                  }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label>Texto legal o aviso en registro (HTML o texto plano)</label>
+              <textarea
+                className="input"
+                rows={4}
+                value={String(form.users?.registrationDisclaimer ?? '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    users: { ...(f.users || {}), registrationDisclaimer: e.target.value || undefined },
+                  }))
+                }
+              />
+            </div>
           </div>
         )}
 
@@ -296,8 +350,180 @@ export function Configuracion() {
           <div className="config-section">
             <h2>Ajustes visuales</h2>
             <p className="text-muted">
-              Logo, colores, textos de la plataforma. (Próximamente)
+              Marca, colores y tipografías para la web/app si las consumen desde configuración. Firestore:{' '}
+              <code>platformSettings/main.visual</code>.
             </p>
+            <div className="form-group">
+              <label>Nombre de la app (marca)</label>
+              <input
+                type="text"
+                className="input"
+                value={String(form.visual?.appName ?? '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    visual: { ...(f.visual || {}), appName: e.target.value || undefined },
+                  }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label>Tagline / subtítulo</label>
+              <input
+                type="text"
+                className="input"
+                value={String(form.visual?.tagline ?? '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    visual: { ...(f.visual || {}), tagline: e.target.value || undefined },
+                  }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label>Color primario (hex)</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="#3b82f6"
+                value={String(form.visual?.primaryColor ?? '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    visual: { ...(f.visual || {}), primaryColor: e.target.value || undefined },
+                  }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label>Color secundario (hex)</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="#64748b"
+                value={String(form.visual?.secondaryColor ?? '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    visual: { ...(f.visual || {}), secondaryColor: e.target.value || undefined },
+                  }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label>Color de acento (hex)</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="#22c55e"
+                value={String(form.visual?.accentColor ?? '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    visual: { ...(f.visual || {}), accentColor: e.target.value || undefined },
+                  }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label>URL del logo</label>
+              <input
+                type="url"
+                className="input"
+                placeholder="https://…"
+                value={String(form.visual?.logoUrl ?? '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    visual: { ...(f.visual || {}), logoUrl: e.target.value || undefined },
+                  }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label>URL favicon</label>
+              <input
+                type="url"
+                className="input"
+                value={String(form.visual?.faviconUrl ?? '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    visual: { ...(f.visual || {}), faviconUrl: e.target.value || undefined },
+                  }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label>Tipografía títulos (CSS font-family)</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="Cooper Black, serif"
+                value={String(form.visual?.fontFamilyHeading ?? '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    visual: { ...(f.visual || {}), fontFamilyHeading: e.target.value || undefined },
+                  }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label>Tipografía cuerpo (CSS font-family)</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="system-ui, sans-serif"
+                value={String(form.visual?.fontFamilyBody ?? '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    visual: { ...(f.visual || {}), fontFamilyBody: e.target.value || undefined },
+                  }))
+                }
+              />
+            </div>
+          </div>
+        )}
+
+        {tab === 'notificaciones' && (
+          <div className="config-section">
+            <h2>Notificaciones y push</h2>
+            <p className="text-muted">
+              Metadatos o textos por defecto para FCM (la app debe leerlos si los implementás). Firestore:{' '}
+              <code>platformSettings/main.notifications</code>. El envío real usa Firebase; probá desde el detalle de
+              usuario.
+            </p>
+            <div className="form-group">
+              <label>Título por defecto (admin / sistema)</label>
+              <input
+                type="text"
+                className="input"
+                value={String(form.notifications?.defaultTitle ?? '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    notifications: { ...(f.notifications || {}), defaultTitle: e.target.value || undefined },
+                  }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label>Prefijo del cuerpo del mensaje</label>
+              <input
+                type="text"
+                className="input"
+                value={String(form.notifications?.defaultBodyPrefix ?? '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    notifications: { ...(f.notifications || {}), defaultBodyPrefix: e.target.value || undefined },
+                  }))
+                }
+              />
+            </div>
           </div>
         )}
 

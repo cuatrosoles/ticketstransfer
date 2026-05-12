@@ -137,6 +137,23 @@ export async function getMe() {
   return api<Record<string, unknown>>('/api/auth/me');
 }
 
+/** Respuesta pública de marca (sin secretos). */
+export type BrandingPayload = {
+  commissionPercentage: number;
+  marketplaceHomePublicListingsLimit: number;
+  visual: Record<string, unknown>;
+  users: {
+    supportEmail?: string;
+    helpCenterUrl?: string;
+    registrationDisclaimer?: string;
+  };
+  notifications: Record<string, unknown>;
+};
+
+export async function getBranding(): Promise<BrandingPayload> {
+  return api<BrandingPayload>('/api/settings/branding', { token: null });
+}
+
 /** Porcentaje de comisión de la plataforma (para cálculos de precio) */
 export async function getCommissionPercentage(): Promise<number> {
   const data = await api<{ commissionPercentage: number }>('/api/settings/commission');

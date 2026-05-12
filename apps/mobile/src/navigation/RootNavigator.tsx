@@ -38,6 +38,7 @@ import { SolicitarBajaScreen } from '../screens/SolicitarBajaScreen';
 import { RecomendacionesQuejasScreen } from '../screens/RecomendacionesQuejasScreen';
 import { PreguntasFrecuentesScreen } from '../screens/PreguntasFrecuentesScreen';
 import { AppLockScreen } from '../components/AppLockScreen';
+import { useBranding } from '../context/BrandingContext';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -45,6 +46,7 @@ const NO_HEADER = { headerShown: false };
 
 export function RootNavigator() {
   const { user, loading, biometricEnabled, isAppUnlocked, unlockWithBiometrics, logout } = useAuth();
+  const brand = useBranding();
   const [unlocking, setUnlocking] = React.useState(false);
 
   if (loading) {
@@ -75,7 +77,7 @@ export function RootNavigator() {
     <UserMenuProvider>
       <Stack.Navigator
         screenOptions={{
-          headerTintColor: '#f8fafc',
+          headerTintColor: brand.primaryLight,
           contentStyle: { backgroundColor: 'transparent' },
         }}
       >

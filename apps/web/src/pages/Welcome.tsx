@@ -7,11 +7,13 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppHeader } from '../components/AppHeader';
 import { TICKETERAS, APPS_BOLETOS, ACCION_FLUJO } from '@tickets-transfer/shared';
+import { useBranding } from '../context/BrandingContext';
 
 const ACERCA_DE =
   'TICKETS TRANSFER ES UNA APP PARA LA REVENTA O INTERCAMBIO DE ENTRADAS-BOLETOS DIGITALES CON LA NUEVA METODOLOGÍA DE QR MEDIANTE APPS TERCIARIZADAS AL SER DESCARGADAS DE SUS TICKETERAS DE ORIGEN PARA SHOWS Y EVENTOS EN ARGENTINA DE FORMA SEGURA Y CONFIABLE, PARA EVITAR POSIBLES ESTAFAS O FRAUDES. FUNCIONAMOS COMO MEDIADORES ENTRE EL VENDEDOR Y COMPRADOR. ESPERAMOS QUE TU VENTA O INTERCAMBIO SEA EXITOSA. ¡GRACIAS POR CONFIAR EN TICKETS TRANSFER!';
 
 export function Welcome() {
+  const { tagline } = useBranding();
   const [accion, setAccion] = useState<string[]>([]);
   const [ticketeras, setTicketeras] = useState<string[]>([]);
   const [appsBoletos, setAppsBoletos] = useState<string[]>([]);
@@ -24,6 +26,11 @@ export function Welcome() {
   return (
     <div className="bg-pattern">
       <AppHeader />
+      {tagline && (
+        <p style={{ textAlign: 'center', color: 'var(--primary-light)', margin: '-0.5rem 1rem 1rem', fontSize: '0.95rem' }}>
+          {tagline}
+        </p>
+      )}
       <div className="screen-center welcome-screen" style={{ maxWidth: 480 }}>
         <section className="glass" style={{ padding: '1.5rem', marginBottom: '1.5rem', width: '100%' }}>
           <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--white)' }}>

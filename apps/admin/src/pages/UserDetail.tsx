@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import { CreditCard, Pencil, Trash2 } from 'lucide-react';
+import { CreditCard, Pencil, Trash2, Bell } from 'lucide-react';
 
 type UserDetailType = {
   id: string;
@@ -47,6 +47,8 @@ type CardItem = {
   payment_method: { id: string; name: string };
 };
 
+type PushInfo = { hasToken: boolean; tokenPreview: string | null };
+
 const ROLES = ['user', 'admin'];
 
 export function UserDetail() {
@@ -61,6 +63,10 @@ export function UserDetail() {
   const [deleting, setDeleting] = useState(false);
   const [cards, setCards] = useState<CardItem[]>([]);
   const [form, setForm] = useState<Partial<UserDetailType>>({});
+  const [pushInfo, setPushInfo] = useState<PushInfo | null>(null);
+  const [pushTitle, setPushTitle] = useState('Mensaje desde administración');
+  const [pushBody, setPushBody] = useState('Prueba de notificación push');
+  const [pushBusy, setPushBusy] = useState(false);
 
   const load = () => {
     if (!id) return;
@@ -97,10 +103,47 @@ export function UserDetail() {
       .catch(() => setCards([]));
   };
 
+  const loadPush = () => {
+    if (!id) return;
+    api<PushInfo>(`/api/admin/users/${id}/push`)
+      .then(setPushInfo)
+      .catch(() => setPushInfo(null));
+  };
+
   useEffect(() => {
     load();
     loadCards();
+    loadPush();
   }, [id]);
+
+  const clearPushToken = async () => {
+    if (!id || !confirm('¿Eliminar el token FCM de este usuario? Deberá volver a abrir la app para recibir pushes.')) return;
+    setPushBusy(true);
+    try {
+      await api(`/api/admin/users/${id}/push`, { method: 'DELETE' });
+      loadPush();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const sendTestPush = async () => {
+    if (!id) return;
+    setPushBusy(true);
+    try {
+      await api(`/api/admin/users/${id}/push-test`, {
+        method: 'POST',
+        body: JSON.stringify({ title: pushTitle, body: pushBody }),
+      });
+      alert('Notificación enviada.');
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const save = async () => {
     if (!id) return;
@@ -235,6 +278,41 @@ export function UserDetail() {
             <img src={user.profileImageUrl} alt="Avatar" style={{ maxWidth: 120, borderRadius: 8 }} />
           </div>
         )}
+
+        <div className="card" style={{ gridColumn: '1 / -1' }}>
+          <h3 style={{ marginTop: 0, marginBottom: 12 }}>
+            <Bell size={18} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+            Notificaciones push (FCM)
+          </h3>
+          {!pushInfo ? (
+            <p className="text-muted">No se pudo cargar el estado del token.</p>
+          ) : (
+            <>
+              <dl className="detail-dl">
+                <dt>Token registrado</dt>
+                <dd>{pushInfo.hasToken ? `Sí (${pushInfo.tokenPreview || '—'})` : 'No'}</dd>
+              </dl>
+              <div style={{ display: 'grid', gap: 10, maxWidth: 420 }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Título (prueba)</label>
+                  <input className="input" value={pushTitle} onChange={(e) => setPushTitle(e.target.value)} />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Cuerpo (prueba)</label>
+                  <input className="input" value={pushBody} onChange={(e) => setPushBody(e.target.value)} />
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" className="btn btn-primary btn-sm" disabled={pushBusy || !pushInfo.hasToken} onClick={sendTestPush}>
+                    Enviar prueba
+                  </button>
+                  <button type="button" className="btn btn-danger btn-sm" disabled={pushBusy || !pushInfo.hasToken} onClick={clearPushToken}>
+                    Quitar token
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
 
         <div className="card" style={{ gridColumn: '1 / -1' }}>
           <h3 style={{ marginTop: 0, marginBottom: 12 }}><CreditCard size={18} style={{ verticalAlign: 'middle', marginRight: 6 }} />Tarjetas adheridas</h3>
