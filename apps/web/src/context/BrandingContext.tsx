@@ -16,6 +16,10 @@ type Ctx = {
   supportEmail: string | null;
   helpCenterUrl: string | null;
   registrationDisclaimer: string | null;
+  /** URL de descarga Android (Play Store o APK directo). Null si no fue configurada. */
+  downloadUrlAndroid: string | null;
+  /** URL de descarga iOS (App Store). Null si no fue configurada. */
+  downloadUrlIos: string | null;
 };
 
 const BrandingContext = createContext<Ctx>({
@@ -29,6 +33,8 @@ const BrandingContext = createContext<Ctx>({
   supportEmail: null,
   helpCenterUrl: null,
   registrationDisclaimer: null,
+  downloadUrlAndroid: null,
+  downloadUrlIos: null,
 });
 
 function applyCssVars(payload: BrandingPayload | null) {
@@ -103,6 +109,14 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
       registrationDisclaimer:
         typeof data?.users?.registrationDisclaimer === 'string' && data.users.registrationDisclaimer.trim()
           ? data.users.registrationDisclaimer.trim()
+          : null,
+      downloadUrlAndroid:
+        typeof visual.downloadUrlAndroid === 'string' && (visual.downloadUrlAndroid as string).trim()
+          ? (visual.downloadUrlAndroid as string).trim()
+          : null,
+      downloadUrlIos:
+        typeof visual.downloadUrlIos === 'string' && (visual.downloadUrlIos as string).trim()
+          ? (visual.downloadUrlIos as string).trim()
           : null,
     }),
     [loading, error, data, load, visual]

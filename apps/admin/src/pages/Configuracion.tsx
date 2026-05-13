@@ -485,6 +485,43 @@ export function Configuracion() {
                 }
               />
             </div>
+
+            <h2 style={{ marginTop: '1.5rem' }}>Descargas de la app</h2>
+            <p className="text-muted">
+              Enlaces que se muestran en la landing pública. Si quedan vacíos, los botones aparecen como
+              "Próximamente". Firestore: <code>platformSettings/main.visual.downloadUrlAndroid</code> /{' '}
+              <code>downloadUrlIos</code>.
+            </p>
+            <div className="form-group">
+              <label>URL de descarga Android (Google Play o APK directo)</label>
+              <input
+                type="url"
+                className="input"
+                placeholder="https://play.google.com/store/apps/details?id=..."
+                value={String(form.visual?.downloadUrlAndroid ?? '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    visual: { ...(f.visual || {}), downloadUrlAndroid: e.target.value || undefined },
+                  }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label>URL de descarga iOS (App Store)</label>
+              <input
+                type="url"
+                className="input"
+                placeholder="https://apps.apple.com/app/..."
+                value={String(form.visual?.downloadUrlIos ?? '')}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    visual: { ...(f.visual || {}), downloadUrlIos: e.target.value || undefined },
+                  }))
+                }
+              />
+            </div>
           </div>
         )}
 
