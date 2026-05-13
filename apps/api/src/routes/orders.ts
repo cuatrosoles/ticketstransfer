@@ -17,6 +17,7 @@ import {
   getPaymentById,
 } from '../lib/mercadopago.js';
 import { getCommissionPercentage } from '../lib/settings.js';
+import { stripOriginalListingImageUrls } from '../lib/listing-image-privacy.js';
 
 const router = Router();
 const upload = multer({
@@ -260,10 +261,14 @@ router.post('/', async (req: AuthRequest, res) => {
   }
 
   const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(sellerId).get();
+  const listingPayload = stripOriginalListingImageUrls({
+    id: listingDoc.id,
+    ...listing,
+  } as Record<string, unknown>);
   const order = {
     id: orderId,
     ...orderData,
-    ticketListing: { id: listingDoc.id, ...listing },
+    ticketListing: listingPayload,
     seller: { id: sellerId, email: sellerDoc.data()?.email },
   };
 
@@ -289,7 +294,9 @@ router.get('/my/purchases', async (req: AuthRequest, res) => {
       return {
         id: doc.id,
         ...d,
-        ticketListing: listingDoc.exists ? { id: listingDoc.id, ...listingDoc.data() } : null,
+        ticketListing: listingDoc.exists
+          ? stripOriginalListingImageUrls({ id: listingDoc.id, ...(listingDoc.data() as Record<string, unknown>) })
+          : null,
         seller: sellerDoc.exists ? { id: d.sellerId, reputationScore: sellerDoc.data()?.reputationScore } : null,
         createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
         updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
@@ -391,10 +398,16 @@ router.get('/:id', async (req: AuthRequest, res) => {
   const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(d.buyerId).get();
   const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
 
+  const rawListing = listingDoc.exists
+    ? ({ id: listingDoc.id, ...(listingDoc.data() as Record<string, unknown>) } as Record<string, unknown>)
+    : null;
+  const ticketListingForViewer =
+    rawListing && d.buyerId === req.user!.id ? stripOriginalListingImageUrls(rawListing) : rawListing;
+
   res.json({
     id: doc.id,
     ...d,
-    ticketListing: listingDoc.exists ? { id: listingDoc.id, ...listingDoc.data() } : null,
+    ticketListing: ticketListingForViewer,
     buyer: buyerDoc.exists ? { id: d.buyerId, email: buyerDoc.data()?.email } : null,
     seller: sellerDoc.exists ? { id: d.sellerId, email: sellerDoc.data()?.email } : null,
     createdAt: d.createdAt?.toDate?.() ?? d.createdAt,

@@ -310,7 +310,9 @@ export type MyListingDetail = TicketListingItem & {
   orderRef?: string | null;
   publicationPassword?: string | null;
   captureTicketUrl?: string | null;
+  captureTicketOriginalUrl?: string | null;
   captureOwnershipUrl?: string | null;
+  captureOwnershipOriginalUrl?: string | null;
   ticketeraOtra?: string | null;
   appBoletosOtra?: string | null;
   tipoEntradaOtro?: string | null;

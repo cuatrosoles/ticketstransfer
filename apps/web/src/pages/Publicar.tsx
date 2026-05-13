@@ -1,64 +1,16 @@
 /**
- * Publicar ticket (web) – Formulario completo + detección de QR (jsQR) para enviar regiones a pixelar (Fase 2).
+ * Publicar ticket (web) – Formulario completo. La API guarda la captura original y genera la versión pública redactada (QR + datos sensibles).
  */
 
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import jsQR from 'jsqr';
 import { createTicketListing, getMyListingDetail, updateMyListing } from '../lib/api';
-import type { PixelateRegion } from '@tickets-transfer/shared';
 import { createTicketListingSchema } from '@tickets-transfer/shared';
 
 const TIPOS_ENTRADA = ['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO'] as const;
 const TICKETERAS = ['TICKETEK', 'ALLACCESS', 'TICKET_PLUS', 'OTRA'] as const;
 const APPS_BOLETOS = ['QUENTRO', 'ENIGMA', 'OTRA'] as const;
 const CATEGORIAS = ['MUSICA', 'DEPORTES', 'TEATRO', 'FESTIVALES', 'OTRO'] as const;
-
-/** Detecta posición del QR en la imagen y devuelve región normalizada (0-1). Añade padding. */
-function detectQRRegion(file: File): Promise<PixelateRegion | null> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const canvas = document.createElement('canvas');
-      const maxSize = 800;
-      let w = img.naturalWidth;
-      let h = img.naturalHeight;
-      if (w > maxSize || h > maxSize) {
-        const r = maxSize / Math.max(w, h);
-        w = Math.round(w * r);
-        h = Math.round(h * r);
-      }
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        resolve(null);
-        return;
-      }
-      ctx.drawImage(img, 0, 0, w, h);
-      const imageData = ctx.getImageData(0, 0, w, h);
-      const code = jsQR(imageData.data, w, h, { inversionAttempts: 'dontInvert' });
-      if (!code || !code.location) {
-        resolve(null);
-        return;
-      }
-      const { topLeftCorner, bottomRightCorner } = code.location;
-      const padding = 0.12;
-      const x = Math.max(0, (topLeftCorner.x / w) - padding * 0.5);
-      const y = Math.max(0, (topLeftCorner.y / h) - padding * 0.5);
-      const width = Math.min(1 - x, ((bottomRightCorner.x - topLeftCorner.x) / w) + padding);
-      const height = Math.min(1 - y, ((bottomRightCorner.y - topLeftCorner.y) / h) + padding);
-      resolve({ x, y, width, height });
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(null);
-    };
-    img.src = url;
-  });
-}
 
 function listingDateToInput(v: unknown): string {
   if (v == null) return '';
@@ -97,8 +49,6 @@ export function Publicar() {
   const [listingVisibility, setListingVisibility] = useState<'PUBLIC' | 'PRIVATE'>('PRIVATE');
   const [captureTicketFile, setCaptureTicketFile] = useState<File | null>(null);
   const [captureOwnershipFile, setCaptureOwnershipFile] = useState<File | null>(null);
-  const [pixelateRegions, setPixelateRegions] = useState<PixelateRegion[] | null>(null);
-  const [detectingQR, setDetectingQR] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successListingId, setSuccessListingId] = useState<string | null>(null);
@@ -147,18 +97,9 @@ export function Publicar() {
     };
   }, [editListingId, navigate]);
 
-  const onCaptureTicketChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onCaptureTicketChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     setCaptureTicketFile(file || null);
-    setPixelateRegions(null);
-    if (!file || !file.type.startsWith('image/')) return;
-    setDetectingQR(true);
-    try {
-      const region = await detectQRRegion(file);
-      if (region) setPixelateRegions([region]);
-    } finally {
-      setDetectingQR(false);
-    }
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -267,9 +208,6 @@ export function Publicar() {
       if (captureOwnershipFile) {
         formData.append('captureOwnership', captureOwnershipFile, captureOwnershipFile.name || 'ownership.jpg');
       }
-      if (pixelateRegions && pixelateRegions.length > 0) {
-        formData.append('pixelateRegions', JSON.stringify(pixelateRegions));
-      }
 
       const result = await createTicketListing(formData);
       const listingId = result?.id;
@@ -331,7 +269,11 @@ export function Publicar() {
   return (
     <div className="page-content">
       <h1 className="page-title">{editListingId ? 'Editar publicación' : 'Publicar ticket'}</h1>
-      <p className="text-muted">Completá los datos. La imagen del ticket se pixelará automáticamente en zonas sensibles (QR y datos personales).</p>
+      <p className="text-muted">
+        Completá los datos. Al publicar, el servidor guarda la imagen original para tu registro y genera automáticamente
+        la versión pública: detecta códigos QR y datos sensibles (teléfono, CUIT/CUIL, domicilio, etc.) y los deja
+        ilegibles. La primera publicación puede tardar unos segundos más por el procesamiento.
+      </p>
 
       <form onSubmit={handleSubmit} className="glass" style={{ padding: 24, borderRadius: 12, maxWidth: 560 }}>
         {error && <p style={{ color: 'var(--error)', marginBottom: 12 }}>{error}</p>}
@@ -404,17 +346,16 @@ export function Publicar() {
           ))}
         </select>
 
-        <label className="block-label">Captura del ticket (imagen con QR) *</label>
+        <label className="block-label">Captura del ticket *</label>
+        <p className="text-muted" style={{ marginBottom: 8, fontSize: 13 }}>
+          Podés subir la captura tal cual la tenés en el celular; no hace falta pixelarla a mano.
+        </p>
         <input type="file" accept="image/*" onChange={onCaptureTicketChange} style={{ marginBottom: 8 }} />
-        {detectingQR && <p className="text-muted">Detectando QR…</p>}
-        {captureTicketFile && pixelateRegions && pixelateRegions.length > 0 && (
-          <p className="text-muted">Se detectó el QR: se pixelará solo esa zona.</p>
-        )}
-        {captureTicketFile && !pixelateRegions?.length && !detectingQR && (
-          <p className="text-muted">No se detectó QR: se usarán zonas por defecto.</p>
-        )}
 
         <label className="block-label">Captura de titularidad o factura (opcional)</label>
+        <p className="text-muted" style={{ marginBottom: 8, fontSize: 13 }}>
+          Mismo tratamiento automático que la captura del ticket.
+        </p>
         <input type="file" accept="image/*" onChange={(e) => setCaptureOwnershipFile(e.target.files?.[0] || null)} style={{ marginBottom: 12 }} />
 
         <label className="block-label">Visibilidad</label>
@@ -463,7 +404,7 @@ export function Publicar() {
         )}
 
         <button type="submit" className="btn-primary" disabled={submitting} style={{ marginTop: 16 }}>
-          {submitting ? 'Enviando…' : editListingId ? 'Guardar cambios' : 'Publicar'}
+          {submitting ? 'Procesando y enviando…' : editListingId ? 'Guardar cambios' : 'Publicar'}
         </button>
       </form>
     </div>

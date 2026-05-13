@@ -279,7 +279,7 @@ export function PublishTicketScreen() {
       return;
     }
     if (!editListingId && !captureTicket?.uri) {
-      Alert.alert('Falta imagen', 'Subí la captura del ticket (QR pixelado).');
+      Alert.alert('Falta imagen', 'Subí la captura del ticket.');
       return;
     }
     if (listingVisibility === 'PRIVATE' && publicationPassword.trim().length < 4) {
@@ -318,7 +318,6 @@ export function PublishTicketScreen() {
       }
 
       const formData = new FormData();
-      // La API pixelará automáticamente zonas sensibles (QR, nombres, etc.). Opcional: enviar pixelateRegions (Fase 2) si se implementa detección de QR en app.
       formData.append('eventName', eventName.trim());
       formData.append('eventDate', dateStr);
       formData.append('eventPlace', eventPlace.trim());
@@ -466,6 +465,11 @@ export function PublishTicketScreen() {
         />
       </View>
 
+      <Text style={styles.uploadHint}>
+        Subí la captura tal cual: el servidor guarda el original para vos y genera la versión pública con QR y datos sensibles
+        ilegibles (puede tardar unos segundos la primera vez).
+      </Text>
+
       <Text style={styles.label}>Nombre del evento *</Text>
       <TextInput style={styles.input} placeholder="Ej. Recital X" placeholderTextColor={colors.textMuted} value={eventName} onChangeText={setEventName} />
 
@@ -606,7 +610,7 @@ export function PublishTicketScreen() {
           : 'No aparece en el inicio. Compartí el ID de la publicación y la contraseña con quien quiera comprar.'}
       </Text>
 
-      <Text style={styles.label}>Captura del ticket (QR pixelado) *</Text>
+      <Text style={styles.label}>Captura del ticket *</Text>
       <TouchableOpacity style={styles.imageButton} onPress={() => pickImage(setCaptureTicket)}>
         {captureTicket ? (
           <Image source={{ uri: captureTicket.uri }} style={styles.thumb} resizeMode="cover" />
@@ -615,7 +619,7 @@ export function PublishTicketScreen() {
         )}
       </TouchableOpacity>
 
-      <Text style={styles.label}>Captura de titularidad o factura</Text>
+      <Text style={styles.label}>Captura de titularidad o factura (opcional)</Text>
       <TouchableOpacity style={styles.imageButton} onPress={() => pickImage(setCaptureOwnership)}>
         {captureOwnership ? (
           <Image source={{ uri: captureOwnership.uri }} style={styles.thumb} resizeMode="cover" />
@@ -663,6 +667,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingTop: spacing.lg, paddingHorizontal: spacing.lg, paddingBottom: 48 },
   inlineHeader: { marginBottom: spacing.md },
+  uploadHint: { fontSize: 13, color: colors.textMuted, lineHeight: 19, marginBottom: spacing.md },
   montoVendedor: { fontSize: 13, color: colors.primaryLight, marginTop: -spacing.sm, marginBottom: spacing.md },
   label: { fontSize: 14, fontWeight: '600', color: colors.textMuted, marginBottom: spacing.sm },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.md },

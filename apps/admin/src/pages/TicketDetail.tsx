@@ -29,7 +29,9 @@ type TicketDetailType = {
   category: string;
   status: string;
   captureTicketUrl: string | null;
+  captureTicketOriginalUrl?: string | null;
   captureOwnershipUrl: string | null;
+  captureOwnershipOriginalUrl?: string | null;
   rejectionReason: string | null;
   createdAt: string | Date;
   updatedAt: string | Date;
@@ -334,17 +336,32 @@ export function TicketDetail() {
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Imágenes</h3>
+        <p className="text-muted" style={{ marginBottom: 12 }}>
+          Vista pública (redactada) y, si existe, la captura original subida por el vendedor.
+        </p>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
           {ticket.captureTicketUrl && (
             <div>
-              <a href={ticket.captureTicketUrl} target="_blank" rel="noopener noreferrer">Captura del ticket</a>
+              <a href={ticket.captureTicketUrl} target="_blank" rel="noopener noreferrer">Ticket (público / redactado)</a>
               <img src={ticket.captureTicketUrl} alt="Ticket" style={{ display: 'block', marginTop: 8, maxWidth: 300, borderRadius: 8 }} />
+            </div>
+          )}
+          {ticket.captureTicketOriginalUrl && (
+            <div>
+              <a href={ticket.captureTicketOriginalUrl} target="_blank" rel="noopener noreferrer">Ticket (original)</a>
+              <img src={ticket.captureTicketOriginalUrl} alt="Ticket original" style={{ display: 'block', marginTop: 8, maxWidth: 300, borderRadius: 8 }} />
             </div>
           )}
           {ticket.captureOwnershipUrl && (
             <div>
-              <a href={ticket.captureOwnershipUrl} target="_blank" rel="noopener noreferrer">Titularidad</a>
+              <a href={ticket.captureOwnershipUrl} target="_blank" rel="noopener noreferrer">Titularidad (público / redactado)</a>
               <img src={ticket.captureOwnershipUrl} alt="Titularidad" style={{ display: 'block', marginTop: 8, maxWidth: 300, borderRadius: 8 }} />
+            </div>
+          )}
+          {ticket.captureOwnershipOriginalUrl && (
+            <div>
+              <a href={ticket.captureOwnershipOriginalUrl} target="_blank" rel="noopener noreferrer">Titularidad (original)</a>
+              <img src={ticket.captureOwnershipOriginalUrl} alt="Titularidad original" style={{ display: 'block', marginTop: 8, maxWidth: 300, borderRadius: 8 }} />
             </div>
           )}
           {!ticket.captureTicketUrl && !ticket.captureOwnershipUrl && <p className="text-muted">Sin imágenes</p>}

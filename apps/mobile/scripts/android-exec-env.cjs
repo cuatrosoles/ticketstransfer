@@ -124,6 +124,12 @@ function withAndroidPathEnv() {
     }
   }
 
+  /** Siempre incluir el Node que ejecuta este script (evita "node no se reconoce" en subshells / react-native.cmd). */
+  const nodeBinDir = path.dirname(process.execPath);
+  if (nodeBinDir) {
+    env.PATH = [nodeBinDir, env.PATH].filter(Boolean).join(path.delimiter);
+  }
+
   return { env, androidHome, adbPath, javaHome };
 }
 

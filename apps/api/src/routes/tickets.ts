@@ -7,8 +7,7 @@ import multer from 'multer';
 import { z } from 'zod';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { getAuth } from '../lib/firebase-admin.js';
-import { uploadFile } from '../lib/firebase-storage.js';
-import { redactImage, parsePixelateRegionsFromBody } from '../lib/image-redaction.js';
+import { storeListingCaptureWithRedaction } from '../lib/ticket-listing-images.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { createTicketListingSchema } from '@tickets-transfer/shared';
 import { getMarketplaceHomePublicListingsLimit } from '../lib/settings.js';
@@ -190,6 +189,8 @@ router.get('/:id', async (req, res) => {
     eventDate: d.eventDate?.toDate?.() ?? d.eventDate,
   };
 
+  delete out.captureTicketOriginalUrl;
+  delete out.captureOwnershipOriginalUrl;
   if (!showFull) {
     delete out.captureTicketUrl;
     delete out.captureOwnershipUrl;
@@ -255,32 +256,22 @@ router.post(
     const files = req.files as { [key: string]: Express.Multer.File[] };
     const listingId = db().collection(COLLECTIONS.TICKET_LISTINGS).doc().id;
 
-    const pixelateRegions = parsePixelateRegionsFromBody(req.body as Record<string, unknown>);
-
     let captureTicketUrl: string | undefined;
+    let captureTicketOriginalUrl: string | undefined;
     let captureOwnershipUrl: string | undefined;
+    let captureOwnershipOriginalUrl: string | undefined;
 
     if (files.captureTicket?.[0]) {
       const file = files.captureTicket[0];
-      const { buffer, mimeType } = await redactImage(file.buffer, {
-        regions: pixelateRegions,
-      });
-      captureTicketUrl = await uploadFile(
-        `tickets/${listingId}/capture_${Date.now()}.jpg`,
-        buffer,
-        mimeType
-      );
+      const { originalUrl, redactedUrl } = await storeListingCaptureWithRedaction(listingId, 'ticket', file);
+      captureTicketOriginalUrl = originalUrl;
+      captureTicketUrl = redactedUrl;
     }
     if (files.captureOwnership?.[0]) {
       const file = files.captureOwnership[0];
-      const { buffer, mimeType } = await redactImage(file.buffer, {
-        regions: pixelateRegions,
-      });
-      captureOwnershipUrl = await uploadFile(
-        `tickets/${listingId}/ownership_${Date.now()}.jpg`,
-        buffer,
-        mimeType
-      );
+      const { originalUrl, redactedUrl } = await storeListingCaptureWithRedaction(listingId, 'ownership', file);
+      captureOwnershipOriginalUrl = originalUrl;
+      captureOwnershipUrl = redactedUrl;
     }
 
     let publicationPassword = (req.body.publicationPassword as string)?.trim() || null;
@@ -325,7 +316,9 @@ router.post(
       status: 'DISPONIBLE',
       ...(visibility !== undefined ? { visibility } : {}),
       captureTicketUrl: captureTicketUrl ?? null,
+      captureTicketOriginalUrl: captureTicketOriginalUrl ?? null,
       captureOwnershipUrl: captureOwnershipUrl ?? null,
+      captureOwnershipOriginalUrl: captureOwnershipOriginalUrl ?? null,
       publicationPassword,
       ticketeraOtra,
       appBoletosOtra,

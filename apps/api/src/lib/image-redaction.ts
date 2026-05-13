@@ -13,12 +13,18 @@ export type PixelateRegion = {
   height: number;
 };
 
-/** Regiones por defecto cuando el cliente no envía ninguna (Fase 1). Valores en 0-1. */
-const DEFAULT_REGIONS: PixelateRegion[] = [
-  { x: 0.7, y: 0, width: 0.3, height: 0.28 },   // Zona típica QR: esquina superior derecha
-  { x: 0.08, y: 0.35, width: 0.84, height: 0.18 }, // Franja central: nombres / datos personales
-  { x: 0.08, y: 0.58, width: 0.84, height: 0.12 }, // Segunda franja: domicilio / referencia
+/**
+ * Regiones heurísticas (fallback) cuando la detección automática no aporta suficiente cobertura.
+ * Valores en 0-1 respecto del ancho/alto de la imagen.
+ */
+export const FALLBACK_PIXELATE_REGIONS: PixelateRegion[] = [
+  { x: 0.7, y: 0, width: 0.3, height: 0.28 },
+  { x: 0.08, y: 0.35, width: 0.84, height: 0.18 },
+  { x: 0.08, y: 0.58, width: 0.84, height: 0.12 },
 ];
+
+/** @deprecated Usar FALLBACK_PIXELATE_REGIONS */
+const DEFAULT_REGIONS = FALLBACK_PIXELATE_REGIONS;
 
 const PIXELATE_BLOCK_SIZE = 12;
 

@@ -3,8 +3,8 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "start": "npx react-native start",
-    "start:reset": "npx react-native start --reset-cache",
+    "start": "node scripts/rn-cli.cjs start",
+    "start:reset": "node scripts/rn-cli.cjs start --reset-cache",
     "android": "node scripts/run-android.cjs",
     "android:install": "node scripts/run-android-install.cjs",
     "android:clean": "node -e \"const cp=require('child_process');const os=require('os');const fs=require('fs');const path=require('path');try{if(process.platform!=='win32'){cp.execSync('lsof -t -i :8081 | xargs kill',{stdio:'ignore',shell:true});}}catch{}try{fs.rmSync(path.join(os.homedir(),'.metro'),{recursive:true,force:true});}catch{}try{cp.execSync('adb reverse tcp:8081 tcp:8081',{stdio:'ignore',shell:true});}catch{}console.log('Listo. Ejecutá npm run start:reset y luego npm run android');\"",

@@ -162,3 +162,16 @@ El emulador usa `http://10.0.2.2:3001` para la API (10.0.2.2 = host). Asegurate 
 cd v2/apps/api
 pnpm dev
 ```
+
+---
+
+# Windows: `node` no se reconoce al correr `pnpm android` (pero en PowerShell `node -v` funciona)
+
+En PowerShell, **`where node`** no lista ejecutables: `where` es un alias. Usá **`where.exe node`** o **`Get-Command node`**.
+
+`pnpm run` suele usar **cmd.exe**, que a veces no tiene el mismo **PATH** que tu PowerShell (por ejemplo si Node solo está en el PATH del usuario y cmd no lo hereda bien).
+
+En este proyecto, en **Windows** los scripts **`android`**, **`android:install`**, **`start`** y **`start:reset`** usan launchers **`.cmd`** en la raíz de `apps/mobile` que buscan `node.exe` en el PATH de cmd y, si hace falta, en rutas típicas (`Program Files\nodejs`, etc.).
+
+Si aun así falla: agregá **Node** al PATH **del sistema** (Variables de entorno → Path del equipo, no solo del usuario) y reiniciá la terminal.
+

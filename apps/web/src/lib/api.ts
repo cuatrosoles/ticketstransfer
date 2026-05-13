@@ -129,7 +129,7 @@ export async function getKyc() {
   return api<{ status: string; rejectionReason?: string | null }>('/api/users/kyc');
 }
 
-/** Publicar ticket (multipart: body + captureTicket, captureOwnership). Opcional: pixelateRegions (Fase 2). */
+/** Publicar ticket (multipart). La API aplica redacción automática y guarda original + pública. */
 export async function createTicketListing(formData: FormData) {
   return apiUpload<{ id: string }>('/api/tickets', formData);
 }
@@ -158,7 +158,9 @@ export type MyListingDetail = TicketListingItem & {
   orderRef?: string | null;
   publicationPassword?: string | null;
   captureTicketUrl?: string | null;
+  captureTicketOriginalUrl?: string | null;
   captureOwnershipUrl?: string | null;
+  captureOwnershipOriginalUrl?: string | null;
   ticketera?: string;
   appBoletos?: string;
   ticketeraOtra?: string | null;

@@ -47,6 +47,10 @@ export function MiPublicacion() {
 
   const imgQr = listing.captureTicketUrl ? ensureImageUrl(listing.captureTicketUrl) : null;
   const imgFactura = listing.captureOwnershipUrl ? ensureImageUrl(listing.captureOwnershipUrl) : null;
+  const imgQrOriginal = listing.captureTicketOriginalUrl ? ensureImageUrl(listing.captureTicketOriginalUrl) : null;
+  const imgFacturaOriginal = listing.captureOwnershipOriginalUrl
+    ? ensureImageUrl(listing.captureOwnershipOriginalUrl)
+    : null;
 
   return (
     <div className="page-content">
@@ -119,6 +123,26 @@ export function MiPublicacion() {
           </button>
         )}
       </div>
+
+      {(imgQrOriginal || imgFacturaOriginal) && (
+        <div className="glass mb-2" style={{ padding: 16, borderRadius: 12 }}>
+          <p className="text-muted" style={{ marginBottom: 10, fontSize: 14 }}>
+            Archivo original (solo vos; no se comparte con compradores del marketplace).
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            {imgQrOriginal && (
+              <a className="btn-secondary" style={{ textDecoration: 'none' }} href={imgQrOriginal} target="_blank" rel="noopener noreferrer">
+                Abrir original — ticket
+              </a>
+            )}
+            {imgFacturaOriginal && (
+              <a className="btn-secondary" style={{ textDecoration: 'none' }} href={imgFacturaOriginal} target="_blank" rel="noopener noreferrer">
+                Abrir original — titularidad
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <Link to={`/publicar?editar=${encodeURIComponent(listing.id)}`} className="btn-primary">

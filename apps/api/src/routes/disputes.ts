@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { openDisputeSchema } from '@tickets-transfer/shared';
+import { stripOriginalListingImageUrls } from '../lib/listing-image-privacy.js';
 
 const router = Router();
 
@@ -45,10 +46,17 @@ router.post('/', async (req: AuthRequest, res) => {
   await db().collection(COLLECTIONS.ORDERS).doc(orderId).update({ status: 'EN_DISPUTA', updatedAt: new Date() });
 
   const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(order.ticketListingId).get();
+  const ticketListingRaw = listingDoc.exists
+    ? ({ id: listingDoc.id, ...(listingDoc.data() as Record<string, unknown>) } as Record<string, unknown>)
+    : null;
+  const ticketListingForViewer =
+    ticketListingRaw && order.buyerId === req.user!.id
+      ? stripOriginalListingImageUrls(ticketListingRaw)
+      : ticketListingRaw;
   res.status(201).json({
     id: disputeId,
     ...disputeData,
-    order: { id: orderId, ...order, ticketListing: listingDoc.exists ? listingDoc.data() : null },
+    order: { id: orderId, ...order, ticketListing: ticketListingForViewer },
   });
 });
 
@@ -78,10 +86,17 @@ router.get('/my', async (req: AuthRequest, res) => {
       const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(d.orderId).get();
       const order = orderDoc.data()!;
       const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(order.ticketListingId).get();
+      const ticketListingRaw = listingDoc.exists
+        ? ({ id: listingDoc.id, ...(listingDoc.data() as Record<string, unknown>) } as Record<string, unknown>)
+        : null;
+      const ticketListingForViewer =
+        ticketListingRaw && order.buyerId === req.user!.id
+          ? stripOriginalListingImageUrls(ticketListingRaw)
+          : ticketListingRaw;
       return {
         id: doc.id,
         ...d,
-        order: { id: orderDoc.id, ...order, ticketListing: listingDoc.exists ? listingDoc.data() : null },
+        order: { id: orderDoc.id, ...order, ticketListing: ticketListingForViewer },
         createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
         updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
       };
@@ -105,6 +120,14 @@ router.get('/:id', async (req: AuthRequest, res) => {
   const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(order.ticketListingId).get();
   const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(order.buyerId).get();
   const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(order.sellerId).get();
+
+  const ticketListingRaw = listingDoc.exists
+    ? ({ id: listingDoc.id, ...(listingDoc.data() as Record<string, unknown>) } as Record<string, unknown>)
+    : null;
+  const ticketListingForViewer =
+    ticketListingRaw && order.buyerId === req.user!.id
+      ? stripOriginalListingImageUrls(ticketListingRaw)
+      : ticketListingRaw;
 
   const messagesSnap = await db()
     .collection(COLLECTIONS.DISPUTE_MESSAGES)
@@ -131,7 +154,7 @@ router.get('/:id', async (req: AuthRequest, res) => {
     order: {
       id: orderDoc.id,
       ...order,
-      ticketListing: listingDoc.exists ? listingDoc.data() : null,
+      ticketListing: ticketListingForViewer,
       buyer: buyerDoc.exists ? { id: order.buyerId, email: buyerDoc.data()?.email } : null,
       seller: sellerDoc.exists ? { id: order.sellerId, email: sellerDoc.data()?.email } : null,
     },

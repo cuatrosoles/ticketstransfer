@@ -75,6 +75,8 @@ const external = [
   'mercadopago',
   'multer',
   'twilio',
+  'tesseract.js',
+  'jsqr',
 ];
 
 await esbuild.build({

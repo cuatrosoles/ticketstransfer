@@ -14,6 +14,7 @@ import {
   Image,
   Modal,
   Pressable,
+  Linking,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -113,6 +114,37 @@ export function MyListingDetailScreen() {
           )}
         </View>
 
+        {(listing.captureTicketOriginalUrl || listing.captureOwnershipOriginalUrl) ? (
+          <View style={styles.originalBlock}>
+            <Text style={styles.originalTitle}>Archivo original (solo vos)</Text>
+            <Text style={styles.originalHint}>No se comparte con compradores del marketplace.</Text>
+            <View style={styles.originalRow}>
+              {listing.captureTicketOriginalUrl ? (
+                <TouchableOpacity
+                  style={styles.originalBtn}
+                  onPress={() => {
+                    const u = ensureImageUrl(listing.captureTicketOriginalUrl);
+                    if (u) void Linking.openURL(u);
+                  }}
+                >
+                  <Text style={styles.originalBtnText}>Abrir original — ticket</Text>
+                </TouchableOpacity>
+              ) : null}
+              {listing.captureOwnershipOriginalUrl ? (
+                <TouchableOpacity
+                  style={styles.originalBtn}
+                  onPress={() => {
+                    const u = ensureImageUrl(listing.captureOwnershipOriginalUrl);
+                    if (u) void Linking.openURL(u);
+                  }}
+                >
+                  <Text style={styles.originalBtnText}>Abrir original — titularidad</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
         <TouchableOpacity
           style={styles.primaryButton}
           onPress={() => navigation.navigate('Publish', { editListingId: listing.id })}
@@ -179,6 +211,26 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(96, 165, 250, 0.4)',
   },
   previewBtnText: { color: colors.text, fontSize: 13, fontWeight: '600' },
+  originalBlock: {
+    marginBottom: spacing.lg,
+    padding: spacing.md,
+    borderRadius: radius,
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.35)',
+    backgroundColor: 'rgba(15, 23, 42, 0.35)',
+  },
+  originalTitle: { fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 4 },
+  originalHint: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.sm },
+  originalRow: { gap: spacing.sm },
+  originalBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius,
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.45)',
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+  },
+  originalBtnText: { color: colors.text, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   primaryButton: {
     backgroundColor: colors.primary,
     paddingVertical: 14,
