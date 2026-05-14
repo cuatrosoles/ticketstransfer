@@ -13,18 +13,53 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const apiRoot = join(__dirname, '..');
-const monorepoRoot = join(apiRoot, '..', '..');
 
+/** Sube directorios hasta encontrar la raíz del workspace (pnpm). */
+function findRepoRoot() {
+  let dir = __dirname;
+  for (let i = 0; i < 12; i++) {
+    if (existsSync(join(dir, 'pnpm-workspace.yaml'))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return join(apiRoot, '..', '..');
+}
+
+const monorepoRoot = findRepoRoot();
+
+/** Resolución sin depender del package.json raíz (no declara tesseract.js-core). */
 function resolveSourceCoreDir() {
-  for (const root of [monorepoRoot, apiRoot]) {
+  const tryRequire = (filename) => {
+    const r = createRequire(filename);
+    return dirname(r.resolve('tesseract.js-core/package.json'));
+  };
+
+  for (const anchor of [fileURLToPath(import.meta.url), join(apiRoot, 'package.json')]) {
     try {
-      const r = createRequire(join(root, 'package.json'));
-      return dirname(r.resolve('tesseract.js-core/package.json'));
+      const dir = tryRequire(anchor);
+      if (existsSync(join(dir, 'package.json'))) return dir;
     } catch {
-      /* siguiente */
+      /* siguiente ancla */
     }
   }
-  throw new Error('[bundle-tesseract-core] No se pudo resolver tesseract.js-core. Ejecutá pnpm install en la raíz v2.');
+
+  for (const nm of [join(monorepoRoot, 'node_modules'), join(apiRoot, 'node_modules')]) {
+    const flat = join(nm, 'tesseract.js-core');
+    if (existsSync(join(flat, 'package.json'))) return flat;
+    const pnpmDir = join(nm, '.pnpm');
+    if (!existsSync(pnpmDir)) continue;
+    for (const name of readdirSync(pnpmDir)) {
+      if (!name.startsWith('tesseract.js-core@')) continue;
+      const nested = join(pnpmDir, name, 'node_modules', 'tesseract.js-core');
+      if (existsSync(join(nested, 'package.json'))) return nested;
+    }
+  }
+
+  throw new Error(
+    '[bundle-tesseract-core] No se encontró tesseract.js-core. ¿pnpm install en la raíz del repo? Raíz detectada: ' +
+      monorepoRoot
+  );
 }
 
 /**
