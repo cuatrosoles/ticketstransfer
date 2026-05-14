@@ -9,12 +9,10 @@
  *
  * dist/index.js lo genera esbuild sin .d.ts; el chequeo de tipos no aporta en este archivo.
  */
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
 
 if (process.env.VERCEL === '1') {
-  require('./install-tesseract-core-tmp-sync.cjs');
+  const { ensureTesseractCoreV7InTmp } = await import('./install-tesseract-core-tmp.mjs');
+  await ensureTesseractCoreV7InTmp();
 }
 
 const { default: app } = await import('../dist/index.js');
