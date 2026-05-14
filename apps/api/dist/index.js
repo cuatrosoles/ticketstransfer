@@ -19021,7 +19021,7 @@ var TICKET_QR_FALLBACK_REGIONS_VERCEL = [
   { x: 0, y: 0.55, width: 0.44, height: 0.45 }
 ];
 var DEFAULT_REGIONS = FALLBACK_PIXELATE_REGIONS;
-var PIXELATE_BLOCK_SIZE = 12;
+var PIXELATE_BLOCK_SIZE = 28;
 function clamp01(n) {
   return Math.max(0, Math.min(1, n));
 }
