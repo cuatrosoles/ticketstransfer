@@ -23,6 +23,19 @@ export const FALLBACK_PIXELATE_REGIONS: PixelateRegion[] = [
   { x: 0.08, y: 0.58, width: 0.84, height: 0.12 },
 ];
 
+/** Titularidad / factura: bloque típico CLIENTE, DIRECCIÓN, LOCALIDAD (sin OCR en Vercel). */
+export const OWNERSHIP_CONTACT_FALLBACK_REGIONS: PixelateRegion[] = [
+  { x: 0.01, y: 0.04, width: 0.82, height: 0.3 },
+];
+
+/**
+ * Solo Vercel si jsQR no encuentra QR: zona común en comprobantes (QR abajo a la izquierda).
+ * No sustituye la detección real cuando funciona.
+ */
+export const TICKET_QR_FALLBACK_REGIONS_VERCEL: PixelateRegion[] = [
+  { x: 0, y: 0.55, width: 0.44, height: 0.45 },
+];
+
 /** @deprecated Usar FALLBACK_PIXELATE_REGIONS */
 const DEFAULT_REGIONS = FALLBACK_PIXELATE_REGIONS;
 

@@ -19014,6 +19014,12 @@ var FALLBACK_PIXELATE_REGIONS = [
   { x: 0.08, y: 0.35, width: 0.84, height: 0.18 },
   { x: 0.08, y: 0.58, width: 0.84, height: 0.12 }
 ];
+var OWNERSHIP_CONTACT_FALLBACK_REGIONS = [
+  { x: 0.01, y: 0.04, width: 0.82, height: 0.3 }
+];
+var TICKET_QR_FALLBACK_REGIONS_VERCEL = [
+  { x: 0, y: 0.55, width: 0.44, height: 0.45 }
+];
 var DEFAULT_REGIONS = FALLBACK_PIXELATE_REGIONS;
 var PIXELATE_BLOCK_SIZE = 12;
 function clamp01(n) {
@@ -19112,12 +19118,18 @@ function qrLocationToRegion(loc, w, h) {
   };
 }
 function decodeQrFromBitmap(data, w, h) {
-  return jsQR(
-    data,
-    w,
-    h,
-    IS_VERCEL ? { inversionAttempts: "dontInvert" } : { inversionAttempts: "attemptBoth" }
-  );
+  return jsQR(data, w, h, { inversionAttempts: "attemptBoth" });
+}
+function bitmapToRgbaClamped(bitmap) {
+  const { width, height, data } = bitmap;
+  const need = width * height * 4;
+  const u8 = data instanceof Buffer ? new Uint8Array(data) : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  if (u8.byteLength < need) {
+    const out = new Uint8ClampedArray(need);
+    out.set(u8.subarray(0, Math.min(u8.byteLength, need)));
+    return out;
+  }
+  return new Uint8ClampedArray(u8.buffer, u8.byteOffset, need);
 }
 function qrPreprocessVariants(scaled) {
   const out = [scaled.clone()];
@@ -19145,6 +19157,12 @@ function qrPreprocessVariantsVercel(scaled) {
     out.push(scaled.clone().greyscale());
   } catch {
   }
+  try {
+    const g = scaled.clone().greyscale();
+    g.contrast(0.16);
+    out.push(g);
+  } catch {
+  }
   return out;
 }
 function ensureMinQrSide(im, minSide) {
@@ -19158,17 +19176,17 @@ function ensureMinQrSide(im, minSide) {
 }
 async function tryDecodeOneQr(buf) {
   const full = await Jimp2.read(buf);
-  const inputCap = IS_VERCEL ? 1400 : 3600;
+  const inputCap = IS_VERCEL ? 1800 : 3600;
   let raw = full;
   if (Math.max(full.bitmap.width, full.bitmap.height) > inputCap) {
     raw = full.clone().scaleToFit({ w: inputCap, h: inputCap });
   }
-  const maxDims = IS_VERCEL ? [1100, 720] : [3400, 3e3, 2600, 2200, 1800, 1400, 1200, 960, 720, 560];
+  const maxDims = IS_VERCEL ? [1800, 1400, 1e3, 720] : [3400, 3e3, 2600, 2200, 1800, 1400, 1200, 960, 720, 560];
   const seen = /* @__PURE__ */ new Set();
   for (const maxDim of maxDims) {
     const im = raw.clone();
     let scaled = Math.max(im.bitmap.width, im.bitmap.height) > maxDim ? im.scaleToFit({ w: maxDim, h: maxDim }) : im;
-    const minSide = IS_VERCEL ? 150 : 220;
+    const minSide = IS_VERCEL ? 180 : 220;
     scaled = ensureMinQrSide(scaled, minSide);
     const variants = IS_VERCEL ? qrPreprocessVariantsVercel(scaled) : qrPreprocessVariants(scaled);
     for (const variant of variants) {
@@ -19177,7 +19195,7 @@ async function tryDecodeOneQr(buf) {
       const key = `${w}x${h}:${variant.bitmap.data[0]}-${variant.bitmap.data[32]}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      const code = decodeQrFromBitmap(new Uint8ClampedArray(variant.bitmap.data), w, h);
+      const code = decodeQrFromBitmap(bitmapToRgbaClamped(variant.bitmap), w, h);
       if (code?.location) {
         const region = qrLocationToRegion(code.location, w, h);
         const box = normToPixels(region, full.bitmap.width, full.bitmap.height);
@@ -19197,9 +19215,9 @@ async function tryDecodeOneQr(buf) {
 async function detectQrRegions(buffer) {
   const regions = [];
   let work = Buffer.from(buffer);
-  const maxIterations = IS_VERCEL ? 2 : 8;
+  const maxIterations = IS_VERCEL ? 3 : 8;
   const t0 = IS_VERCEL ? Date.now() : 0;
-  const budgetMs = IS_VERCEL ? 1e4 : 0;
+  const budgetMs = IS_VERCEL ? 18e3 : 0;
   for (let i = 0; i < maxIterations; i++) {
     if (budgetMs > 0 && Date.now() - t0 > budgetMs) {
       console.warn("[image-redaction] QR: presupuesto de tiempo (Vercel), se detiene b\xFAsqueda de m\xE1s QR");
@@ -19396,7 +19414,8 @@ async function detectSensitiveTextRegions(buffer) {
     return regions;
   });
 }
-async function buildRedactionRegionsForBuffer(buffer) {
+async function buildRedactionRegionsForBuffer(buffer, opts) {
+  const kind = opts?.kind;
   const [qr, text] = await Promise.all([
     detectQrRegions(buffer).catch((e) => {
       console.warn("[image-redaction] detecci\xF3n QR:", e);
@@ -19408,7 +19427,13 @@ async function buildRedactionRegionsForBuffer(buffer) {
     })
   ]);
   if (IS_VERCEL) {
-    return mergePixelateRegions([...qr, ...text]);
+    const extra = [];
+    if (kind === "ownership") {
+      extra.push(...OWNERSHIP_CONTACT_FALLBACK_REGIONS);
+    } else if (kind === "ticket" && qr.length === 0) {
+      extra.push(...TICKET_QR_FALLBACK_REGIONS_VERCEL);
+    }
+    return mergePixelateRegions([...qr, ...text, ...extra]);
   }
   return mergePixelateRegions([...qr, ...text, ...FALLBACK_PIXELATE_REGIONS]);
 }
@@ -19424,7 +19449,7 @@ async function storeListingCaptureWithRedaction(listingId, kind, file) {
     file.buffer,
     mime
   );
-  const regions = await buildRedactionRegionsForBuffer(file.buffer);
+  const regions = await buildRedactionRegionsForBuffer(file.buffer, { kind });
   const { buffer: redactedBuf, mimeType } = await redactImage(file.buffer, { regions });
   const redactedUrl = await uploadFile(
     `tickets/${listingId}/${base}_public_${ts}.jpg`,

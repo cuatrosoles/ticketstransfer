@@ -2,7 +2,8 @@
  * Detección automática de zonas sensibles en capturas de tickets:
  * 1) Códigos QR (jsQR, varias escalas, variantes de color y varios QR por imagen).
  * 2) Texto con datos de contacto / identificación (Tesseract spa+eng + heurísticas AR; desactivado en Vercel por tiempo).
- * En Vercel: solo QR + OCR (vacío) — sin `FALLBACK_PIXELATE_REGIONS` (zonas fijas). Fuera de Vercel: también fallbacks.
+ * En Vercel: QR (jsQR) + titularidad con banda de contacto heurística (sin OCR); si no hay QR en ticket, zona típica QR.
+ * Fuera de Vercel: QR + OCR + `FALLBACK_PIXELATE_REGIONS`.
  */
 
 import { Jimp } from 'jimp';
@@ -10,7 +11,11 @@ import type { QRCode } from 'jsqr';
 import * as JsQrPkg from 'jsqr';
 import { createWorker, OEM, PSM } from 'tesseract.js';
 import type { PixelateRegion } from './image-redaction.js';
-import { FALLBACK_PIXELATE_REGIONS } from './image-redaction.js';
+import {
+  FALLBACK_PIXELATE_REGIONS,
+  OWNERSHIP_CONTACT_FALLBACK_REGIONS,
+  TICKET_QR_FALLBACK_REGIONS_VERCEL,
+} from './image-redaction.js';
 
 const IS_VERCEL = process.env.VERCEL === '1';
 
@@ -86,12 +91,20 @@ function qrLocationToRegion(loc: QRCode['location'], w: number, h: number): Pixe
 type JimpImg = Awaited<ReturnType<typeof Jimp.read>>;
 
 function decodeQrFromBitmap(data: Uint8ClampedArray, w: number, h: number): QRCode | null {
-  return jsQR(
-    data,
-    w,
-    h,
-    IS_VERCEL ? { inversionAttempts: 'dontInvert' } : { inversionAttempts: 'attemptBoth' }
-  );
+  return jsQR(data, w, h, { inversionAttempts: 'attemptBoth' });
+}
+
+/** jsQR espera ImageData RGBA; copia explícita por si el buffer de Jimp no es contiguo. */
+function bitmapToRgbaClamped(bitmap: { width: number; height: number; data: Buffer | Uint8Array }): Uint8ClampedArray {
+  const { width, height, data } = bitmap;
+  const need = width * height * 4;
+  const u8 = data instanceof Buffer ? new Uint8Array(data) : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  if (u8.byteLength < need) {
+    const out = new Uint8ClampedArray(need);
+    out.set(u8.subarray(0, Math.min(u8.byteLength, need)));
+    return out;
+  }
+  return new Uint8ClampedArray(u8.buffer, u8.byteOffset, need);
 }
 
 /** Variantes de preprocesado (completas, fuera de Vercel). */
@@ -127,6 +140,13 @@ function qrPreprocessVariantsVercel(scaled: JimpImg): JimpImg[] {
   } catch {
     /* */
   }
+  try {
+    const g = scaled.clone().greyscale() as JimpImg;
+    (g as unknown as { contrast(v: number): JimpImg }).contrast(0.16);
+    out.push(g);
+  } catch {
+    /* */
+  }
   return out;
 }
 
@@ -144,20 +164,20 @@ function ensureMinQrSide(im: JimpImg, minSide: number): JimpImg {
 async function tryDecodeOneQr(buf: Buffer): Promise<{ region: PixelateRegion; blanked: Buffer } | null> {
   const full = (await Jimp.read(buf)) as JimpImg;
   /** Cota de trabajo: jsQR + clones; la redacción final usa `full` (resolución original). */
-  const inputCap = IS_VERCEL ? 1400 : 3600;
+  const inputCap = IS_VERCEL ? 1800 : 3600;
   let raw = full;
   if (Math.max(full.bitmap.width, full.bitmap.height) > inputCap) {
     raw = full.clone().scaleToFit({ w: inputCap, h: inputCap }) as JimpImg;
   }
 
-  const maxDims = IS_VERCEL ? [1100, 720] : [3400, 3000, 2600, 2200, 1800, 1400, 1200, 960, 720, 560];
+  const maxDims = IS_VERCEL ? [1800, 1400, 1000, 720] : [3400, 3000, 2600, 2200, 1800, 1400, 1200, 960, 720, 560];
   const seen = new Set<string>();
 
   for (const maxDim of maxDims) {
     const im = raw.clone();
     let scaled =
       Math.max(im.bitmap.width, im.bitmap.height) > maxDim ? im.scaleToFit({ w: maxDim, h: maxDim }) : im;
-    const minSide = IS_VERCEL ? 150 : 220;
+    const minSide = IS_VERCEL ? 180 : 220;
     scaled = ensureMinQrSide(scaled as JimpImg, minSide);
 
     const variants = IS_VERCEL ? qrPreprocessVariantsVercel(scaled as JimpImg) : qrPreprocessVariants(scaled as JimpImg);
@@ -169,7 +189,7 @@ async function tryDecodeOneQr(buf: Buffer): Promise<{ region: PixelateRegion; bl
       if (seen.has(key)) continue;
       seen.add(key);
 
-      const code = decodeQrFromBitmap(new Uint8ClampedArray(variant.bitmap.data), w, h);
+      const code = decodeQrFromBitmap(bitmapToRgbaClamped(variant.bitmap), w, h);
       if (code?.location) {
         const region = qrLocationToRegion(code.location, w, h);
         const box = normToPixels(region, full.bitmap.width, full.bitmap.height);
@@ -191,9 +211,9 @@ async function tryDecodeOneQr(buf: Buffer): Promise<{ region: PixelateRegion; bl
 export async function detectQrRegions(buffer: Buffer): Promise<PixelateRegion[]> {
   const regions: PixelateRegion[] = [];
   let work = Buffer.from(buffer);
-  const maxIterations = IS_VERCEL ? 2 : 8;
+  const maxIterations = IS_VERCEL ? 3 : 8;
   const t0 = IS_VERCEL ? Date.now() : 0;
-  const budgetMs = IS_VERCEL ? 10_000 : 0;
+  const budgetMs = IS_VERCEL ? 18_000 : 0;
 
   for (let i = 0; i < maxIterations; i++) {
     if (budgetMs > 0 && Date.now() - t0 > budgetMs) {
@@ -442,8 +462,14 @@ export async function detectSensitiveTextRegions(buffer: Buffer): Promise<Pixela
   });
 }
 
+export type ListingCaptureKind = 'ticket' | 'ownership';
+
 /** Regiones finales: QR + OCR + fallback heurístico, fusionadas. */
-export async function buildRedactionRegionsForBuffer(buffer: Buffer): Promise<PixelateRegion[]> {
+export async function buildRedactionRegionsForBuffer(
+  buffer: Buffer,
+  opts?: { kind?: ListingCaptureKind }
+): Promise<PixelateRegion[]> {
+  const kind = opts?.kind;
   const [qr, text] = await Promise.all([
     detectQrRegions(buffer).catch((e) => {
       console.warn('[image-redaction] detección QR:', e);
@@ -455,7 +481,13 @@ export async function buildRedactionRegionsForBuffer(buffer: Buffer): Promise<Pi
     }),
   ]);
   if (IS_VERCEL) {
-    return mergePixelateRegions([...qr, ...text]);
+    const extra: PixelateRegion[] = [];
+    if (kind === 'ownership') {
+      extra.push(...OWNERSHIP_CONTACT_FALLBACK_REGIONS);
+    } else if (kind === 'ticket' && qr.length === 0) {
+      extra.push(...TICKET_QR_FALLBACK_REGIONS_VERCEL);
+    }
+    return mergePixelateRegions([...qr, ...text, ...extra]);
   }
   return mergePixelateRegions([...qr, ...text, ...FALLBACK_PIXELATE_REGIONS]);
 }

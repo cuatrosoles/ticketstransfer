@@ -1,5 +1,5 @@
 /**
- * Sube original sin modificar y versión pública redactada (en Vercel: solo QRs detectados con jsQR; original intacto).
+ * Sube original sin modificar y versión pública redactada (Vercel: QR + titularidad con banda de contacto; fuera de Vercel: + OCR + fallbacks).
  */
 
 import type { Express } from 'express';
@@ -21,7 +21,7 @@ export async function storeListingCaptureWithRedaction(
     file.buffer,
     mime
   );
-  const regions = await buildRedactionRegionsForBuffer(file.buffer);
+  const regions = await buildRedactionRegionsForBuffer(file.buffer, { kind });
   const { buffer: redactedBuf, mimeType } = await redactImage(file.buffer, { regions });
   const redactedUrl = await uploadFile(
     `tickets/${listingId}/${base}_public_${ts}.jpg`,
