@@ -280,20 +280,12 @@ function enqueueOcr<T>(fn: () => Promise<T>): Promise<T> {
 
 async function getOcrWorker(): Promise<TessWorker> {
   if (!ocrWorkerPromise) {
-    const opts: Parameters<typeof createWorker>[2] = {
+    ocrWorkerPromise = createWorker('spa+eng', OEM.LSTM_ONLY, {
       logger: () => {},
-      /** Evita que fallos del worker (p. ej. WASM) se propaguen como excepción no capturada en el proceso. */
       errorHandler: (err: unknown) => {
         console.error('[image-redaction] Tesseract worker:', err);
       },
-    };
-    /**
-     * Vercel: worker en otro hilo; bootstrap generado en /tmp por api/index.ts (ver install-tesseract-core-tmp.mjs).
-     */
-    if (process.env.VERCEL === '1' && process.env.TESSERACT_WORKER_BOOTSTRAP_PATH) {
-      opts.workerPath = process.env.TESSERACT_WORKER_BOOTSTRAP_PATH;
-    }
-    ocrWorkerPromise = createWorker('spa+eng', OEM.LSTM_ONLY, opts);
+    });
   }
   return ocrWorkerPromise;
 }
@@ -317,6 +309,15 @@ function collectWordsAndLines(page: {
 }
 
 export async function detectSensitiveTextRegions(buffer: Buffer): Promise<PixelateRegion[]> {
+  /**
+   * Vercel serverless: Tesseract spa+eng en CPU supera con facilidad el límite de tiempo (p. ej. 60s)
+   * y el runtime no está pensado para OCR pesado. En producción Vercel solo se usan QR + fallbacks.
+   * Para OCR completo: API en Node dedicado (Docker/Fly/Railway) o variable de entorno futura.
+   */
+  if (process.env.VERCEL === '1') {
+    return [];
+  }
+
   return enqueueOcr(async () => {
     const regions: PixelateRegion[] = [];
     const img = await Jimp.read(buffer);
