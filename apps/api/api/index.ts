@@ -11,6 +11,13 @@
  */
 
 if (process.env.VERCEL === '1') {
+  const { fileURLToPath } = await import('node:url');
+  const { dirname, join } = await import('node:path');
+  /** Ruta absoluta: no usar process.cwd() (en Vercel suele ser /var/task, no la carpeta de la app). */
+  process.env.TESSERACT_WORKER_BOOTSTRAP_PATH = join(
+    dirname(fileURLToPath(import.meta.url)),
+    'tesseract-worker-bootstrap.cjs'
+  );
   const { ensureTesseractCoreV7InTmp } = await import('./install-tesseract-core-tmp.mjs');
   await ensureTesseractCoreV7InTmp();
 }

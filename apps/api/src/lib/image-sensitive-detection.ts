@@ -8,7 +8,6 @@
 import { Jimp } from 'jimp';
 import type { QRCode } from 'jsqr';
 import * as JsQrPkg from 'jsqr';
-import { join } from 'node:path';
 import { createWorker, OEM, PSM } from 'tesseract.js';
 import type { PixelateRegion } from './image-redaction.js';
 import { FALLBACK_PIXELATE_REGIONS } from './image-redaction.js';
@@ -289,11 +288,11 @@ async function getOcrWorker(): Promise<TessWorker> {
       },
     };
     /**
-     * Vercel: el worker corre en otro hilo; parcheamos resolución de tesseract.js-core
-     * en api/tesseract-worker-bootstrap.cjs y los binarios viven en /tmp (install en api/index.ts).
+     * Vercel: worker en otro hilo; bootstrap y WASM en /tmp. La ruta absoluta la define
+     * api/index.ts (TESSERACT_WORKER_BOOTSTRAP_PATH) — no usar process.cwd() (suele ser /var/task).
      */
-    if (process.env.VERCEL === '1') {
-      opts.workerPath = join(process.cwd(), 'api', 'tesseract-worker-bootstrap.cjs');
+    if (process.env.VERCEL === '1' && process.env.TESSERACT_WORKER_BOOTSTRAP_PATH) {
+      opts.workerPath = process.env.TESSERACT_WORKER_BOOTSTRAP_PATH;
     }
     ocrWorkerPromise = createWorker('spa+eng', OEM.LSTM_ONLY, opts);
   }
