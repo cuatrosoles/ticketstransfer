@@ -282,6 +282,10 @@ async function getOcrWorker(): Promise<TessWorker> {
   if (!ocrWorkerPromise) {
     ocrWorkerPromise = createWorker('spa+eng', OEM.LSTM_ONLY, {
       logger: () => {},
+      /** Evita que fallos del worker (p. ej. WASM) se propaguen como excepción no capturada en el proceso. */
+      errorHandler: (err: unknown) => {
+        console.error('[image-redaction] Tesseract worker:', err);
+      },
     });
   }
   return ocrWorkerPromise;
