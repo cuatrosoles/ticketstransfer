@@ -1,5 +1,5 @@
 /**
- * Subida de capturas de ticket / titularidad: conserva original y versión pública redactada.
+ * Sube original sin modificar y versión pública redactada (en Vercel: solo QRs detectados con jsQR; original intacto).
  */
 
 import type { Express } from 'express';

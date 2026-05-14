@@ -19037,7 +19037,7 @@ async function redactImage(buffer, options) {
   const image = await Jimp.read(buffer);
   const w = image.bitmap.width;
   const h = image.bitmap.height;
-  const regions = options?.regions && options.regions.length > 0 ? options.regions : DEFAULT_REGIONS;
+  const regions = options?.regions !== void 0 ? options.regions : DEFAULT_REGIONS;
   for (const region of regions) {
     const { x, y, w: rw, h: rh } = toPixelRegion(region, w, h);
     if (rw > 0 && rh > 0) {
@@ -19103,31 +19103,66 @@ function qrLocationToRegion(loc, w, h) {
     height: Math.min(1 - py, bh)
   };
 }
+function decodeQrFromBitmap(data, w, h) {
+  return jsQR(data, w, h, { inversionAttempts: "attemptBoth" });
+}
+function qrPreprocessVariants(scaled) {
+  const out = [scaled.clone()];
+  try {
+    out.push(scaled.clone().greyscale());
+  } catch {
+  }
+  try {
+    const g = scaled.clone().greyscale();
+    g.contrast(0.18);
+    out.push(g);
+  } catch {
+  }
+  try {
+    const g2 = scaled.clone().greyscale();
+    g2.contrast(-0.12);
+    out.push(g2);
+  } catch {
+  }
+  return out;
+}
+function ensureMinQrSide(im, minSide) {
+  const w = im.bitmap.width;
+  const h = im.bitmap.height;
+  const m = Math.min(w, h);
+  if (m >= minSide) return im;
+  const factor = minSide / m * 1.05;
+  const long = Math.max(1, Math.ceil(Math.max(w, h) * factor));
+  return im.scaleToFit({ w: long, h: long });
+}
 async function tryDecodeOneQr(buf) {
   const raw = await Jimp2.read(buf);
-  const maxDims = [2600, 2e3, 1600, 1200, 900];
+  const maxDims = [3400, 3e3, 2600, 2200, 1800, 1400, 1200, 960, 720, 560];
   const seen = /* @__PURE__ */ new Set();
   for (const maxDim of maxDims) {
     const im = raw.clone();
-    const scaled = Math.max(im.bitmap.width, im.bitmap.height) > maxDim ? im.scaleToFit({ w: maxDim, h: maxDim }) : im;
-    const key = `${scaled.bitmap.width}x${scaled.bitmap.height}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const w = scaled.bitmap.width;
-    const h = scaled.bitmap.height;
-    const code = jsQR(new Uint8ClampedArray(scaled.bitmap.data), w, h, { inversionAttempts: "attemptBoth" });
-    if (code?.location) {
-      const region = qrLocationToRegion(code.location, w, h);
-      const full = await Jimp2.read(buf);
-      const box = normToPixels(region, full.bitmap.width, full.bitmap.height);
-      fillWhiteRect(full, box);
-      const blanked = Buffer.from(
-        await full.getBuffer(
-          "image/jpeg",
-          { quality: 92 }
-        )
-      );
-      return { region, blanked };
+    let scaled = Math.max(im.bitmap.width, im.bitmap.height) > maxDim ? im.scaleToFit({ w: maxDim, h: maxDim }) : im;
+    scaled = ensureMinQrSide(scaled, 220);
+    for (const variant of qrPreprocessVariants(scaled)) {
+      const w = variant.bitmap.width;
+      const h = variant.bitmap.height;
+      const key = `${w}x${h}:${variant.bitmap.data[0]}-${variant.bitmap.data[32]}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const code = decodeQrFromBitmap(new Uint8ClampedArray(variant.bitmap.data), w, h);
+      if (code?.location) {
+        const region = qrLocationToRegion(code.location, w, h);
+        const full = await Jimp2.read(buf);
+        const box = normToPixels(region, full.bitmap.width, full.bitmap.height);
+        fillWhiteRect(full, box);
+        const blanked = Buffer.from(
+          await full.getBuffer(
+            "image/jpeg",
+            { quality: 92 }
+          )
+        );
+        return { region, blanked };
+      }
     }
   }
   return null;
@@ -19144,32 +19179,72 @@ async function detectQrRegions(buffer) {
   return regions;
 }
 var RE_EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
-var RE_CUIT_CUIL = /\b\d{2}[\s.-]?\d{8}[\s.-]?\d{1}\b/;
-var RE_CBU = /\b\d{22}\b/;
-var RE_PHONE_LOOSE = /\b(?:\+?54[\s.-]*)?(?:0?\d{2,4}[\s.-]*)?(?:15|11|351|221|261|223|381|341|387|299|280|362|370|383|385|388)\s*[\s.-]?\d{4}\s*[\s.-]?\d{4}\b/i;
-var RE_DNI = /\b\d{1,2}[\s.]?\d{3}[\s.]?\d{3}\b/;
+var RE_CUIT_CUIL = /\b(\d{2})[\s.-]?(\d{8})[\s.-]?(\d{1})\b/;
+var RE_PHONE_AR = new RegExp(
+  [
+    String.raw`\+54\s*9\s*(?:11|2\d{2}|3\d{2}|38[05])\s*[\s.-]?\d{4}\s*[\s.-]?\d{4}`,
+    String.raw`54\s*9\s*(?:11|2\d{2}|3\d{2}|38[05])\s*[\s.-]?\d{4}\s*[\s.-]?\d{4}`,
+    String.raw`\b0?11\s*[\s.-]?\d{4}\s*[\s.-]?\d{4}\b`,
+    String.raw`\b0?15\s*[\s.-]?\d{4}\s*[\s.-]?\d{4}\b`,
+    String.raw`\b9\s*(?:11|15|2\d{2}|3\d{2}|38[05])\s*[\s.-]?\d{4}\s*[\s.-]?\d{4}\b`
+  ].join("|"),
+  "i"
+);
+var RE_DNI_FORMATTED = /\b\d{1,2}[.\s]\d{3}[.\s]\d{3}\b/;
+var RE_DNI_LABELED = /\b(?:dni|documento|doc\.?)\s*[:\s.-]?\s*\d{6,8}\b/i;
+function allSameChar(s) {
+  if (s.length === 0) return false;
+  const c = s[0];
+  return [...s].every((ch) => ch === c);
+}
+function isValidCuitCuil11(clean) {
+  if (!/^\d{11}$/.test(clean) || allSameChar(clean)) return false;
+  const mult = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+  let sum = 0;
+  for (let i = 0; i < 10; i++) sum += parseInt(clean[i], 10) * mult[i];
+  const mod = sum % 11;
+  const verifier = mod === 0 ? 0 : mod === 1 ? 9 : 11 - mod;
+  return verifier === parseInt(clean[10], 10);
+}
+function extractCuit11(t) {
+  const m = t.match(RE_CUIT_CUIL);
+  if (!m) return null;
+  return `${m[1]}${m[2]}${m[3]}`;
+}
+function lineLooksLikeTicketCommerceRef(t) {
+  if (!/\d/.test(t)) return false;
+  const low = t.toLowerCase();
+  return /\b(?:orden\s*(?:de\s*)?(?:compra|venta|n|#)?|pedido\s*n|n[°º]?\s*(?:orden|pedido|op\.?)|comprobante|folio\s|id\s*(?:de\s*)?(?:compra|pedido|trans)|ref\.?\s*(?:compra|pago|oper)|transacci[oó]n|operaci[oó]n|nro\.?\s*(?:orden|oper|ticket))\b/i.test(
+    low
+  ) && /\d{4,}/.test(t);
+}
 function wordLooksSensitive(text) {
   const t = text.trim();
   if (t.length < 4) return false;
-  const digits = (t.match(/\d/g) || []).length;
+  if (lineLooksLikeTicketCommerceRef(t)) return false;
   if (RE_EMAIL.test(t)) return true;
-  if (RE_CUIT_CUIL.test(t)) return true;
-  if (RE_CBU.test(t.replace(/\s/g, ""))) return true;
-  if (digits >= 8 && RE_PHONE_LOOSE.test(t)) return true;
-  if (RE_DNI.test(t) && t.length <= 16 && digits >= 7) return true;
+  const cuit11 = extractCuit11(t);
+  if (cuit11 && isValidCuitCuil11(cuit11)) return true;
+  const cbuCompact = t.replace(/\s/g, "");
+  const cbuMatch = cbuCompact.match(/\d{22}/);
+  if (cbuMatch && !allSameChar(cbuMatch[0])) return true;
+  if (RE_PHONE_AR.test(t)) return true;
+  if (RE_DNI_LABELED.test(t) || RE_DNI_FORMATTED.test(t)) return true;
   return false;
 }
 function lineLooksSensitive(text) {
   const t = text.trim();
   if (t.length < 6) return false;
+  if (lineLooksLikeTicketCommerceRef(t)) return false;
   const low = t.toLowerCase();
-  if (/calle|av\.?\s|avenida|avda|domicilio|direcci[oó]n|localidad|provincia|cp\.?|c\.p\.|cod\.?\s*postal|tel[ée]fono|tel\.?|cel\.?|celular|whatsapp|wsp|cuit|cuil|dni|documento|cbu|cvu|mail|correo/.test(
+  if (RE_EMAIL.test(t)) return true;
+  const cuit11 = extractCuit11(t);
+  if (cuit11 && isValidCuitCuil11(cuit11)) return true;
+  if (/\bcalle\b|av\.?\s|avenida|\bavda\b|domicilio|direcci[oó]n|\blocalidad\b|\bprov\.?\b|\bprovincia\b|\bcp\b|c\.p\.|cod\.?\s*postal|tel[ée]fono|\btel\.|\bcel\.|celular|whatsapp|\bwsp\b|\bcuit\b|\bcuil\b|\bdni\b|documento|\bcbu\b|\bcvu\b|\bmail\b|\bcorreo\b/.test(
     low
   )) {
     return true;
   }
-  if (RE_EMAIL.test(t)) return true;
-  if (RE_CUIT_CUIL.test(t)) return true;
   return false;
 }
 function bboxToRegion(bbox, iw, ih, padFrac) {
@@ -19230,6 +19305,9 @@ async function getOcrWorker() {
   if (!ocrWorkerPromise) {
     ocrWorkerPromise = createWorker("spa+eng", OEM.LSTM_ONLY, {
       logger: () => {
+      },
+      errorHandler: (err) => {
+        console.error("[image-redaction] Tesseract worker:", err);
       }
     });
   }
@@ -19251,6 +19329,9 @@ function collectWordsAndLines(page) {
   return { words, lines };
 }
 async function detectSensitiveTextRegions(buffer) {
+  if (process.env.VERCEL === "1") {
+    return [];
+  }
   return enqueueOcr(async () => {
     const regions = [];
     const img = await Jimp2.read(buffer);
@@ -19292,6 +19373,9 @@ async function buildRedactionRegionsForBuffer(buffer) {
       return [];
     })
   ]);
+  if (process.env.VERCEL === "1") {
+    return mergePixelateRegions([...qr, ...text]);
+  }
   return mergePixelateRegions([...qr, ...text, ...FALLBACK_PIXELATE_REGIONS]);
 }
 

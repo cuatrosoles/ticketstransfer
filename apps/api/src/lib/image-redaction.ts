@@ -57,7 +57,8 @@ function toPixelRegion(
 /**
  * Redacta (pixelar) zonas sensibles de una imagen.
  * @param buffer - Buffer de la imagen (JPEG/PNG)
- * @param options - Regiones opcionales normalizadas (0-1). Si no se pasan, se usan DEFAULT_REGIONS.
+ * @param options.regions - Regiones 0-1. Si se omite `regions`, se usan heurísticas por defecto.
+ *   Si se pasa `regions: []`, no se pixela ninguna zona (útil cuando solo se quieren QRs detectados y no hubo ninguno).
  * @returns Buffer de la imagen redactada en JPEG (para consistencia y menor tamaño).
  */
 export async function redactImage(
@@ -67,9 +68,12 @@ export async function redactImage(
   const image = await Jimp.read(buffer);
   const w = image.bitmap.width;
   const h = image.bitmap.height;
-  const regions = (options?.regions && options.regions.length > 0)
-    ? options.regions
-    : DEFAULT_REGIONS;
+  /**
+   * Si `regions` viene explícito (incluso `[]`), se respeta: `[]` = no pixelar (p. ej. Vercel solo QR y sin detecciones).
+   * Si no se pasa `regions`, se usan las heurísticas por defecto (comportamiento histórico).
+   */
+  const regions =
+    options?.regions !== undefined ? options.regions : DEFAULT_REGIONS;
 
   for (const region of regions) {
     const { x, y, w: rw, h: rh } = toPixelRegion(region, w, h);

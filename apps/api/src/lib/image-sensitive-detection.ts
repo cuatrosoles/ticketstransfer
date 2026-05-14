@@ -1,8 +1,8 @@
 /**
  * Detección automática de zonas sensibles en capturas de tickets:
- * 1) Códigos QR (jsQR, varias escalas e inversiones; varios QR por imagen).
- * 2) Texto con datos de contacto / identificación (Tesseract spa+eng + heurísticas AR).
- * Se fusionan las regiones y, al final, las heurísticas globales de `FALLBACK_PIXELATE_REGIONS`.
+ * 1) Códigos QR (jsQR, varias escalas, variantes de color y varios QR por imagen).
+ * 2) Texto con datos de contacto / identificación (Tesseract spa+eng + heurísticas AR; desactivado en Vercel por tiempo).
+ * En Vercel: solo QR + OCR (vacío) — sin `FALLBACK_PIXELATE_REGIONS` (zonas fijas). Fuera de Vercel: también fallbacks.
  */
 
 import { Jimp } from 'jimp';
@@ -77,32 +77,80 @@ function qrLocationToRegion(loc: QRCode['location'], w: number, h: number): Pixe
   };
 }
 
+type JimpImg = Awaited<ReturnType<typeof Jimp.read>>;
+
+function decodeQrFromBitmap(data: Uint8ClampedArray, w: number, h: number): QRCode | null {
+  return jsQR(data, w, h, { inversionAttempts: 'attemptBoth' });
+}
+
+/** Variantes de preprocesado para mejorar la tasa de acierto de jsQR (sin OCR pesado). */
+function qrPreprocessVariants(scaled: JimpImg): JimpImg[] {
+  const out: JimpImg[] = [scaled.clone()];
+  try {
+    out.push(scaled.clone().greyscale() as JimpImg);
+  } catch {
+    /* */
+  }
+  try {
+    const g = scaled.clone().greyscale() as JimpImg;
+    (g as unknown as { contrast(v: number): JimpImg }).contrast(0.18);
+    out.push(g);
+  } catch {
+    /* */
+  }
+  try {
+    const g2 = scaled.clone().greyscale() as JimpImg;
+    (g2 as unknown as { contrast(v: number): JimpImg }).contrast(-0.12);
+    out.push(g2);
+  } catch {
+    /* */
+  }
+  return out;
+}
+
+/** Si la imagen es muy chica, jsQR falla: subimos resolución de trabajo (misma relación de aspecto). */
+function ensureMinQrSide(im: JimpImg, minSide: number): JimpImg {
+  const w = im.bitmap.width;
+  const h = im.bitmap.height;
+  const m = Math.min(w, h);
+  if (m >= minSide) return im;
+  const factor = (minSide / m) * 1.05;
+  const long = Math.max(1, Math.ceil(Math.max(w, h) * factor));
+  return im.scaleToFit({ w: long, h: long }) as JimpImg;
+}
+
 async function tryDecodeOneQr(buf: Buffer): Promise<{ region: PixelateRegion; blanked: Buffer } | null> {
   const raw = await Jimp.read(buf);
-  const maxDims = [2600, 2000, 1600, 1200, 900];
+  const maxDims = [3400, 3000, 2600, 2200, 1800, 1400, 1200, 960, 720, 560];
   const seen = new Set<string>();
+
   for (const maxDim of maxDims) {
     const im = raw.clone();
-    const scaled =
+    let scaled =
       Math.max(im.bitmap.width, im.bitmap.height) > maxDim ? im.scaleToFit({ w: maxDim, h: maxDim }) : im;
-    const key = `${scaled.bitmap.width}x${scaled.bitmap.height}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const w = scaled.bitmap.width;
-    const h = scaled.bitmap.height;
-    const code = jsQR(new Uint8ClampedArray(scaled.bitmap.data), w, h, { inversionAttempts: 'attemptBoth' });
-    if (code?.location) {
-      const region = qrLocationToRegion(code.location, w, h);
-      const full = await Jimp.read(buf);
-      const box = normToPixels(region, full.bitmap.width, full.bitmap.height);
-      fillWhiteRect(full, box);
-      const blanked = Buffer.from(
-        await (full as unknown as { getBuffer(m: 'image/jpeg', o?: { quality?: number }): Promise<Buffer> }).getBuffer(
-          'image/jpeg',
-          { quality: 92 }
-        )
-      );
-      return { region, blanked };
+    scaled = ensureMinQrSide(scaled as JimpImg, 220);
+
+    for (const variant of qrPreprocessVariants(scaled as JimpImg)) {
+      const w = variant.bitmap.width;
+      const h = variant.bitmap.height;
+      const key = `${w}x${h}:${variant.bitmap.data[0]}-${variant.bitmap.data[32]}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const code = decodeQrFromBitmap(new Uint8ClampedArray(variant.bitmap.data), w, h);
+      if (code?.location) {
+        const region = qrLocationToRegion(code.location, w, h);
+        const full = await Jimp.read(buf);
+        const box = normToPixels(region, full.bitmap.width, full.bitmap.height);
+        fillWhiteRect(full, box);
+        const blanked = Buffer.from(
+          await (full as unknown as { getBuffer(m: 'image/jpeg', o?: { quality?: number }): Promise<Buffer> }).getBuffer(
+            'image/jpeg',
+            { quality: 92 }
+          )
+        );
+        return { region, blanked };
+      }
     }
   }
   return null;
@@ -367,5 +415,8 @@ export async function buildRedactionRegionsForBuffer(buffer: Buffer): Promise<Pi
       return [] as PixelateRegion[];
     }),
   ]);
+  if (process.env.VERCEL === '1') {
+    return mergePixelateRegions([...qr, ...text]);
+  }
   return mergePixelateRegions([...qr, ...text, ...FALLBACK_PIXELATE_REGIONS]);
 }
