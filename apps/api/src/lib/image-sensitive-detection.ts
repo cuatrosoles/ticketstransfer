@@ -8,6 +8,7 @@
 import { Jimp } from 'jimp';
 import type { QRCode } from 'jsqr';
 import * as JsQrPkg from 'jsqr';
+import { join } from 'node:path';
 import { createWorker, OEM, PSM } from 'tesseract.js';
 import type { PixelateRegion } from './image-redaction.js';
 import { FALLBACK_PIXELATE_REGIONS } from './image-redaction.js';
@@ -280,13 +281,21 @@ function enqueueOcr<T>(fn: () => Promise<T>): Promise<T> {
 
 async function getOcrWorker(): Promise<TessWorker> {
   if (!ocrWorkerPromise) {
-    ocrWorkerPromise = createWorker('spa+eng', OEM.LSTM_ONLY, {
+    const opts: Parameters<typeof createWorker>[2] = {
       logger: () => {},
       /** Evita que fallos del worker (p. ej. WASM) se propaguen como excepción no capturada en el proceso. */
       errorHandler: (err: unknown) => {
         console.error('[image-redaction] Tesseract worker:', err);
       },
-    });
+    };
+    /**
+     * Vercel: el worker corre en otro hilo; parcheamos resolución de tesseract.js-core
+     * en api/tesseract-worker-bootstrap.cjs y los binarios viven en /tmp (install en api/index.ts).
+     */
+    if (process.env.VERCEL === '1') {
+      opts.workerPath = join(process.cwd(), 'api', 'tesseract-worker-bootstrap.cjs');
+    }
+    ocrWorkerPromise = createWorker('spa+eng', OEM.LSTM_ONLY, opts);
   }
   return ocrWorkerPromise;
 }

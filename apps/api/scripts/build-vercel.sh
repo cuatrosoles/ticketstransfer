@@ -12,4 +12,3 @@ fi
 echo "[build-vercel] Workspace root: ${ROOT_DIR}"
 pnpm --dir "${ROOT_DIR}" --filter @tickets-transfer/shared build
 pnpm --dir "${ROOT_DIR}" --filter api build
-node "${SCRIPT_DIR}/bundle-tesseract-core.mjs"
