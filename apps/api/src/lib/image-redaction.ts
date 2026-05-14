@@ -40,7 +40,7 @@ export const TICKET_QR_FALLBACK_REGIONS_VERCEL: PixelateRegion[] = [
 const DEFAULT_REGIONS = FALLBACK_PIXELATE_REGIONS;
 
 /** Tamaño de celda del pixelado; mayor = más agresivo (menos legible el QR / texto). */
-const PIXELATE_BLOCK_SIZE = 28;
+const PIXELATE_BLOCK_SIZE = 56;
 
 function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n));
