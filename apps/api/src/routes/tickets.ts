@@ -261,17 +261,32 @@ router.post(
     let captureOwnershipUrl: string | undefined;
     let captureOwnershipOriginalUrl: string | undefined;
 
-    if (files.captureTicket?.[0]) {
-      const file = files.captureTicket[0];
-      const { originalUrl, redactedUrl } = await storeListingCaptureWithRedaction(listingId, 'ticket', file);
-      captureTicketOriginalUrl = originalUrl;
-      captureTicketUrl = redactedUrl;
-    }
-    if (files.captureOwnership?.[0]) {
-      const file = files.captureOwnership[0];
-      const { originalUrl, redactedUrl } = await storeListingCaptureWithRedaction(listingId, 'ownership', file);
-      captureOwnershipOriginalUrl = originalUrl;
-      captureOwnershipUrl = redactedUrl;
+    const ticketFile = files.captureTicket?.[0];
+    const ownershipFile = files.captureOwnership?.[0];
+    if (ticketFile && ownershipFile) {
+      const [ticketRes, ownershipRes] = await Promise.all([
+        storeListingCaptureWithRedaction(listingId, 'ticket', ticketFile),
+        storeListingCaptureWithRedaction(listingId, 'ownership', ownershipFile),
+      ]);
+      captureTicketOriginalUrl = ticketRes.originalUrl;
+      captureTicketUrl = ticketRes.redactedUrl;
+      captureOwnershipOriginalUrl = ownershipRes.originalUrl;
+      captureOwnershipUrl = ownershipRes.redactedUrl;
+    } else {
+      if (ticketFile) {
+        const { originalUrl, redactedUrl } = await storeListingCaptureWithRedaction(listingId, 'ticket', ticketFile);
+        captureTicketOriginalUrl = originalUrl;
+        captureTicketUrl = redactedUrl;
+      }
+      if (ownershipFile) {
+        const { originalUrl, redactedUrl } = await storeListingCaptureWithRedaction(
+          listingId,
+          'ownership',
+          ownershipFile
+        );
+        captureOwnershipOriginalUrl = originalUrl;
+        captureOwnershipUrl = redactedUrl;
+      }
     }
 
     let publicationPassword = (req.body.publicationPassword as string)?.trim() || null;

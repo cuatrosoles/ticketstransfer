@@ -12,6 +12,8 @@ import { createWorker, OEM, PSM } from 'tesseract.js';
 import type { PixelateRegion } from './image-redaction.js';
 import { FALLBACK_PIXELATE_REGIONS } from './image-redaction.js';
 
+const IS_VERCEL = process.env.VERCEL === '1';
+
 const jsQR = (JsQrPkg as unknown as { default: (d: Uint8ClampedArray, w: number, h: number, o?: object) => QRCode | null })
   .default;
 type Bbox = { x0: number; y0: number; x1: number; y1: number };
@@ -38,17 +40,21 @@ function normToPixels(r: PixelateRegion, W: number, H: number): { x: number; y: 
 }
 
 function fillWhiteRect(
-  img: {
-    bitmap: { width: number; height: number; data: Buffer };
-    setPixelColor(hex: number, x: number, y: number): unknown;
-  },
+  img: { bitmap: { width: number; height: number; data: Buffer | Uint8Array } },
   box: { x: number; y: number; w: number; h: number }
 ): void {
-  const xmax = Math.min(img.bitmap.width, box.x + box.w);
-  const ymax = Math.min(img.bitmap.height, box.y + box.h);
-  for (let y = Math.max(0, box.y); y < ymax; y++) {
-    for (let x = Math.max(0, box.x); x < xmax; x++) {
-      img.setPixelColor(0xffffffff, x, y);
+  const { width, height, data } = img.bitmap;
+  const xmax = Math.min(width, box.x + box.w);
+  const ymax = Math.min(height, box.y + box.h);
+  const x0 = Math.max(0, box.x);
+  const y0 = Math.max(0, box.y);
+  for (let y = y0; y < ymax; y++) {
+    let idx = (width * y + x0) * 4;
+    for (let x = x0; x < xmax; x++) {
+      data[idx++] = 255;
+      data[idx++] = 255;
+      data[idx++] = 255;
+      data[idx++] = 255;
     }
   }
 }
@@ -80,10 +86,15 @@ function qrLocationToRegion(loc: QRCode['location'], w: number, h: number): Pixe
 type JimpImg = Awaited<ReturnType<typeof Jimp.read>>;
 
 function decodeQrFromBitmap(data: Uint8ClampedArray, w: number, h: number): QRCode | null {
-  return jsQR(data, w, h, { inversionAttempts: 'attemptBoth' });
+  return jsQR(
+    data,
+    w,
+    h,
+    IS_VERCEL ? { inversionAttempts: 'dontInvert' } : { inversionAttempts: 'attemptBoth' }
+  );
 }
 
-/** Variantes de preprocesado para mejorar la tasa de acierto de jsQR (sin OCR pesado). */
+/** Variantes de preprocesado (completas, fuera de Vercel). */
 function qrPreprocessVariants(scaled: JimpImg): JimpImg[] {
   const out: JimpImg[] = [scaled.clone()];
   try {
@@ -108,6 +119,17 @@ function qrPreprocessVariants(scaled: JimpImg): JimpImg[] {
   return out;
 }
 
+/** En Vercel: pocas variantes (cada clone + jsQR suma CPU). */
+function qrPreprocessVariantsVercel(scaled: JimpImg): JimpImg[] {
+  const out: JimpImg[] = [scaled.clone()];
+  try {
+    out.push(scaled.clone().greyscale() as JimpImg);
+  } catch {
+    /* */
+  }
+  return out;
+}
+
 /** Si la imagen es muy chica, jsQR falla: subimos resolución de trabajo (misma relación de aspecto). */
 function ensureMinQrSide(im: JimpImg, minSide: number): JimpImg {
   const w = im.bitmap.width;
@@ -120,17 +142,27 @@ function ensureMinQrSide(im: JimpImg, minSide: number): JimpImg {
 }
 
 async function tryDecodeOneQr(buf: Buffer): Promise<{ region: PixelateRegion; blanked: Buffer } | null> {
-  const raw = await Jimp.read(buf);
-  const maxDims = [3400, 3000, 2600, 2200, 1800, 1400, 1200, 960, 720, 560];
+  const full = (await Jimp.read(buf)) as JimpImg;
+  /** Cota de trabajo: jsQR + clones; la redacción final usa `full` (resolución original). */
+  const inputCap = IS_VERCEL ? 1400 : 3600;
+  let raw = full;
+  if (Math.max(full.bitmap.width, full.bitmap.height) > inputCap) {
+    raw = full.clone().scaleToFit({ w: inputCap, h: inputCap }) as JimpImg;
+  }
+
+  const maxDims = IS_VERCEL ? [1100, 720] : [3400, 3000, 2600, 2200, 1800, 1400, 1200, 960, 720, 560];
   const seen = new Set<string>();
 
   for (const maxDim of maxDims) {
     const im = raw.clone();
     let scaled =
       Math.max(im.bitmap.width, im.bitmap.height) > maxDim ? im.scaleToFit({ w: maxDim, h: maxDim }) : im;
-    scaled = ensureMinQrSide(scaled as JimpImg, 220);
+    const minSide = IS_VERCEL ? 150 : 220;
+    scaled = ensureMinQrSide(scaled as JimpImg, minSide);
 
-    for (const variant of qrPreprocessVariants(scaled as JimpImg)) {
+    const variants = IS_VERCEL ? qrPreprocessVariantsVercel(scaled as JimpImg) : qrPreprocessVariants(scaled as JimpImg);
+
+    for (const variant of variants) {
       const w = variant.bitmap.width;
       const h = variant.bitmap.height;
       const key = `${w}x${h}:${variant.bitmap.data[0]}-${variant.bitmap.data[32]}`;
@@ -140,7 +172,6 @@ async function tryDecodeOneQr(buf: Buffer): Promise<{ region: PixelateRegion; bl
       const code = decodeQrFromBitmap(new Uint8ClampedArray(variant.bitmap.data), w, h);
       if (code?.location) {
         const region = qrLocationToRegion(code.location, w, h);
-        const full = await Jimp.read(buf);
         const box = normToPixels(region, full.bitmap.width, full.bitmap.height);
         fillWhiteRect(full, box);
         const blanked = Buffer.from(
@@ -160,7 +191,15 @@ async function tryDecodeOneQr(buf: Buffer): Promise<{ region: PixelateRegion; bl
 export async function detectQrRegions(buffer: Buffer): Promise<PixelateRegion[]> {
   const regions: PixelateRegion[] = [];
   let work = Buffer.from(buffer);
-  for (let i = 0; i < 8; i++) {
+  const maxIterations = IS_VERCEL ? 2 : 8;
+  const t0 = IS_VERCEL ? Date.now() : 0;
+  const budgetMs = IS_VERCEL ? 10_000 : 0;
+
+  for (let i = 0; i < maxIterations; i++) {
+    if (budgetMs > 0 && Date.now() - t0 > budgetMs) {
+      console.warn('[image-redaction] QR: presupuesto de tiempo (Vercel), se detiene búsqueda de más QR');
+      break;
+    }
     const next = await tryDecodeOneQr(work);
     if (!next) break;
     regions.push(next.region);
@@ -362,7 +401,7 @@ export async function detectSensitiveTextRegions(buffer: Buffer): Promise<Pixela
    * y el runtime no está pensado para OCR pesado. En producción Vercel solo se usan QR + fallbacks.
    * Para OCR completo: API en Node dedicado (Docker/Fly/Railway) o variable de entorno futura.
    */
-  if (process.env.VERCEL === '1') {
+  if (IS_VERCEL) {
     return [];
   }
 
@@ -415,7 +454,7 @@ export async function buildRedactionRegionsForBuffer(buffer: Buffer): Promise<Pi
       return [] as PixelateRegion[];
     }),
   ]);
-  if (process.env.VERCEL === '1') {
+  if (IS_VERCEL) {
     return mergePixelateRegions([...qr, ...text]);
   }
   return mergePixelateRegions([...qr, ...text, ...FALLBACK_PIXELATE_REGIONS]);

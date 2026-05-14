@@ -19052,6 +19052,7 @@ async function redactImage(buffer, options) {
 import { Jimp as Jimp2 } from "jimp";
 import * as JsQrPkg from "jsqr";
 import { createWorker, OEM, PSM } from "tesseract.js";
+var IS_VERCEL = process.env.VERCEL === "1";
 var jsQR = JsQrPkg.default;
 var QR_OUTER_PAD = 0.09;
 var TEXT_WORD_PAD_FRAC = 0.02;
@@ -19072,11 +19073,18 @@ function normToPixels(r, W, H) {
   };
 }
 function fillWhiteRect(img, box) {
-  const xmax = Math.min(img.bitmap.width, box.x + box.w);
-  const ymax = Math.min(img.bitmap.height, box.y + box.h);
-  for (let y = Math.max(0, box.y); y < ymax; y++) {
-    for (let x = Math.max(0, box.x); x < xmax; x++) {
-      img.setPixelColor(4294967295, x, y);
+  const { width, height, data } = img.bitmap;
+  const xmax = Math.min(width, box.x + box.w);
+  const ymax = Math.min(height, box.y + box.h);
+  const x0 = Math.max(0, box.x);
+  const y0 = Math.max(0, box.y);
+  for (let y = y0; y < ymax; y++) {
+    let idx = (width * y + x0) * 4;
+    for (let x = x0; x < xmax; x++) {
+      data[idx++] = 255;
+      data[idx++] = 255;
+      data[idx++] = 255;
+      data[idx++] = 255;
     }
   }
 }
@@ -19104,7 +19112,12 @@ function qrLocationToRegion(loc, w, h) {
   };
 }
 function decodeQrFromBitmap(data, w, h) {
-  return jsQR(data, w, h, { inversionAttempts: "attemptBoth" });
+  return jsQR(
+    data,
+    w,
+    h,
+    IS_VERCEL ? { inversionAttempts: "dontInvert" } : { inversionAttempts: "attemptBoth" }
+  );
 }
 function qrPreprocessVariants(scaled) {
   const out = [scaled.clone()];
@@ -19126,6 +19139,14 @@ function qrPreprocessVariants(scaled) {
   }
   return out;
 }
+function qrPreprocessVariantsVercel(scaled) {
+  const out = [scaled.clone()];
+  try {
+    out.push(scaled.clone().greyscale());
+  } catch {
+  }
+  return out;
+}
 function ensureMinQrSide(im, minSide) {
   const w = im.bitmap.width;
   const h = im.bitmap.height;
@@ -19136,14 +19157,21 @@ function ensureMinQrSide(im, minSide) {
   return im.scaleToFit({ w: long, h: long });
 }
 async function tryDecodeOneQr(buf) {
-  const raw = await Jimp2.read(buf);
-  const maxDims = [3400, 3e3, 2600, 2200, 1800, 1400, 1200, 960, 720, 560];
+  const full = await Jimp2.read(buf);
+  const inputCap = IS_VERCEL ? 1400 : 3600;
+  let raw = full;
+  if (Math.max(full.bitmap.width, full.bitmap.height) > inputCap) {
+    raw = full.clone().scaleToFit({ w: inputCap, h: inputCap });
+  }
+  const maxDims = IS_VERCEL ? [1100, 720] : [3400, 3e3, 2600, 2200, 1800, 1400, 1200, 960, 720, 560];
   const seen = /* @__PURE__ */ new Set();
   for (const maxDim of maxDims) {
     const im = raw.clone();
     let scaled = Math.max(im.bitmap.width, im.bitmap.height) > maxDim ? im.scaleToFit({ w: maxDim, h: maxDim }) : im;
-    scaled = ensureMinQrSide(scaled, 220);
-    for (const variant of qrPreprocessVariants(scaled)) {
+    const minSide = IS_VERCEL ? 150 : 220;
+    scaled = ensureMinQrSide(scaled, minSide);
+    const variants = IS_VERCEL ? qrPreprocessVariantsVercel(scaled) : qrPreprocessVariants(scaled);
+    for (const variant of variants) {
       const w = variant.bitmap.width;
       const h = variant.bitmap.height;
       const key = `${w}x${h}:${variant.bitmap.data[0]}-${variant.bitmap.data[32]}`;
@@ -19152,7 +19180,6 @@ async function tryDecodeOneQr(buf) {
       const code = decodeQrFromBitmap(new Uint8ClampedArray(variant.bitmap.data), w, h);
       if (code?.location) {
         const region = qrLocationToRegion(code.location, w, h);
-        const full = await Jimp2.read(buf);
         const box = normToPixels(region, full.bitmap.width, full.bitmap.height);
         fillWhiteRect(full, box);
         const blanked = Buffer.from(
@@ -19170,7 +19197,14 @@ async function tryDecodeOneQr(buf) {
 async function detectQrRegions(buffer) {
   const regions = [];
   let work = Buffer.from(buffer);
-  for (let i = 0; i < 8; i++) {
+  const maxIterations = IS_VERCEL ? 2 : 8;
+  const t0 = IS_VERCEL ? Date.now() : 0;
+  const budgetMs = IS_VERCEL ? 1e4 : 0;
+  for (let i = 0; i < maxIterations; i++) {
+    if (budgetMs > 0 && Date.now() - t0 > budgetMs) {
+      console.warn("[image-redaction] QR: presupuesto de tiempo (Vercel), se detiene b\xFAsqueda de m\xE1s QR");
+      break;
+    }
     const next = await tryDecodeOneQr(work);
     if (!next) break;
     regions.push(next.region);
@@ -19329,7 +19363,7 @@ function collectWordsAndLines(page) {
   return { words, lines };
 }
 async function detectSensitiveTextRegions(buffer) {
-  if (process.env.VERCEL === "1") {
+  if (IS_VERCEL) {
     return [];
   }
   return enqueueOcr(async () => {
@@ -19373,7 +19407,7 @@ async function buildRedactionRegionsForBuffer(buffer) {
       return [];
     })
   ]);
-  if (process.env.VERCEL === "1") {
+  if (IS_VERCEL) {
     return mergePixelateRegions([...qr, ...text]);
   }
   return mergePixelateRegions([...qr, ...text, ...FALLBACK_PIXELATE_REGIONS]);
@@ -19594,17 +19628,32 @@ router3.post(
     let captureTicketOriginalUrl;
     let captureOwnershipUrl;
     let captureOwnershipOriginalUrl;
-    if (files.captureTicket?.[0]) {
-      const file = files.captureTicket[0];
-      const { originalUrl, redactedUrl } = await storeListingCaptureWithRedaction(listingId, "ticket", file);
-      captureTicketOriginalUrl = originalUrl;
-      captureTicketUrl = redactedUrl;
-    }
-    if (files.captureOwnership?.[0]) {
-      const file = files.captureOwnership[0];
-      const { originalUrl, redactedUrl } = await storeListingCaptureWithRedaction(listingId, "ownership", file);
-      captureOwnershipOriginalUrl = originalUrl;
-      captureOwnershipUrl = redactedUrl;
+    const ticketFile = files.captureTicket?.[0];
+    const ownershipFile = files.captureOwnership?.[0];
+    if (ticketFile && ownershipFile) {
+      const [ticketRes, ownershipRes] = await Promise.all([
+        storeListingCaptureWithRedaction(listingId, "ticket", ticketFile),
+        storeListingCaptureWithRedaction(listingId, "ownership", ownershipFile)
+      ]);
+      captureTicketOriginalUrl = ticketRes.originalUrl;
+      captureTicketUrl = ticketRes.redactedUrl;
+      captureOwnershipOriginalUrl = ownershipRes.originalUrl;
+      captureOwnershipUrl = ownershipRes.redactedUrl;
+    } else {
+      if (ticketFile) {
+        const { originalUrl, redactedUrl } = await storeListingCaptureWithRedaction(listingId, "ticket", ticketFile);
+        captureTicketOriginalUrl = originalUrl;
+        captureTicketUrl = redactedUrl;
+      }
+      if (ownershipFile) {
+        const { originalUrl, redactedUrl } = await storeListingCaptureWithRedaction(
+          listingId,
+          "ownership",
+          ownershipFile
+        );
+        captureOwnershipOriginalUrl = originalUrl;
+        captureOwnershipUrl = redactedUrl;
+      }
     }
     let publicationPassword = req.body.publicationPassword?.trim() || null;
     const vis = parsed.data.visibility;
