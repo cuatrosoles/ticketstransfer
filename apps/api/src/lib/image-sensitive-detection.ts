@@ -140,14 +140,13 @@ function qrPreprocessVariantsVercel(scaled: JimpImg): JimpImg[] {
   } catch {
     /* */
   }
-  try {
-    const g = scaled.clone().greyscale() as JimpImg;
-    (g as unknown as { contrast(v: number): JimpImg }).contrast(0.16);
-    out.push(g);
-  } catch {
-    /* */
-  }
   return out;
+}
+
+type QrDecodeOpts = { deadline?: number };
+
+function qrTimeExceeded(deadline: number): boolean {
+  return Date.now() > deadline;
 }
 
 /** Si la imagen es muy chica, jsQR falla: subimos resolución de trabajo (misma relación de aspecto). */
@@ -161,28 +160,33 @@ function ensureMinQrSide(im: JimpImg, minSide: number): JimpImg {
   return im.scaleToFit({ w: long, h: long }) as JimpImg;
 }
 
-async function tryDecodeOneQr(buf: Buffer): Promise<{ region: PixelateRegion; blanked: Buffer } | null> {
+async function tryDecodeOneQr(buf: Buffer, opts?: QrDecodeOpts): Promise<{ region: PixelateRegion; blanked: Buffer } | null> {
+  const deadline = opts?.deadline ?? Number.POSITIVE_INFINITY;
+  if (qrTimeExceeded(deadline)) return null;
+
   const full = (await Jimp.read(buf)) as JimpImg;
   /** Cota de trabajo: jsQR + clones; la redacción final usa `full` (resolución original). */
-  const inputCap = IS_VERCEL ? 1800 : 3600;
+  const inputCap = IS_VERCEL ? 1280 : 3600;
   let raw = full;
   if (Math.max(full.bitmap.width, full.bitmap.height) > inputCap) {
     raw = full.clone().scaleToFit({ w: inputCap, h: inputCap }) as JimpImg;
   }
 
-  const maxDims = IS_VERCEL ? [1800, 1400, 1000, 720] : [3400, 3000, 2600, 2200, 1800, 1400, 1200, 960, 720, 560];
+  const maxDims = IS_VERCEL ? [1200, 820] : [3400, 3000, 2600, 2200, 1800, 1400, 1200, 960, 720, 560];
   const seen = new Set<string>();
 
   for (const maxDim of maxDims) {
+    if (qrTimeExceeded(deadline)) return null;
     const im = raw.clone();
     let scaled =
       Math.max(im.bitmap.width, im.bitmap.height) > maxDim ? im.scaleToFit({ w: maxDim, h: maxDim }) : im;
-    const minSide = IS_VERCEL ? 180 : 220;
+    const minSide = IS_VERCEL ? 160 : 220;
     scaled = ensureMinQrSide(scaled as JimpImg, minSide);
 
     const variants = IS_VERCEL ? qrPreprocessVariantsVercel(scaled as JimpImg) : qrPreprocessVariants(scaled as JimpImg);
 
     for (const variant of variants) {
+      if (qrTimeExceeded(deadline)) return null;
       const w = variant.bitmap.width;
       const h = variant.bitmap.height;
       const key = `${w}x${h}:${variant.bitmap.data[0]}-${variant.bitmap.data[32]}`;
@@ -211,16 +215,17 @@ async function tryDecodeOneQr(buf: Buffer): Promise<{ region: PixelateRegion; bl
 export async function detectQrRegions(buffer: Buffer): Promise<PixelateRegion[]> {
   const regions: PixelateRegion[] = [];
   let work = Buffer.from(buffer);
-  const maxIterations = IS_VERCEL ? 3 : 8;
-  const t0 = IS_VERCEL ? Date.now() : 0;
-  const budgetMs = IS_VERCEL ? 18_000 : 0;
+  const maxIterations = IS_VERCEL ? 2 : 8;
+  /** Presupuesto global por imagen: también se aplica *dentro* de cada `tryDecodeOneQr` vía `deadline`. */
+  const budgetMs = IS_VERCEL ? 11_000 : 0;
+  const deadline = budgetMs > 0 ? Date.now() + budgetMs : Number.POSITIVE_INFINITY;
 
   for (let i = 0; i < maxIterations; i++) {
-    if (budgetMs > 0 && Date.now() - t0 > budgetMs) {
-      console.warn('[image-redaction] QR: presupuesto de tiempo (Vercel), se detiene búsqueda de más QR');
+    if (budgetMs > 0 && Date.now() > deadline) {
+      console.warn('[image-redaction] QR: tiempo límite (Vercel), se detiene la detección');
       break;
     }
-    const next = await tryDecodeOneQr(work);
+    const next = await tryDecodeOneQr(work, { deadline });
     if (!next) break;
     regions.push(next.region);
     work = Buffer.from(next.blanked as Buffer);

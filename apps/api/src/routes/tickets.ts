@@ -263,15 +263,26 @@ router.post(
 
     const ticketFile = files.captureTicket?.[0];
     const ownershipFile = files.captureOwnership?.[0];
+    const runVercelSequential = process.env.VERCEL === '1';
+
     if (ticketFile && ownershipFile) {
-      const [ticketRes, ownershipRes] = await Promise.all([
-        storeListingCaptureWithRedaction(listingId, 'ticket', ticketFile),
-        storeListingCaptureWithRedaction(listingId, 'ownership', ownershipFile),
-      ]);
-      captureTicketOriginalUrl = ticketRes.originalUrl;
-      captureTicketUrl = ticketRes.redactedUrl;
-      captureOwnershipOriginalUrl = ownershipRes.originalUrl;
-      captureOwnershipUrl = ownershipRes.redactedUrl;
+      if (runVercelSequential) {
+        const ticketRes = await storeListingCaptureWithRedaction(listingId, 'ticket', ticketFile);
+        captureTicketOriginalUrl = ticketRes.originalUrl;
+        captureTicketUrl = ticketRes.redactedUrl;
+        const ownershipRes = await storeListingCaptureWithRedaction(listingId, 'ownership', ownershipFile);
+        captureOwnershipOriginalUrl = ownershipRes.originalUrl;
+        captureOwnershipUrl = ownershipRes.redactedUrl;
+      } else {
+        const [ticketRes, ownershipRes] = await Promise.all([
+          storeListingCaptureWithRedaction(listingId, 'ticket', ticketFile),
+          storeListingCaptureWithRedaction(listingId, 'ownership', ownershipFile),
+        ]);
+        captureTicketOriginalUrl = ticketRes.originalUrl;
+        captureTicketUrl = ticketRes.redactedUrl;
+        captureOwnershipOriginalUrl = ownershipRes.originalUrl;
+        captureOwnershipUrl = ownershipRes.redactedUrl;
+      }
     } else {
       if (ticketFile) {
         const { originalUrl, redactedUrl } = await storeListingCaptureWithRedaction(listingId, 'ticket', ticketFile);

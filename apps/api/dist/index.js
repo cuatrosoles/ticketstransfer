@@ -19157,13 +19157,10 @@ function qrPreprocessVariantsVercel(scaled) {
     out.push(scaled.clone().greyscale());
   } catch {
   }
-  try {
-    const g = scaled.clone().greyscale();
-    g.contrast(0.16);
-    out.push(g);
-  } catch {
-  }
   return out;
+}
+function qrTimeExceeded(deadline) {
+  return Date.now() > deadline;
 }
 function ensureMinQrSide(im, minSide) {
   const w = im.bitmap.width;
@@ -19174,22 +19171,26 @@ function ensureMinQrSide(im, minSide) {
   const long = Math.max(1, Math.ceil(Math.max(w, h) * factor));
   return im.scaleToFit({ w: long, h: long });
 }
-async function tryDecodeOneQr(buf) {
+async function tryDecodeOneQr(buf, opts) {
+  const deadline = opts?.deadline ?? Number.POSITIVE_INFINITY;
+  if (qrTimeExceeded(deadline)) return null;
   const full = await Jimp2.read(buf);
-  const inputCap = IS_VERCEL ? 1800 : 3600;
+  const inputCap = IS_VERCEL ? 1280 : 3600;
   let raw = full;
   if (Math.max(full.bitmap.width, full.bitmap.height) > inputCap) {
     raw = full.clone().scaleToFit({ w: inputCap, h: inputCap });
   }
-  const maxDims = IS_VERCEL ? [1800, 1400, 1e3, 720] : [3400, 3e3, 2600, 2200, 1800, 1400, 1200, 960, 720, 560];
+  const maxDims = IS_VERCEL ? [1200, 820] : [3400, 3e3, 2600, 2200, 1800, 1400, 1200, 960, 720, 560];
   const seen = /* @__PURE__ */ new Set();
   for (const maxDim of maxDims) {
+    if (qrTimeExceeded(deadline)) return null;
     const im = raw.clone();
     let scaled = Math.max(im.bitmap.width, im.bitmap.height) > maxDim ? im.scaleToFit({ w: maxDim, h: maxDim }) : im;
-    const minSide = IS_VERCEL ? 180 : 220;
+    const minSide = IS_VERCEL ? 160 : 220;
     scaled = ensureMinQrSide(scaled, minSide);
     const variants = IS_VERCEL ? qrPreprocessVariantsVercel(scaled) : qrPreprocessVariants(scaled);
     for (const variant of variants) {
+      if (qrTimeExceeded(deadline)) return null;
       const w = variant.bitmap.width;
       const h = variant.bitmap.height;
       const key = `${w}x${h}:${variant.bitmap.data[0]}-${variant.bitmap.data[32]}`;
@@ -19215,15 +19216,15 @@ async function tryDecodeOneQr(buf) {
 async function detectQrRegions(buffer) {
   const regions = [];
   let work = Buffer.from(buffer);
-  const maxIterations = IS_VERCEL ? 3 : 8;
-  const t0 = IS_VERCEL ? Date.now() : 0;
-  const budgetMs = IS_VERCEL ? 18e3 : 0;
+  const maxIterations = IS_VERCEL ? 2 : 8;
+  const budgetMs = IS_VERCEL ? 11e3 : 0;
+  const deadline = budgetMs > 0 ? Date.now() + budgetMs : Number.POSITIVE_INFINITY;
   for (let i = 0; i < maxIterations; i++) {
-    if (budgetMs > 0 && Date.now() - t0 > budgetMs) {
-      console.warn("[image-redaction] QR: presupuesto de tiempo (Vercel), se detiene b\xFAsqueda de m\xE1s QR");
+    if (budgetMs > 0 && Date.now() > deadline) {
+      console.warn("[image-redaction] QR: tiempo l\xEDmite (Vercel), se detiene la detecci\xF3n");
       break;
     }
-    const next = await tryDecodeOneQr(work);
+    const next = await tryDecodeOneQr(work, { deadline });
     if (!next) break;
     regions.push(next.region);
     work = Buffer.from(next.blanked);
@@ -19655,15 +19656,25 @@ router3.post(
     let captureOwnershipOriginalUrl;
     const ticketFile = files.captureTicket?.[0];
     const ownershipFile = files.captureOwnership?.[0];
+    const runVercelSequential = process.env.VERCEL === "1";
     if (ticketFile && ownershipFile) {
-      const [ticketRes, ownershipRes] = await Promise.all([
-        storeListingCaptureWithRedaction(listingId, "ticket", ticketFile),
-        storeListingCaptureWithRedaction(listingId, "ownership", ownershipFile)
-      ]);
-      captureTicketOriginalUrl = ticketRes.originalUrl;
-      captureTicketUrl = ticketRes.redactedUrl;
-      captureOwnershipOriginalUrl = ownershipRes.originalUrl;
-      captureOwnershipUrl = ownershipRes.redactedUrl;
+      if (runVercelSequential) {
+        const ticketRes = await storeListingCaptureWithRedaction(listingId, "ticket", ticketFile);
+        captureTicketOriginalUrl = ticketRes.originalUrl;
+        captureTicketUrl = ticketRes.redactedUrl;
+        const ownershipRes = await storeListingCaptureWithRedaction(listingId, "ownership", ownershipFile);
+        captureOwnershipOriginalUrl = ownershipRes.originalUrl;
+        captureOwnershipUrl = ownershipRes.redactedUrl;
+      } else {
+        const [ticketRes, ownershipRes] = await Promise.all([
+          storeListingCaptureWithRedaction(listingId, "ticket", ticketFile),
+          storeListingCaptureWithRedaction(listingId, "ownership", ownershipFile)
+        ]);
+        captureTicketOriginalUrl = ticketRes.originalUrl;
+        captureTicketUrl = ticketRes.redactedUrl;
+        captureOwnershipOriginalUrl = ownershipRes.originalUrl;
+        captureOwnershipUrl = ownershipRes.redactedUrl;
+      }
     } else {
       if (ticketFile) {
         const { originalUrl, redactedUrl } = await storeListingCaptureWithRedaction(listingId, "ticket", ticketFile);
