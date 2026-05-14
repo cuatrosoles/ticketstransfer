@@ -288,8 +288,7 @@ async function getOcrWorker(): Promise<TessWorker> {
       },
     };
     /**
-     * Vercel: worker en otro hilo; bootstrap y WASM en /tmp. La ruta absoluta la define
-     * api/index.ts (TESSERACT_WORKER_BOOTSTRAP_PATH) — no usar process.cwd() (suele ser /var/task).
+     * Vercel: worker en otro hilo; bootstrap generado en /tmp por api/index.ts (ver install-tesseract-core-tmp.mjs).
      */
     if (process.env.VERCEL === '1' && process.env.TESSERACT_WORKER_BOOTSTRAP_PATH) {
       opts.workerPath = process.env.TESSERACT_WORKER_BOOTSTRAP_PATH;
