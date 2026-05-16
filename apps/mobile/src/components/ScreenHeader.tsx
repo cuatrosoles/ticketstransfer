@@ -31,11 +31,15 @@ export function ScreenHeader({ title, showBack, onBack, rightSlot, titleRight, l
         ) : (
           <View style={styles.spacer} />
         )}
-        <Image
-          source={logoUri ? { uri: logoUri } : require('../assets/images/LogoTT-v01.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
+        {logoUri ? (
+          <Image source={{ uri: logoUri }} style={styles.logo} resizeMode="contain" />
+        ) : (
+          <View style={[styles.logo, styles.logoFallback]}>
+            <Text style={styles.logoFallbackText} numberOfLines={1}>
+              Tickets Transfer
+            </Text>
+          </View>
+        )}
         {rightSlot ? <View style={styles.rightSlot}>{rightSlot}</View> : <View style={styles.spacer} />}
       </View>
       <View style={styles.titleRow}>
@@ -73,6 +77,18 @@ const styles = StyleSheet.create({
     maxWidth: MAX_LOGO_WIDTH,
     height: MAX_LOGO_WIDTH / LOGO_ASPECT,
     minWidth: 0,
+  },
+  logoFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  logoFallbackText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#f8fafc',
+    letterSpacing: 0.6,
+    textAlign: 'center',
   },
   userBtn: {
     width: 40,

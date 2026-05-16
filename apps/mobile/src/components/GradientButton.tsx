@@ -36,9 +36,9 @@ export function GradientButton({
         activeOpacity={0.8}
       >
         {loading ? (
-          <ActivityIndicator color={primaryLight} />
+          <ActivityIndicator color="#ffffff" />
         ) : (
-          <Text style={[styles.secondaryText, { color: primaryLight }, textStyle]}>{title}</Text>
+          <Text style={[styles.secondaryText, { color: '#ffffff' }, textStyle]}>{title}</Text>
         )}
       </TouchableOpacity>
     );

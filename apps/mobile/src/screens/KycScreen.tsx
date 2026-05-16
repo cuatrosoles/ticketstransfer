@@ -150,7 +150,7 @@ export function KycScreen() {
           Podés usar la app mientras verificamos. No podrás publicar ni comprar tickets hasta que el
           estado sea Aprobado.
         </Text>
-        <TouchableOpacity style={styles.backLink} onPress={() => navigation.navigate('Main', {})}>
+        <TouchableOpacity style={styles.backLink} onPress={() => navigation.navigate('Main', { screen: 'Home' })}>
           <Text style={styles.backLinkText}>Ir al inicio</Text>
         </TouchableOpacity>
       </ScrollView>

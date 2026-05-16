@@ -100,8 +100,8 @@ android {
         applicationId "com.ticketstransfer.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "2.0.2"
+        versionCode 4
+        versionName "2.5.0"
         manifestPlaceholders = [usesCleartextTraffic: "true"]
     }
     signingConfigs {

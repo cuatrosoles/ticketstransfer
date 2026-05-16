@@ -1,28 +1,32 @@
 /**
  * Dropdown de usuario – Igual que web: Perfil, Tickets, etc. y Cerrar sesión.
- * Se muestra desde cualquier pantalla autenticada al tocar el icono 👤.
+ * Las entradas que corresponden a pestañas navegan dentro de Main (tabs).
  */
 
 import * as React from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../navigation/types';
+import type { RootStackParamList, MainTabParamList } from '../navigation/types';
 import { useAuth } from '../context/AuthContext';
 import { useUserMenu } from '../context/UserMenuContext';
 
-const MENU_ITEMS = [
-  { id: 'inicio', label: 'Inicio', route: 'Main' as const },
-  { id: 'perfil', label: 'Información de tu perfil', route: 'Profile' as const },
-  { id: 'tarjetas', label: 'Tarjetas adheridas', route: 'TarjetasAdheridas' as const },
-  { id: 'soporte', label: 'Chat Soporte', route: 'ChatSoporte' as const },
-  { id: 'mensajes', label: 'Mensajes', route: 'Mensajes' as const },
-  { id: 'politica', label: 'Política de privacidad y uso de datos', route: 'PoliticaPrivacidad' as const },
-  { id: 'terminos', label: 'Términos y condiciones de uso', route: 'TerminosYCondiciones' as const },
-  { id: 'acerca', label: 'Acerca de', route: 'Acerca' as const },
-  { id: 'recomendaciones', label: 'Recomendaciones y quejas', route: 'RecomendacionesQuejas' as const },
-  { id: 'faq', label: 'Preguntas frecuentes', route: 'PreguntasFrecuentes' as const },
-  { id: 'baja', label: 'Solicitar baja de cuenta', route: 'SolicitarBaja' as const },
+type MenuEntry =
+  | { id: string; label: string; kind: 'tab'; tab: keyof MainTabParamList }
+  | { id: string; label: string; kind: 'stack'; route: keyof RootStackParamList };
+
+const MENU_ITEMS: MenuEntry[] = [
+  { id: 'inicio', label: 'Inicio', kind: 'tab', tab: 'Home' },
+  { id: 'perfil', label: 'Información de tu perfil', kind: 'tab', tab: 'Profile' },
+  { id: 'tarjetas', label: 'Tarjetas adheridas', kind: 'stack', route: 'TarjetasAdheridas' },
+  { id: 'soporte', label: 'Chat Soporte', kind: 'stack', route: 'ChatSoporte' },
+  { id: 'mensajes', label: 'Mensajes', kind: 'stack', route: 'Mensajes' },
+  { id: 'politica', label: 'Política de privacidad y uso de datos', kind: 'stack', route: 'PoliticaPrivacidad' },
+  { id: 'terminos', label: 'Términos y condiciones de uso', kind: 'stack', route: 'TerminosYCondiciones' },
+  { id: 'acerca', label: 'Acerca de', kind: 'stack', route: 'Acerca' },
+  { id: 'recomendaciones', label: 'Recomendaciones y quejas', kind: 'stack', route: 'RecomendacionesQuejas' },
+  { id: 'faq', label: 'Preguntas frecuentes', kind: 'stack', route: 'PreguntasFrecuentes' },
+  { id: 'baja', label: 'Solicitar baja de cuenta', kind: 'stack', route: 'SolicitarBaja' },
 ];
 
 export function UserMenuModal() {
@@ -30,10 +34,14 @@ export function UserMenuModal() {
   const { logout } = useAuth();
   const { isOpen, closeMenu } = useUserMenu();
 
-  const handleItemPress = (route: keyof RootStackParamList) => {
+  const handleItemPress = (item: MenuEntry) => {
     closeMenu();
-    if (route === 'OrderPago') return;
-    navigation.navigate(route as never, {} as never);
+    if (item.kind === 'tab') {
+      navigation.navigate('Main', { screen: item.tab });
+      return;
+    }
+    if (item.route === 'OrderPago') return;
+    navigation.navigate(item.route as never);
   };
 
   const handleLogout = () => {
@@ -48,11 +56,7 @@ export function UserMenuModal() {
         <View style={styles.menuContainer}>
           <View style={styles.menuBox}>
             {MENU_ITEMS.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.menuItem}
-                onPress={() => handleItemPress(item.route)}
-              >
+              <TouchableOpacity key={item.id} style={styles.menuItem} onPress={() => handleItemPress(item)}>
                 <Text
                   style={[
                     styles.menuItemText,

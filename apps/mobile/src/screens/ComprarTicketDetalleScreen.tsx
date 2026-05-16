@@ -15,15 +15,18 @@ import {
   Modal,
   Pressable,
 } from 'react-native';
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../navigation/types';
 import { ensureImageUrl, api } from '../lib/api';
+import { ticketPreviewToMarketplaceItem } from '../lib/ticketPreviewToMarketplaceItem';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { TicketStubBackground } from '../components/TicketStubBackground';
 import { UserMenuButton } from '../components/UserMenuButton';
+import { useFavorites } from '../context/FavoritesContext';
 import { colors, spacing, radius } from '../theme';
 import { formatDate } from '../lib/datetime';
 
@@ -61,6 +64,24 @@ type TicketPreview = {
   showFull?: boolean;
   seller?: Seller;
 };
+
+function FavoriteHeaderActions({ preview }: { preview: TicketPreview }) {
+  const { isFavorite, toggleFavorite } = useFavorites();
+  return (
+    <View style={styles.headerActions}>
+      <TouchableOpacity
+        style={styles.favHeaderHit}
+        onPress={() => toggleFavorite(ticketPreviewToMarketplaceItem(preview))}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        accessibilityRole="button"
+        accessibilityLabel={isFavorite(preview.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+      >
+        <FontAwesome name={isFavorite(preview.id) ? 'heart' : 'heart-o'} size={22} color="#f472b6" />
+      </TouchableOpacity>
+      <UserMenuButton />
+    </View>
+  );
+}
 
 export function ComprarTicketDetalleScreen() {
   const navigation = useNavigation<Nav>();
@@ -113,7 +134,12 @@ export function ComprarTicketDetalleScreen() {
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <ScreenHeader title="Comprar Ticket" showBack onBack={() => navigation.goBack()} rightSlot={<UserMenuButton />} />
+        <ScreenHeader
+          title="Comprar Ticket"
+          showBack
+          onBack={() => navigation.goBack()}
+          rightSlot={<FavoriteHeaderActions preview={preview} />}
+        />
         {error && !preview.showFull ? <Text style={styles.error}>{error}</Text> : null}
 
         <TicketStubBackground
@@ -199,6 +225,8 @@ export function ComprarTicketDetalleScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  headerActions: { flexDirection: 'row', alignItems: 'center' },
+  favHeaderHit: { marginRight: 12 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   ticketWrap: { marginBottom: spacing.lg },
   ticketInner: {

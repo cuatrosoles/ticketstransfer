@@ -443,7 +443,7 @@ export function PublishTicketScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.primaryButton, { marginTop: spacing.sm, backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.primary }]}
-            onPress={() => (navigation as { navigate: (name: string) => void }).navigate('Profile')}
+            onPress={() => navigation.navigate('Main', { screen: 'Profile' })}
           >
             <Text style={[styles.primaryButtonText, { color: colors.primary }]}>Completar perfil (teléfono / email)</Text>
           </TouchableOpacity>

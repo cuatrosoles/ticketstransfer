@@ -23,6 +23,7 @@ import { BiometricActivationModal } from '../components/BiometricActivationModal
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { GradientButton } from '../components/GradientButton';
+import { useBranding } from '../context/BrandingContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -35,6 +36,7 @@ export function LoginScreen() {
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const { login, enableBiometrics, biometricAvailability, biometricEnabled, clearPendingBiometricPrompt } = useAuth();
   const navigation = useNavigation<Nav>();
+  const brand = useBranding();
 
   const goToMain = () => {
     setShowBiometricModal(false);
@@ -67,7 +69,7 @@ export function LoginScreen() {
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <ScreenHeader title="INICIAR SESIÓN" showBack onBack={() => navigation.goBack()} />
+        <ScreenHeader title="INICIAR SESIÓN" showBack onBack={() => navigation.goBack()} logoUri={brand.logoUrl} />
         <View style={styles.glassWrap}>
           <View style={styles.glassPanel}>
             <Text style={styles.label}>Email o Usuario:</Text>

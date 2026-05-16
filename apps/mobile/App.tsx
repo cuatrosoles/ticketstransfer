@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { AuthProvider } from './src/context/AuthContext';
 import { BrandingProvider } from './src/context/BrandingContext';
+import { FavoritesProvider } from './src/context/FavoritesContext';
 import { ProfileImageProvider } from './src/context/ProfileImageContext';
 import { FcmConversationOpener } from './src/components/FcmConversationOpener';
 import { FcmForegroundMessageSync } from './src/components/FcmForegroundMessageSync';
@@ -49,13 +50,15 @@ export default function App() {
       <View style={styles.flex}>
         <BrandingProvider>
           <AuthProvider>
-            <ProfileImageProvider>
-              <NavigationContainer ref={navigationRef} linking={linking}>
+            <FavoritesProvider>
+              <ProfileImageProvider>
+                <NavigationContainer ref={navigationRef} linking={linking}>
                 <FcmConversationOpener navigationRef={navigationRef} />
                 <FcmForegroundMessageSync />
                 <RootNavigator />
-              </NavigationContainer>
-            </ProfileImageProvider>
+                </NavigationContainer>
+              </ProfileImageProvider>
+            </FavoritesProvider>
           </AuthProvider>
           {!splashFinished ? <SplashScreen onFinished={onSplashFinished} /> : null}
         </BrandingProvider>

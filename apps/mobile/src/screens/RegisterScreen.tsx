@@ -28,6 +28,7 @@ import { PROVINCIAS_ARGENTINA, CIUDADES_POR_PROVINCIA } from '../data/provincias
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { GradientButton } from '../components/GradientButton';
+import { useBranding } from '../context/BrandingContext';
 import { colors } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Register'>;
@@ -89,6 +90,7 @@ export function RegisterScreen() {
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
   const { register } = useAuth();
   const navigation = useNavigation<Nav>();
+  const brand = useBranding();
 
   const cities = province ? (CIUDADES_POR_PROVINCIA[province] ?? []) : [];
   useEffect(() => {
@@ -482,7 +484,7 @@ export function RegisterScreen() {
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <ScreenHeader title="CREAR CUENTA" showBack onBack={() => (step === 1 ? navigation.goBack() : setStep(step - 1))} />
+        <ScreenHeader title="CREAR CUENTA" showBack onBack={() => (step === 1 ? navigation.goBack() : setStep(step - 1))} logoUri={brand.logoUrl} />
         <View style={styles.glassWrap}>
           <View style={styles.glassPanel}>
             {step === 1 ? renderStep1() : step === 2 ? renderStep2() : renderStep3()}

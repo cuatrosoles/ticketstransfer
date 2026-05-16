@@ -14,8 +14,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../navigation/types';
+import type { TabCompositeNavigationProp } from '../navigation/types';
 import {
   getMarketplaceStoreListings,
   type MarketplacePublicItem,
@@ -23,14 +22,18 @@ import {
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
+import { useBranding } from '../context/BrandingContext';
+import { useFavorites } from '../context/FavoritesContext';
 import { MarketplaceTicketCard } from '../components/MarketplaceTicketCard';
 import { colors, spacing } from '../theme';
 import { formatDateTime } from '../lib/datetime';
 
-type Nav = NativeStackNavigationProp<RootStackParamList, 'Tienda'>;
+type Nav = TabCompositeNavigationProp<'Tienda'>;
 
 export function TiendaScreen() {
   const navigation = useNavigation<Nav>();
+  const brand = useBranding();
+  const { isFavorite, toggleFavorite } = useFavorites();
   const { width } = useWindowDimensions();
   const [items, setItems] = useState<MarketplacePublicItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,12 +74,7 @@ export function TiendaScreen() {
   return (
     <AuthBackground>
       <View style={styles.root}>
-        <ScreenHeader
-          title="Tienda"
-          showBack
-          onBack={() => navigation.goBack()}
-          rightSlot={<UserMenuButton />}
-        />
+        <ScreenHeader title="Tienda" rightSlot={<UserMenuButton />} logoUri={brand.logoUrl} />
         {loading ? (
           <View style={styles.centered}>
             <ActivityIndicator size="large" color={colors.primaryLight} />
@@ -109,6 +107,8 @@ export function TiendaScreen() {
                   minFrameHeight={storeCardMinHeight}
                   formatEventDateTime={formatDateTime}
                   onPress={() => goDetail(item.id)}
+                  favoriteActive={isFavorite(item.id)}
+                  onFavoritePress={() => toggleFavorite(item)}
                 />
               </View>
             ))}
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: spacing.xl * 2,
+    paddingBottom: 110,
   },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   lead: { fontSize: 13, color: colors.textMuted, marginBottom: spacing.lg, lineHeight: 20 },

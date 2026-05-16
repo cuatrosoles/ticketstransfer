@@ -1,6 +1,5 @@
 /**
- * Home – INICIO (centrado, letra grande), icono usuario → menú; tarjetas KYC, Publicar, Comprar Ticket, Mis compras/ventas; redes; Cerrar Sesion.
- * Ubicación: apps/mobile/src/screens/HomeScreen.tsx
+ * Home – Portada inspirada en mockup: banner promo, destacados y recomendados.
  */
 
 import * as React from 'react';
@@ -11,26 +10,28 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Linking,
   ActivityIndicator,
   useWindowDimensions,
+  Image,
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../navigation/types';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import type { TabCompositeNavigationProp } from '../navigation/types';
 import { useAuth } from '../context/AuthContext';
 import { BiometricActivationModal } from '../components/BiometricActivationModal';
 import { AuthBackground } from '../components/AuthBackground';
-import { ScreenHeader } from '../components/ScreenHeader';
-import { UserMenuButton } from '../components/UserMenuButton';
-import FontAwesome from 'react-native-vector-icons/FontAwesome';
-import { colors, spacing, radius, glassCard } from '../theme';
-import { getMarketplacePublicListings, type MarketplacePublicItem } from '../lib/api';
-import { MarketplaceTicketCard } from '../components/MarketplaceTicketCard';
-import { formatDateTime } from '../lib/datetime';
+import { HomeHeroHeader } from '../components/HomeHeroHeader';
+import { HomeEventCard } from '../components/HomeEventCard';
 import { useBranding } from '../context/BrandingContext';
+import { useUserMenu } from '../context/UserMenuContext';
+import { useProfileImage } from '../context/ProfileImageContext';
+import { useFavorites } from '../context/FavoritesContext';
+import { getMarketplacePublicListings, type MarketplacePublicItem } from '../lib/api';
+import { formatDateTime } from '../lib/datetime';
+import { colors, spacing } from '../theme';
 
-type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
+type Nav = TabCompositeNavigationProp<'Home'>;
 
 export function HomeScreen() {
   const [showBiometricModal, setShowBiometricModal] = useState(false);
@@ -48,12 +49,11 @@ export function HomeScreen() {
   } = useAuth();
   const navigation = useNavigation<Nav>();
   const brand = useBranding();
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const marketplaceMaxHeight = windowHeight * 0.4;
-  /** Columna ~48% del ancho útil: altura mínima > ancho para que el stub se lea en vertical */
-  const homeMarketplaceCardMinHeight = Math.round(
-    Math.max(232, (windowWidth - spacing.lg * 2) * 0.48 * 1.42)
-  );
+  const { openMenu } = useUserMenu();
+  const { profileImageUrl } = useProfileImage();
+  const { width } = useWindowDimensions();
+  const carouselCardWidth = Math.round(Math.min(168, width * 0.44));
+  const { isFavorite, toggleFavorite } = useFavorites();
 
   useEffect(() => {
     if (getPostRegisterRedirectToKyc()) {
@@ -79,7 +79,7 @@ export function HomeScreen() {
         if (!cancelled) setMarketplaceItems(res.items ?? []);
       })
       .catch(() => {
-        if (!cancelled) setMarketplaceError('No se pudieron cargar los tickets públicos.');
+        if (!cancelled) setMarketplaceError('No se pudieron cargar los eventos.');
       })
       .finally(() => {
         if (!cancelled) setMarketplaceLoading(false);
@@ -89,111 +89,116 @@ export function HomeScreen() {
     };
   }, []);
 
+  const featured = marketplaceItems.slice(0, 2);
+  const recommended = marketplaceItems.slice(2, 14);
+
+  const goDetail = (id: string) => {
+    navigation.navigate('ComprarTicketDetalle', { listingId: id, password: '' });
+  };
+
+  const goTienda = () => navigation.navigate('Tienda');
+
   return (
     <AuthBackground>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <ScreenHeader
-          title="INICIO"
-          logoUri={brand.logoUrl}
-          showBack={navigation.canGoBack()}
-          onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
-          rightSlot={<UserMenuButton />}
-        />
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <HomeHeroHeader
+            profileImageUri={profileImageUrl}
+            onOpenMenu={openMenu}
+            onBell={() => navigation.navigate('Mensajes')}
+            onAvatar={() => navigation.navigate('Profile')}
+          />
 
-        <Text style={styles.sectionTitle}>Tickets a la Venta</Text>
-        <Text style={styles.sectionHint}>Publicaciones visibles para todos los usuarios</Text>
-        <View style={[styles.marketplaceSection, { height: marketplaceMaxHeight }]}>
+          <View style={styles.promoOuter}>
+            <LinearGradient
+              colors={['rgba(22, 40, 82, 0.98)', 'rgba(8, 12, 28, 0.98)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.promoCard}
+            >
+              <View style={styles.promoTopGlow} />
+              <View style={styles.promoRow}>
+                <View style={styles.promoCopy}>
+                  <Text style={styles.promoTitle}>Viví los mejores eventos</Text>
+                  <Text style={styles.promoSub}>Tickets 100% verificados</Text>
+                  <TouchableOpacity style={[styles.promoBtn, { backgroundColor: brand.primaryHex }]} onPress={goTienda} activeOpacity={0.9}>
+                    <Text style={styles.promoBtnText}>Ir a la tienda</Text>
+                  </TouchableOpacity>
+                </View>
+                <Image source={require('../assets/images/home-hero-ref.png')} style={styles.promoMascot} resizeMode="contain" />
+              </View>
+            </LinearGradient>
+          </View>
+
+          <View style={styles.sectionHead}>
+            <Text style={styles.sectionTitle}>Eventos destacados</Text>
+            <TouchableOpacity onPress={goTienda} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.sectionLink}>Ver todos</Text>
+            </TouchableOpacity>
+          </View>
+
           {marketplaceLoading ? (
-            <View style={styles.marketplaceLoading}>
-              <ActivityIndicator color={brand.primaryLight} />
+            <View style={styles.loader}>
+              <ActivityIndicator color={brand.primaryLight} size="large" />
             </View>
           ) : marketplaceError ? (
-            <View style={styles.marketplaceFallback}>
-              <Text style={styles.marketplaceError}>{marketplaceError}</Text>
-              <TouchableOpacity style={[styles.tiendaBtn, { backgroundColor: brand.primaryHex }]} onPress={() => navigation.navigate('Tienda')}>
-                <Text style={styles.tiendaBtnText}>Ir a la Tienda</Text>
+            <View style={styles.fallback}>
+              <Text style={styles.err}>{marketplaceError}</Text>
+              <TouchableOpacity style={[styles.promoBtn, { backgroundColor: brand.primaryHex, alignSelf: 'center' }]} onPress={goTienda}>
+                <Text style={styles.promoBtnText}>Ir a la tienda</Text>
               </TouchableOpacity>
             </View>
-          ) : marketplaceItems.length === 0 ? (
-            <View style={styles.marketplaceFallback}>
-              <Text style={styles.marketplaceEmpty}>No hay tickets públicos por el momento.</Text>
-              <TouchableOpacity style={[styles.tiendaBtn, { backgroundColor: brand.primaryHex }]} onPress={() => navigation.navigate('Tienda')}>
-                <Text style={styles.tiendaBtnText}>Ir a la Tienda</Text>
+          ) : featured.length === 0 ? (
+            <View style={styles.fallback}>
+              <Text style={styles.hint}>No hay eventos destacados por el momento.</Text>
+              <TouchableOpacity style={[styles.promoBtn, { backgroundColor: brand.primaryHex, alignSelf: 'center' }]} onPress={goTienda}>
+                <Text style={styles.promoBtnText}>Ir a la tienda</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            <>
-              <ScrollView
-                nestedScrollEnabled
-                style={styles.marketplaceScroll}
-                showsVerticalScrollIndicator
-                contentContainerStyle={styles.marketplaceScrollContent}
-              >
-                <View style={styles.marketplaceGrid}>
-                  {marketplaceItems.map((item) => (
-                    <View key={item.id} style={styles.marketplaceCell}>
-                      <MarketplaceTicketCard
-                        compact
-                        minFrameHeight={homeMarketplaceCardMinHeight}
-                        item={item}
-                        formatEventDateTime={formatDateTime}
-                        onPress={() =>
-                          navigation.navigate('ComprarTicketDetalle', {
-                            listingId: item.id,
-                            password: '',
-                          })
-                        }
-                      />
-                    </View>
-                  ))}
-                </View>
-              </ScrollView>
-              <TouchableOpacity style={[styles.tiendaBtn, { backgroundColor: brand.primaryHex }]} onPress={() => navigation.navigate('Tienda')}>
-                <Text style={styles.tiendaBtnText}>Ir a la Tienda</Text>
-              </TouchableOpacity>
-            </>
+            <View style={styles.featuredRow}>
+              {featured.map((item) => (
+                <HomeEventCard
+                  key={item.id}
+                  item={item}
+                  variant="featured"
+                  formatEventDateTime={formatDateTime}
+                  onPress={() => goDetail(item.id)}
+                  showFavoriteToggle
+                  favoriteActive={isFavorite(item.id)}
+                  onFavoritePress={() => toggleFavorite(item)}
+                />
+              ))}
+            </View>
           )}
-        </View>
 
-        <TouchableOpacity style={[styles.card, glassCard]} onPress={() => navigation.navigate('Kyc')}>
-          <Text style={styles.cardTitle}>Verificación KYC</Text>
-          <Text style={styles.cardSubtitle}>Verificar identidad con DNI y selfie</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.card, glassCard]} onPress={() => navigation.navigate('Publish', {})}>
-          <Text style={styles.cardTitle}>Publicar ticket</Text>
-          <Text style={styles.cardSubtitle}>Vender o intercambiar tu entrada</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.card, glassCard]} onPress={() => navigation.navigate('ComprarTicket')}>
-          <Text style={styles.cardTitle}>Comprar Ticket</Text>
-          <Text style={styles.cardSubtitle}>Buscar por ID y comprar de forma segura</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.card, glassCard]} onPress={() => navigation.navigate('MyPurchases')}>
-          <Text style={styles.cardTitle}>Mis compras</Text>
-          <Text style={styles.cardSubtitle}>Órdenes como comprador</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.card, glassCard]} onPress={() => navigation.navigate('MySales')}>
-          <Text style={styles.cardTitle}>Mis ventas</Text>
-          <Text style={styles.cardSubtitle}>Órdenes como vendedor</Text>
-        </TouchableOpacity>
+          <View style={[styles.sectionHead, { marginTop: spacing.lg }]}>
+            <Text style={styles.sectionTitle}>Recomendados para vos</Text>
+            <TouchableOpacity onPress={goTienda} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.sectionLink}>Ver todos</Text>
+            </TouchableOpacity>
+          </View>
 
-        <Text style={styles.socialTitle}>Seguinos en nuestras redes</Text>
-        <View style={styles.socialRow}>
-          <TouchableOpacity style={[styles.socialIcon, { backgroundColor: '#1877f2' }]} onPress={() => Linking.openURL('https://facebook.com')}>
-            <FontAwesome name="facebook" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.socialIcon, { backgroundColor: '#e1306c' }]} onPress={() => Linking.openURL('https://instagram.com')}>
-            <FontAwesome name="instagram" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.socialIcon, { backgroundColor: '#25d366' }]} onPress={() => Linking.openURL('https://wa.me')}>
-            <FontAwesome name="whatsapp" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-
-        {/* <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Cerrar Sesion</Text>
-        </TouchableOpacity> */}
-        
-      </ScrollView>
+          {!marketplaceLoading && recommended.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carousel}>
+              {recommended.map((item) => (
+                <View key={item.id} style={[styles.carouselCell, { width: carouselCardWidth }]}>
+                  <HomeEventCard
+                    item={item}
+                    variant="carousel"
+                    carouselWidth={carouselCardWidth}
+                    formatEventDateTime={formatDateTime}
+                    onPress={() => goDetail(item.id)}
+                    showFavoriteToggle
+                    favoriteActive={isFavorite(item.id)}
+                    onFavoritePress={() => toggleFavorite(item)}
+                  />
+                </View>
+              ))}
+            </ScrollView>
+          ) : null}
+        </ScrollView>
+      </SafeAreaView>
 
       <BiometricActivationModal
         visible={showBiometricModal}
@@ -207,64 +212,114 @@ export function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  safe: { flex: 1 },
   scroll: { flex: 1 },
-  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
+  content: { paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  promoOuter: {
+    marginBottom: spacing.lg,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.38)',
+    shadowColor: '#38bdf8',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+  promoCard: {
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
+    borderTopWidth: 3,
+    borderTopColor: 'rgba(96, 165, 250, 0.95)',
+  },
+  promoTopGlow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: '42%',
+    backgroundColor: 'rgba(37, 99, 235, 0.12)',
+  },
+  promoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  promoCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 8,
+  },
+  promoTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: colors.white,
+    letterSpacing: 0.3,
+    lineHeight: 28,
+  },
+  promoSub: {
+    fontSize: 14,
+    color: '#e2e8f0',
     marginBottom: 4,
   },
-  sectionHint: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.md },
-  marketplaceSection: {
-    marginBottom: spacing.lg,
+  promoBtn: {
+    alignSelf: 'flex-start',
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    borderRadius: 14,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
   },
-  marketplaceFallback: { flex: 1, justifyContent: 'center' },
-  marketplaceLoading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  marketplaceError: { color: '#f87171', marginBottom: spacing.md, fontSize: 13, textAlign: 'center' },
-  marketplaceEmpty: { color: colors.textMuted, fontSize: 14, textAlign: 'center', marginBottom: spacing.md },
-  marketplaceScroll: { flex: 1 },
-  marketplaceScrollContent: { paddingBottom: spacing.xs },
-  marketplaceGrid: {
+  promoBtnText: {
+    color: colors.white,
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  promoMascot: {
+    width: 118,
+    height: 138,
+    flexShrink: 0,
+  },
+  sectionHead: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'space-between',
-  },
-  marketplaceCell: {
-    width: '48%',
+    alignItems: 'center',
     marginBottom: spacing.sm,
   },
-  tiendaBtn: {
-    paddingVertical: 12,
-    borderRadius: radius,
-    alignItems: 'center',
-    marginTop: spacing.sm,
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.white,
   },
-  tiendaBtnText: { color: colors.white, fontWeight: '600', fontSize: 16 },
-  banner: { marginBottom: spacing.lg, alignItems: 'center' },
-  bannerLogo: { width: 200, height: 56 },
-  card: {
-    padding: spacing.lg,
-    marginBottom: spacing.md,
+  sectionLink: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#93c5fd',
   },
-  cardTitle: { color: colors.text, fontWeight: '800', fontSize: 18, fontFamily: 'Cooper-Black' },
-  cardSubtitle: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
-  socialTitle: { fontWeight: '700', color: colors.text, marginTop: spacing.lg, marginBottom: spacing.sm, textAlign: 'center' },
-  socialRow: { flexDirection: 'row', justifyContent: 'center', gap: spacing.lg, marginBottom: spacing.lg },
-  socialIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
+  featuredRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'stretch',
+  },
+  carousel: {
+    paddingVertical: spacing.xs,
+    paddingRight: spacing.lg,
+    flexDirection: 'row',
+  },
+  carouselCell: {
+    marginRight: spacing.sm,
+  },
+  loader: {
+    minHeight: 160,
     justifyContent: 'center',
-  },
-  logoutBtn: {
-    marginTop: spacing.lg,
-    paddingVertical: 14,
-    borderRadius: radius,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.white,
   },
-  logoutText: { color: colors.white, fontWeight: '600', fontSize: 16 },
+  fallback: {
+    paddingVertical: spacing.lg,
+    gap: spacing.md,
+  },
+  err: { color: '#f87171', textAlign: 'center', fontSize: 14 },
+  hint: { color: colors.textMuted, textAlign: 'center', fontSize: 14 },
 });

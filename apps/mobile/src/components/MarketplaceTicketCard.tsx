@@ -4,6 +4,7 @@
 
 import * as React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { TicketStubBackground } from './TicketStubBackground';
 import { colors, spacing } from '../theme';
 import type { MarketplacePublicItem } from '../lib/api';
@@ -19,6 +20,9 @@ type Props = {
   /** Altura mínima del stub (inicio: más alto que ancho ⇒ orientación vertical leg) */
   minFrameHeight?: number;
   formatEventDateTime: (iso: string | Date) => string;
+  /** Favoritos: corazón flotante; no dispara la tarjeta */
+  favoriteActive?: boolean;
+  onFavoritePress?: () => void;
 };
 
 export function MarketplaceTicketCard({
@@ -27,6 +31,8 @@ export function MarketplaceTicketCard({
   compact,
   minFrameHeight,
   formatEventDateTime,
+  favoriteActive,
+  onFavoritePress,
 }: Props) {
   const isPortraitStub = minFrameHeight != null && minFrameHeight > 0;
   const padH = compact ? spacing.lg : spacing.xl;
@@ -37,43 +43,72 @@ export function MarketplaceTicketCard({
       ? spacing.lg
       : spacing.lg;
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.9}
-      accessibilityRole="button"
-      accessibilityLabel={`${item.eventName}, comprar ticket`}
-    >
-      <TicketStubBackground
-        backgroundOrientation="portrait"
-        style={styles.stub}
-        minFrameHeight={minFrameHeight}
-        contentStyle={{
-          paddingHorizontal: padH,
-          paddingTop: padTop,
-          paddingBottom: padBottom,
-        }}
+    <View style={styles.wrap}>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.9}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.eventName}, comprar ticket`}
       >
-        <Text style={[styles.event, compact && styles.eventCompact]} numberOfLines={2}>
-          {item.eventName}
-        </Text>
-        <View style={[styles.perforation, compact && styles.perforationCompact]} />
-        <Text style={[styles.meta, compact && styles.metaCompact]} numberOfLines={2}>
-          {formatEventDateTime(item.eventDate)}
-        </Text>
-        <Text style={[styles.meta, compact && styles.metaCompact]} numberOfLines={2}>
-          {item.eventPlace || '—'}
-        </Text>
-        <Text style={[styles.seller, compact && styles.sellerCompact]} numberOfLines={2}>
-          {item.seller.displayName} ({item.seller.reputationScore} pts)
-        </Text>
-        <Text style={[styles.qty, compact && styles.qtyCompact]}>Cant.: {item.quantityEntries || '—'}</Text>
-      </TicketStubBackground>
-    </TouchableOpacity>
+        <TicketStubBackground
+          backgroundOrientation="portrait"
+          style={styles.stub}
+          minFrameHeight={minFrameHeight}
+          contentStyle={{
+            paddingHorizontal: padH,
+            paddingTop: padTop,
+            paddingBottom: padBottom,
+          }}
+        >
+          <Text style={[styles.event, compact && styles.eventCompact]} numberOfLines={2}>
+            {item.eventName}
+          </Text>
+          <View style={[styles.perforation, compact && styles.perforationCompact]} />
+          <Text style={[styles.meta, compact && styles.metaCompact]} numberOfLines={2}>
+            {formatEventDateTime(item.eventDate)}
+          </Text>
+          <Text style={[styles.meta, compact && styles.metaCompact]} numberOfLines={2}>
+            {item.eventPlace || '—'}
+          </Text>
+          <Text style={[styles.seller, compact && styles.sellerCompact]} numberOfLines={2}>
+            {item.seller.displayName} ({item.seller.reputationScore} pts)
+          </Text>
+          <Text style={[styles.qty, compact && styles.qtyCompact]}>Cant.: {item.quantityEntries || '—'}</Text>
+        </TicketStubBackground>
+      </TouchableOpacity>
+      {onFavoritePress ? (
+        <TouchableOpacity
+          style={styles.fabFav}
+          onPress={onFavoritePress}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel={favoriteActive ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+        >
+          <FontAwesome name={favoriteActive ? 'heart' : 'heart-o'} size={18} color={favoriteActive ? '#f472b6' : '#f1f5f9'} />
+        </TouchableOpacity>
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrap: { width: '100%', position: 'relative' },
   stub: { width: '100%' },
+  fabFav: {
+    position: 'absolute',
+    top: 10,
+    right: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    zIndex: 20,
+    elevation: 8,
+  },
   event: {
     fontSize: 14,
     fontWeight: '700',

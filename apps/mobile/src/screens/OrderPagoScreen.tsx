@@ -1,9 +1,11 @@
 /**
- * Pago de orden – Mercado Pago Checkout Pro (WebView in-app) + tarjetas adheridas.
+ * Pago de orden – Mercado Pago Checkout Pro abre en el **navegador del sistema** (Chrome / Safari).
+ * El checkout de MP en WebView embebido suele fallar (pantalla en blanco, esquemas mercadopago://, bloqueos).
+ * Los `back_urls` de la preferencia ya apuntan a `ticketTransfer://orden/:id/pago`; al volver refrescamos la orden.
  */
 
 import * as React from 'react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,11 +13,13 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
-  Modal,
   Alert,
+  Linking,
+  AppState,
+  InteractionManager,
+  type AppStateStatus,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { WebView } from 'react-native-webview';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
@@ -37,19 +41,17 @@ type Order = {
 type Route = RouteProp<RootStackParamList, 'OrderPago'>;
 type Nav = NativeStackNavigationProp<RootStackParamList, 'OrderPago'>;
 
-const USER_AGENT =
-  'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
-
 export function OrderPagoScreen() {
   const { params } = useRoute<Route>();
   const navigation = useNavigation<Nav>();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(params?.checkoutUrl ?? null);
-  const [mpOpen, setMpOpen] = useState(false);
+  const [openingMp, setOpeningMp] = useState(false);
   const [cards, setCards] = useState<CardItem[]>([]);
   const [cardsLoading, setCardsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   const loadOrder = useCallback(async () => {
     if (!params?.orderId) return;
@@ -91,20 +93,47 @@ export function OrderPagoScreen() {
     return () => {
       cancelled = true;
     };
-  }, [params?.orderId, mpOpen]);
+  }, [params?.orderId]);
 
-  const openCheckout = () => {
-    if (checkoutUrl) setMpOpen(true);
+  /** Al volver del navegador (pago MP), actualizar estado de la orden. */
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      const prev = appStateRef.current;
+      appStateRef.current = next;
+      if (next === 'active' && /inactive|background/.test(prev) && order?.status === 'PENDIENTE_PAGO' && params?.orderId) {
+        void loadOrder();
+      }
+    });
+    return () => sub.remove();
+  }, [order?.status, params?.orderId, loadOrder]);
+
+  const openCheckoutInBrowser = async () => {
+    if (!checkoutUrl) return;
+    const url = checkoutUrl.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      Alert.alert('Pago', 'La URL de checkout no es válida.');
+      return;
+    }
+    setOpeningMp(true);
+    try {
+      /** Deja terminar animaciones / layout antes de lanzar Chrome (menos picos de RAM en MIUI). */
+      await InteractionManager.runAfterInteractions();
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      await Linking.openURL(url);
+    } catch (e) {
+      Alert.alert('Mercado Pago', e instanceof Error ? e.message : 'No se pudo abrir el navegador.');
+    } finally {
+      setOpeningMp(false);
+    }
   };
 
-  const onCheckoutWebRequest = (req: { url: string }) => {
-    const u = req.url || '';
-    if (u.startsWith('ticketTransfer://')) {
-      setMpOpen(false);
-      void loadOrder();
-      return false;
-    }
-    return true;
+  const copyCheckoutLink = () => {
+    if (!checkoutUrl) return;
+    Clipboard.setString(checkoutUrl.trim());
+    Alert.alert(
+      'Enlace copiado',
+      'Si el teléfono se reinicia al abrir el pago, pegá el enlace en otro dispositivo o en Chrome desde el portapapeles.',
+    );
   };
 
   const handleRemoveCard = (card: CardItem) => {
@@ -206,16 +235,43 @@ export function OrderPagoScreen() {
               )}
 
               {checkoutUrl && (
-                <TouchableOpacity style={styles.btn} onPress={openCheckout}>
-                  <Text style={styles.btnText}>Pagar con Mercado Pago</Text>
+                <TouchableOpacity
+                  style={styles.btn}
+                  onPress={() => void openCheckoutInBrowser()}
+                  disabled={openingMp}
+                >
+                  <Text style={styles.btnText}>
+                    {openingMp ? 'Abriendo…' : 'Pagar con Mercado Pago'}
+                  </Text>
                 </TouchableOpacity>
+              )}
+              {checkoutUrl && (
+                <Text style={styles.browserHint}>
+                  Se abre el checkout de Mercado Pago en tu navegador (recomendado). Cuando termines, volvé a esta app:
+                  el estado del pago se actualiza solo al regresar.
+                </Text>
+              )}
+              {checkoutUrl && (
+                <TouchableOpacity style={styles.copyLinkBtn} onPress={copyCheckoutLink}>
+                  <Text style={styles.copyLinkBtnText}>Copiar enlace de pago</Text>
+                </TouchableOpacity>
+              )}
+              {checkoutUrl && (
+                <Text style={styles.miuiHint}>
+                  Si el teléfono se apaga o reinicia al pagar: suele ser falta de RAM o el ahorro de batería de Xiaomi (MIUI).
+                  Probá cerrar otras apps, desactivar “ahorro extremo” para esta app, o pagar desde otro equipo con el enlace
+                  copiado.
+                </Text>
               )}
               <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={addCard}>
                 <Text style={styles.btnText}>+ Agregar tarjeta</Text>
               </TouchableOpacity>
               {!checkoutUrl && <Text style={styles.muted}>Generando link de pago…</Text>}
+              <TouchableOpacity style={styles.refreshBtn} onPress={() => void loadOrder()}>
+                <Text style={styles.refreshBtnText}>Actualizar estado del pago</Text>
+              </TouchableOpacity>
               <Text style={styles.hintError}>
-                Si falla el pago con tarjeta adherida, usá el botón de Mercado Pago y elegí allí el medio guardado.
+                Si falla el pago con tarjeta adherida, usá Mercado Pago en el navegador y elegí allí el medio guardado.
               </Text>
             </>
           )}
@@ -229,31 +285,6 @@ export function OrderPagoScreen() {
           )}
         </View>
       </ScrollView>
-
-      <Modal visible={mpOpen} animationType="slide" onRequestClose={() => setMpOpen(false)}>
-        <SafeAreaView style={styles.mpModal} edges={['top']}>
-          <View style={styles.mpBar}>
-            <TouchableOpacity onPress={() => setMpOpen(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-              <Text style={styles.mpClose}>Cerrar</Text>
-            </TouchableOpacity>
-            <Text style={styles.mpTitle}>Mercado Pago</Text>
-            <View style={{ width: 56 }} />
-          </View>
-          {checkoutUrl ? (
-            <WebView
-              style={{ flex: 1 }}
-              source={{ uri: checkoutUrl }}
-              userAgent={USER_AGENT}
-              onShouldStartLoadWithRequest={onCheckoutWebRequest}
-              setSupportMultipleWindows={false}
-            />
-          ) : (
-            <View style={styles.centered}>
-              <Text style={styles.muted}>Sin URL de checkout</Text>
-            </View>
-          )}
-        </SafeAreaView>
-      </Modal>
     </AuthBackground>
   );
 }
@@ -285,20 +316,34 @@ const styles = StyleSheet.create({
   btn: { backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radius, alignItems: 'center', marginTop: spacing.md },
   btnSecondary: { backgroundColor: 'rgba(59, 130, 246, 0.35)', borderWidth: 1, borderColor: 'rgba(147, 197, 253, 0.5)' },
   btnText: { color: colors.white, fontWeight: '600', fontSize: 16 },
+  browserHint: {
+    fontSize: 13,
+    color: colors.primaryLight,
+    marginTop: spacing.sm,
+    lineHeight: 19,
+  },
+  copyLinkBtn: {
+    marginTop: spacing.sm,
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  copyLinkBtnText: { color: colors.primaryLight, fontSize: 15, fontWeight: '600', textDecorationLine: 'underline' },
+  miuiHint: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: spacing.sm,
+    lineHeight: 18,
+  },
+  refreshBtn: {
+    marginTop: spacing.md,
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  refreshBtnText: { color: colors.textMuted, fontSize: 14, textDecorationLine: 'underline' },
   hint: { fontSize: 12, color: colors.textMuted, marginTop: spacing.sm, marginBottom: spacing.sm, lineHeight: 18 },
   hintError: { fontSize: 12, color: '#fca5a5', marginTop: spacing.sm, lineHeight: 18 },
   muted: { fontSize: 14, color: colors.textMuted },
   success: { fontSize: 14, color: colors.primary, fontWeight: '600', marginTop: spacing.sm },
-  mpModal: { flex: 1, backgroundColor: '#0f172a' },
-  mpBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(96, 165, 250, 0.25)',
-  },
-  mpClose: { color: colors.primaryLight, fontWeight: '600', fontSize: 16, width: 56 },
-  mpTitle: { color: colors.text, fontWeight: '700', fontSize: 16 },
 });

@@ -167,6 +167,8 @@ export type MarketplacePublicItem = {
   eventDate: string;
   eventPlace?: string | null;
   quantityEntries?: string | null;
+  /** Precio publicado cuando existe en el listing */
+  price?: number | null;
   seller: { id: string; displayName: string; reputationScore: number };
 };
 

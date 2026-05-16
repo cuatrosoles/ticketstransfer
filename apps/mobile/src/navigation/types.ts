@@ -3,18 +3,29 @@
  * Ubicación: apps/mobile/src/navigation/types.ts
  */
 
+import type { NavigatorScreenParams } from '@react-navigation/native';
+import type { CompositeNavigationProp } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+/** Pestañas inferiores (Main autenticado) */
+export type MainTabParamList = {
+  Home: undefined;
+  Tienda: undefined;
+  MisTickets: undefined;
+  Favoritos: undefined;
+  Profile: undefined;
+};
+
 export type RootStackParamList = {
   Welcome: undefined;
   Login: undefined;
   Register: undefined;
-  Main: { openMenu?: boolean };
-  Home: undefined;
+  Main: NavigatorScreenParams<MainTabParamList> | undefined;
   Kyc: undefined;
   KycWebView: { sessionUrl: string };
   Publish: { editListingId?: string };
   ComprarTicket: undefined;
-  /** Marketplace: catálogo completo de tickets públicos */
-  Tienda: undefined;
   ComprarTicketDetalle: { listingId: string; password: string };
   MyListingDetail: { listingId: string };
   OrderDetail: { orderId: string; source: 'buyer' | 'seller' };
@@ -22,7 +33,6 @@ export type RootStackParamList = {
   OrderPago: { orderId: string; checkoutUrl?: string };
   MyPurchases: undefined;
   MySales: undefined;
-  Profile: undefined;
   TarjetasAdheridas: undefined;
   CardFormWebView: { returnTo?: 'OrderPago'; orderId?: string } | undefined;
   ChatSoporte: undefined;
@@ -46,3 +56,11 @@ export type RootStackParamList = {
   RecomendacionesQuejas: undefined;
   PreguntasFrecuentes: undefined;
 };
+
+export type RootStackNavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+/** Desde una pantalla dentro de tabs hacia rutas del stack raíz */
+export type TabCompositeNavigationProp<T extends keyof MainTabParamList> = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabParamList, T>,
+  RootStackNavigationProp
+>;

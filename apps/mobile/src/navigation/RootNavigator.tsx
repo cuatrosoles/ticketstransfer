@@ -12,17 +12,15 @@ import type { RootStackParamList } from './types';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { RegisterScreen } from '../screens/RegisterScreen';
-import { HomeScreen } from '../screens/HomeScreen';
+import { MainTabNavigator } from './MainTabNavigator';
 import { KycScreen } from '../screens/KycScreen';
 import { KycWebViewScreen } from '../screens/KycWebViewScreen';
 import { PublishTicketScreen } from '../screens/PublishTicketScreen';
 import { ComprarTicketScreen } from '../screens/ComprarTicketScreen';
-import { TiendaScreen } from '../screens/TiendaScreen';
 import { ComprarTicketDetalleScreen } from '../screens/ComprarTicketDetalleScreen';
 import { MyListingDetailScreen } from '../screens/MyListingDetailScreen';
 import { MyPurchasesScreen } from '../screens/MyPurchasesScreen';
 import { MySalesScreen } from '../screens/MySalesScreen';
-import { ProfileScreen } from '../screens/ProfileScreen';
 import { TarjetasAdheridasScreen } from '../screens/TarjetasAdheridasScreen';
 import { CardFormWebViewScreen } from '../screens/CardFormWebViewScreen';
 import { ChatSoporteScreen } from '../screens/ChatSoporteScreen';
@@ -91,19 +89,17 @@ export function RootNavigator() {
         </>
       ) : (
         <>
-          <Stack.Screen name="Main" component={HomeScreen} options={NO_HEADER} />
+          <Stack.Screen name="Main" component={MainTabNavigator} options={NO_HEADER} />
           <Stack.Screen name="Kyc" component={KycScreen} options={NO_HEADER} />
           <Stack.Screen name="KycWebView" component={KycWebViewScreen} options={NO_HEADER} />
           <Stack.Screen name="Publish" component={PublishTicketScreen} options={NO_HEADER} />
           <Stack.Screen name="ComprarTicket" component={ComprarTicketScreen} options={NO_HEADER} />
-          <Stack.Screen name="Tienda" component={TiendaScreen} options={NO_HEADER} />
           <Stack.Screen name="ComprarTicketDetalle" component={ComprarTicketDetalleScreen} options={NO_HEADER} />
           <Stack.Screen name="OrderPurchaseDetails" component={OrderPurchaseDetailsScreen} options={NO_HEADER} />
           <Stack.Screen name="MyListingDetail" component={MyListingDetailScreen} options={NO_HEADER} />
           <Stack.Screen name="MyPurchases" component={MyPurchasesScreen} options={NO_HEADER} />
           <Stack.Screen name="MySales" component={MySalesScreen} options={NO_HEADER} />
           <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={NO_HEADER} />
-          <Stack.Screen name="Profile" component={ProfileScreen} options={NO_HEADER} />
           <Stack.Screen name="TarjetasAdheridas" component={TarjetasAdheridasScreen} options={NO_HEADER} />
           <Stack.Screen name="CardFormWebView" component={CardFormWebViewScreen} options={NO_HEADER} />
           <Stack.Screen name="ChatSoporte" component={ChatSoporteScreen} options={NO_HEADER} />

@@ -24,6 +24,7 @@ import {
 import { launchCameraSafe, launchImageLibrarySafe } from '../lib/imagePickerSafe';
 import { biometricLockBypassPickerOpenRef } from '../lib/biometricLockBypass';
 import { useNavigation } from '@react-navigation/native';
+import type { TabCompositeNavigationProp } from '../navigation/types';
 import { useAuth } from '../context/AuthContext';
 import { useProfileImage } from '../context/ProfileImageContext';
 import { getProfile, updateProfile, uploadProfileImage, requestPhoneVerification, confirmPhoneVerification, ensureImageUrl, type Profile, type ProfileUpdate } from '../lib/api';
@@ -31,6 +32,7 @@ import { PROVINCIAS_ARGENTINA, CIUDADES_POR_PROVINCIA } from '../data/provincias
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
+import { useBranding } from '../context/BrandingContext';
 import { colors, spacing, radius, glassCard } from '../theme';
 
 function formatDate(value: string | null): string {
@@ -72,7 +74,8 @@ function KycBadge({ status }: { status: string }) {
 }
 
 export function ProfileScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<TabCompositeNavigationProp<'Profile'>>();
+  const brand = useBranding();
   const { fetchUser, enableBiometrics, disableBiometrics, biometricAvailability, biometricEnabled } = useAuth();
   const { refreshProfileImage } = useProfileImage();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -281,12 +284,7 @@ export function ProfileScreen() {
   return (
     <AuthBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <ScreenHeader
-          title="Mi perfil"
-          showBack
-          onBack={() => navigation.goBack()}
-          rightSlot={<UserMenuButton />}
-        />
+        <ScreenHeader title="Mi perfil" rightSlot={<UserMenuButton />} logoUri={brand.logoUrl} />
         <View style={[styles.card, glassCard]}>
         <View style={styles.avatarSection}>
           <TouchableOpacity
@@ -317,6 +315,16 @@ export function ProfileScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity
+          style={[styles.kycQuickCard, glassCard]}
+          onPress={() => navigation.navigate('Kyc')}
+          activeOpacity={0.9}
+        >
+          <Text style={styles.kycQuickTitle}>Verificación KYC</Text>
+          <Text style={styles.kycQuickSub}>Verificar identidad con DNI y selfie</Text>
+        </TouchableOpacity>
+
         <View style={styles.perfilHeader}>
           <Text style={styles.title}>Información personal</Text>
           {!editing ? (
@@ -490,8 +498,6 @@ export function ProfileScreen() {
         </View>
         )}
 
-        <Text style={styles.subtitle}>Podés verificar tu identidad en Verificación KYC desde Inicio.</Text>
-
         <Modal visible={phoneVerifyModal} transparent animationType="slide">
           <Pressable style={styles.modalOverlay} onPress={() => setPhoneVerifyModal(false)}>
             <View style={styles.phoneVerifyModal} onStartShouldSetResponder={() => true}>
@@ -607,7 +613,7 @@ function ProfileField({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 100 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   card: {
     padding: spacing.lg,
@@ -696,4 +702,20 @@ const styles = StyleSheet.create({
   phoneVerifyModal: { backgroundColor: 'rgba(30, 58, 138, 0.98)', margin: 24, padding: 24, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.3)' },
   phoneVerifyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: spacing.lg },
   phoneVerifyActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
+  kycQuickCard: {
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    borderRadius: 20,
+  },
+  kycQuickTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text,
+    fontFamily: 'Cooper-Black',
+  },
+  kycQuickSub: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginTop: 4,
+  },
 });
