@@ -171,6 +171,9 @@ router.get('/event-image/preview', requireAuth, async (req: AuthRequest, res) =>
   }
 
   const preview = await previewEventImage({ eventName, eventDate, eventPlace: eventPlace || null, category });
+  if (req.query.debug === '1') {
+    return res.json({ ...preview, debug: true, hint: 'Revisá logs [event-image] en Vercel' });
+  }
   res.json(preview);
 });
 
