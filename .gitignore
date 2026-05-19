@@ -1,5 +1,8 @@
 node_modules
 
+# Salida local para subir solo estáticos al hosting (pnpm static:prepare)
+static-deploy/
+
 # Firebase (credenciales - NUNCA subir)
 firebase-service-account.json
 **/firebase-service-account*.json

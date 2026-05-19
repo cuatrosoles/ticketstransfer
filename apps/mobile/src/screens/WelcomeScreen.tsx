@@ -55,15 +55,7 @@ export function WelcomeScreen() {
       <LinearGradient colors={['#0c1936', '#070d18']} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.logoRow}>
-            <View style={styles.ticketBadge}>
-              {brand.logoUrl ? (
-                <Image source={{ uri: brand.logoUrl }} style={styles.ticketLogoImg} resizeMode="contain" />
-              ) : (
-                <Text style={styles.ticketLogoText}>Tickets Transfer</Text>
-              )}
-            </View>
-          </View>
+
 
           <View style={[styles.hero, { minHeight: spotlightSize * 0.62 }]}>
             <View
@@ -105,7 +97,7 @@ export function WelcomeScreen() {
             />
             <Image
               source={require('../assets/images/welcome-hero-ref.png')}
-              style={[styles.heroArt, { width: width * 0.92, maxWidth: 380, height: width * 0.78, maxHeight: 300 }]}
+              style={[styles.heroArt, { width: width * 1.25, maxWidth: 520, height: width * 1.55, maxHeight: 580 }]}
               resizeMode="contain"
             />
             <LinearGradient
@@ -115,16 +107,13 @@ export function WelcomeScreen() {
             />
           </View>
 
-          <Text style={styles.headline}>¡BIENVENIDOS!</Text>
-          <Text style={styles.subhead}>A la mejor experiencia en compra y venta de tickets</Text>
-
           <View style={styles.aboutCard}>
             <Text style={styles.aboutTitle}>ACERCA DE LA APP:</Text>
             <Text style={styles.aboutBody}>{ACERCA_PARAGRAPH}</Text>
             {FEATURES.map((f) => (
               <View key={f.title} style={styles.featureRow}>
                 <View style={styles.featureIcon}>
-                  <FontAwesome name={f.icon} size={20} color="#f8fafc" />
+                  <FontAwesome name={f.icon} size={30} color="#f8fafc" />
                   {f.icon === 'shield' ? (
                     <Text style={styles.shieldTick}>✓</Text>
                   ) : null}
@@ -221,7 +210,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 72,
+    height: 22,
     zIndex: 2,
   },
   headline: {
@@ -250,6 +239,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(13, 36, 82, 0.82)',
     borderWidth: 1,
     borderColor: 'rgba(147, 197, 253, 0.35)',
+    marginTop: 18,
     marginBottom: 28,
   },
   aboutTitle: {

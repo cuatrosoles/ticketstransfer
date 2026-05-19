@@ -109,25 +109,10 @@ export function HomeScreen() {
             onAvatar={() => navigation.navigate('Profile')}
           />
 
-          <View style={styles.promoOuter}>
-            <LinearGradient
-              colors={['rgba(22, 40, 82, 0.98)', 'rgba(8, 12, 28, 0.98)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.promoCard}
-            >
-              <View style={styles.promoTopGlow} />
-              <View style={styles.promoRow}>
-                <View style={styles.promoCopy}>
-                  <Text style={styles.promoTitle}>Viví los mejores eventos</Text>
-                  <Text style={styles.promoSub}>Tickets 100% verificados</Text>
-                  <TouchableOpacity style={[styles.promoBtn, { backgroundColor: brand.primaryHex }]} onPress={goTienda} activeOpacity={0.9}>
-                    <Text style={styles.promoBtnText}>Ir a la tienda</Text>
-                  </TouchableOpacity>
-                </View>
-                <Image source={require('../assets/images/home-hero-ref.png')} style={styles.promoMascot} resizeMode="contain" />
-              </View>
-            </LinearGradient>
+          <View style={{ marginLeft: '-18%', marginBottom: '6%'}}>
+            <TouchableOpacity onPress={goTienda} activeOpacity={0.2}>
+              <Image source={require('../assets/images/home-hero-ref.png')} />
+            </TouchableOpacity>
           </View>
 
           <View style={styles.sectionHead}>
@@ -278,8 +263,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   promoMascot: {
-    width: 118,
-    height: 138,
+    width: 460,
+    height: 160,
     flexShrink: 0,
   },
   sectionHead: {

@@ -137,6 +137,7 @@ router.get('/marketplace/public', async (req, res) => {
         eventDate,
         eventPlace: d.eventPlace ?? null,
         quantityEntries: d.quantityEntries ?? null,
+        price: d.price != null && d.price !== '' ? Number(d.price) : null,
         seller: sellerData
           ? {
               id: d.sellerId,

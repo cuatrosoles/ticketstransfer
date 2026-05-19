@@ -139,3 +139,31 @@ Solo aplica si tu plan es **Business**, **Cloud** o **VPS** con Node.js.
 | 6 | Ejecutá `pnpm apk:release` en `v2/apps/mobile` y compartí el APK que queda en `android/app/build/outputs/apk/release/`. |
 
 Con eso tu cliente puede instalar el APK en otra ciudad y registrarse / loguearse contra tu API online, sin usar terminal en el hosting.
+
+---
+
+## Web y admin estáticos (build local, subir solo `dist`)
+
+Para **Hostinger** (u otro hosting estático) **sin** mover la API ni la base de datos:
+
+1. En `v2/apps/web` y `v2/apps/admin`, creá **`.env.production`** con las mismas variables que en Vercel: `VITE_API_URL` (URL pública de tu API, sin barra final) y todas las `VITE_FIREBASE_*`. Vite usa ese archivo al ejecutar `pnpm run build` en cada app.
+2. Desde la carpeta **`v2`** ejecutá:
+
+   ```bash
+   pnpm run static:prepare
+   ```
+
+   Eso genera `apps/web/dist` y `apps/admin/dist` y copia todo a **`v2/static-deploy/web`** y **`v2/static-deploy/admin`** (incluye **`.htaccess`** para rutas SPA en Apache/LiteSpeed).
+
+3. Subí por **FTP/SFTP** el **contenido** (no la carpeta vacía) de `static-deploy/web` al document root de la landing (dominio o subdominio) y el de `static-deploy/admin` al document root del panel admin.
+4. En **Firebase Console → Authentication → Authorized domains**, añadí los dominios donde quedó publicada cada app.
+
+Comandos útiles:
+
+| Comando | Qué hace |
+|---------|----------|
+| `pnpm run build:static` | Solo build de `web` y `admin` (usa `.env.production` de cada app). |
+| `pnpm run pack:static` | Solo copia `dist` a `static-deploy/` (falla si no existen los build). |
+| `pnpm run static:prepare` | Build + copia en un paso. |
+
+La carpeta `static-deploy/` está en `.gitignore` y no debe versionarse.
