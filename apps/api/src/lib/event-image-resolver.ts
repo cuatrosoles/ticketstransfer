@@ -3,7 +3,7 @@
  * Estrategia: búsqueda oficial (Gemini + Google Search) → Wikimedia → generación IA → fallback por categoría.
  */
 
-import { Jimp } from 'jimp';
+import sharp from 'sharp';
 import {
   getEventImageCategoryFallback,
   normalizeEventImageCategory,
@@ -93,14 +93,16 @@ async function downloadImageBuffer(url: string, timeoutMs = 6000): Promise<Buffe
       redirect: 'follow',
       headers: {
         'User-Agent': 'TicketsTransfer/2.0 EventImageResolver',
-        Accept: 'image/jpeg,image/png,image/webp,*/*',
+        // Preferir JPEG/PNG; muchos CDNs (Unsplash, Wikimedia) devuelven WebP si lo piden primero.
+        Accept: 'image/jpeg,image/png;q=0.9,image/webp;q=0.8,image/*;q=0.5',
       },
     });
     if (!res.ok) return null;
     const ct = (res.headers.get('content-type') || '').toLowerCase();
-    if (!ct.startsWith('image/')) return null;
+    if (!ct.startsWith('image/') && ct !== 'application/octet-stream') return null;
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length < 4_000 || buf.length > 5 * 1024 * 1024) return null;
+    if (!detectImageMime(buf)) return null;
     return buf;
   } catch {
     return null;
@@ -109,19 +111,60 @@ async function downloadImageBuffer(url: string, timeoutMs = 6000): Promise<Buffe
   }
 }
 
-async function normalizeImageBuffer(buffer: Buffer): Promise<Buffer> {
-  const image = await Jimp.read(buffer);
-  const w = image.width;
-  const h = image.height;
-  if (w < 120 || h < 80) throw new Error('Imagen demasiado pequeña');
-  if (w > 1200) image.resize({ w: 1200 });
-  return image.getBuffer('image/jpeg', { quality: 82 });
+function detectImageMime(buffer: Buffer): string | null {
+  if (buffer.length < 12) return null;
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg';
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return 'image/png';
+  if (buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') return 'image/webp';
+  if (buffer.toString('ascii', 0, 3) === 'GIF') return 'image/gif';
+  return null;
+}
+
+function mimeToExt(mime: string): string {
+  switch (mime) {
+    case 'image/jpeg':
+      return 'jpg';
+    case 'image/png':
+      return 'png';
+    case 'image/webp':
+      return 'webp';
+    case 'image/gif':
+      return 'gif';
+    default:
+      return 'jpg';
+  }
+}
+
+type PreparedImage = {
+  buffer: Buffer;
+  contentType: string;
+  ext: string;
+};
+
+/** Redimensiona y convierte a JPEG. Sharp soporta WebP/PNG/GIF (Jimp no decodifica WebP). */
+async function prepareImageBuffer(buffer: Buffer): Promise<PreparedImage> {
+  try {
+    const meta = await sharp(buffer, { failOn: 'none' }).metadata();
+    const w = meta.width ?? 0;
+    const h = meta.height ?? 0;
+    if (w < 120 || h < 80) throw new Error('Imagen demasiado pequeña');
+    let pipeline = sharp(buffer, { failOn: 'none' });
+    if (w > 1200) pipeline = pipeline.resize({ width: 1200, withoutEnlargement: true });
+    const out = await pipeline.jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+    return { buffer: out, contentType: 'image/jpeg', ext: 'jpg' };
+  } catch (err) {
+    const mime = detectImageMime(buffer);
+    if (mime) {
+      return { buffer, contentType: mime, ext: mimeToExt(mime) };
+    }
+    throw err;
+  }
 }
 
 async function uploadEventImage(listingId: string, buffer: Buffer): Promise<string> {
-  const normalized = await normalizeImageBuffer(buffer);
-  const path = `tickets/${listingId}/event_cover_${Date.now()}.jpg`;
-  return uploadFile(path, normalized, 'image/jpeg');
+  const prepared = await prepareImageBuffer(buffer);
+  const path = `tickets/${listingId}/event_cover_${Date.now()}.${prepared.ext}`;
+  return uploadFile(path, prepared.buffer, prepared.contentType);
 }
 
 function parseJsonFromText(text: string): Record<string, unknown> | null {
@@ -208,7 +251,9 @@ async function searchWikimediaImage(eventName: string): Promise<string | null> {
     if (/logo|icon|svg|flag|map|signature|diagram/.test(title)) continue;
     const info = page.imageinfo?.[0];
     const url = info?.thumburl || info?.url;
-    if (url && isAllowedImageUrl(url)) return url;
+    if (!url || !isAllowedImageUrl(url)) continue;
+    if (/\.svg(\?|$)/i.test(url)) continue;
+    return url;
   }
   return null;
 }
@@ -287,7 +332,8 @@ export async function resolveAndStoreEventImage(
     const storedUrl = await uploadEventImage(listingId, buffer);
     return { url: storedUrl, source: resolved.source };
   } catch (err) {
-    console.warn('[event-image] fallback por error:', err instanceof Error ? err.message : err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn('[event-image] fallback por error al subir imagen encontrada:', msg);
     try {
       const fallbackBuf = await downloadImageBuffer(getEventImageCategoryFallback(input.category), 5000);
       if (fallbackBuf) {

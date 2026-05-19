@@ -13584,11 +13584,11 @@ var HORAS_MAX_TRANSFERENCIA_VENDEDOR = 72;
 
 // ../../packages/shared/src/event-images.ts
 var EVENT_IMAGE_CATEGORY_FALLBACKS = {
-  MUSICA: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=800&q=80",
-  DEPORTES: "https://images.unsplash.com/photo-1461896836934-ffe607be7d0e?auto=format&fit=crop&w=800&q=80",
-  TEATRO: "https://images.unsplash.com/photo-1503090549741-5a710f340b0b?auto=format&fit=crop&w=800&q=80",
-  FESTIVALES: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&w=800&q=80",
-  OTRO: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=800&q=80"
+  MUSICA: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=800&q=80&fm=jpg",
+  DEPORTES: "https://images.unsplash.com/photo-1461896836934-ffe607be7d0e?auto=format&fit=crop&w=800&q=80&fm=jpg",
+  TEATRO: "https://images.unsplash.com/photo-1503090549741-5a710f340b0b?auto=format&fit=crop&w=800&q=80&fm=jpg",
+  FESTIVALES: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&w=800&q=80&fm=jpg",
+  OTRO: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=800&q=80&fm=jpg"
 };
 function normalizeEventImageCategory(raw) {
   if (raw && CATEGORIAS_EVENTOS.includes(raw)) {
@@ -19480,7 +19480,7 @@ async function storeListingCaptureWithRedaction(listingId, kind, file) {
 }
 
 // src/lib/event-image-resolver.ts
-import { Jimp as Jimp3 } from "jimp";
+import sharp from "sharp";
 var TIMEOUT_MS = Number(process.env.EVENT_IMAGE_TIMEOUT_MS) || 1e4;
 var GEMINI_API_KEY = process.env.GEMINI_API_KEY?.trim() || "";
 var ENABLE_AI_GENERATION = process.env.EVENT_IMAGE_AI_GENERATION !== "0";
@@ -19541,14 +19541,16 @@ async function downloadImageBuffer(url, timeoutMs = 6e3) {
       redirect: "follow",
       headers: {
         "User-Agent": "TicketsTransfer/2.0 EventImageResolver",
-        Accept: "image/jpeg,image/png,image/webp,*/*"
+        // Preferir JPEG/PNG; muchos CDNs (Unsplash, Wikimedia) devuelven WebP si lo piden primero.
+        Accept: "image/jpeg,image/png;q=0.9,image/webp;q=0.8,image/*;q=0.5"
       }
     });
     if (!res.ok) return null;
     const ct = (res.headers.get("content-type") || "").toLowerCase();
-    if (!ct.startsWith("image/")) return null;
+    if (!ct.startsWith("image/") && ct !== "application/octet-stream") return null;
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length < 4e3 || buf.length > 5 * 1024 * 1024) return null;
+    if (!detectImageMime(buf)) return null;
     return buf;
   } catch {
     return null;
@@ -19556,18 +19558,50 @@ async function downloadImageBuffer(url, timeoutMs = 6e3) {
     clearTimeout(timer);
   }
 }
-async function normalizeImageBuffer(buffer) {
-  const image = await Jimp3.read(buffer);
-  const w = image.width;
-  const h = image.height;
-  if (w < 120 || h < 80) throw new Error("Imagen demasiado peque\xF1a");
-  if (w > 1200) image.resize({ w: 1200 });
-  return image.getBuffer("image/jpeg", { quality: 82 });
+function detectImageMime(buffer) {
+  if (buffer.length < 12) return null;
+  if (buffer[0] === 255 && buffer[1] === 216 && buffer[2] === 255) return "image/jpeg";
+  if (buffer[0] === 137 && buffer[1] === 80 && buffer[2] === 78 && buffer[3] === 71) return "image/png";
+  if (buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP") return "image/webp";
+  if (buffer.toString("ascii", 0, 3) === "GIF") return "image/gif";
+  return null;
+}
+function mimeToExt(mime) {
+  switch (mime) {
+    case "image/jpeg":
+      return "jpg";
+    case "image/png":
+      return "png";
+    case "image/webp":
+      return "webp";
+    case "image/gif":
+      return "gif";
+    default:
+      return "jpg";
+  }
+}
+async function prepareImageBuffer(buffer) {
+  try {
+    const meta = await sharp(buffer, { failOn: "none" }).metadata();
+    const w = meta.width ?? 0;
+    const h = meta.height ?? 0;
+    if (w < 120 || h < 80) throw new Error("Imagen demasiado peque\xF1a");
+    let pipeline = sharp(buffer, { failOn: "none" });
+    if (w > 1200) pipeline = pipeline.resize({ width: 1200, withoutEnlargement: true });
+    const out = await pipeline.jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+    return { buffer: out, contentType: "image/jpeg", ext: "jpg" };
+  } catch (err) {
+    const mime = detectImageMime(buffer);
+    if (mime) {
+      return { buffer, contentType: mime, ext: mimeToExt(mime) };
+    }
+    throw err;
+  }
 }
 async function uploadEventImage(listingId, buffer) {
-  const normalized = await normalizeImageBuffer(buffer);
-  const path5 = `tickets/${listingId}/event_cover_${Date.now()}.jpg`;
-  return uploadFile(path5, normalized, "image/jpeg");
+  const prepared = await prepareImageBuffer(buffer);
+  const path5 = `tickets/${listingId}/event_cover_${Date.now()}.${prepared.ext}`;
+  return uploadFile(path5, prepared.buffer, prepared.contentType);
 }
 function parseJsonFromText(text) {
   const trimmed = text.trim();
@@ -19637,7 +19671,9 @@ async function searchWikimediaImage(eventName) {
     if (/logo|icon|svg|flag|map|signature|diagram/.test(title)) continue;
     const info = page.imageinfo?.[0];
     const url = info?.thumburl || info?.url;
-    if (url && isAllowedImageUrl(url)) return url;
+    if (!url || !isAllowedImageUrl(url)) continue;
+    if (/\.svg(\?|$)/i.test(url)) continue;
+    return url;
   }
   return null;
 }
@@ -19699,7 +19735,8 @@ async function resolveAndStoreEventImage(listingId, input) {
     const storedUrl = await uploadEventImage(listingId, buffer);
     return { url: storedUrl, source: resolved.source };
   } catch (err) {
-    console.warn("[event-image] fallback por error:", err instanceof Error ? err.message : err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn("[event-image] fallback por error al subir imagen encontrada:", msg);
     try {
       const fallbackBuf = await downloadImageBuffer(getEventImageCategoryFallback(input.category), 5e3);
       if (fallbackBuf) {

@@ -74,6 +74,7 @@ const external = [
   'jsonwebtoken',
   'mercadopago',
   'multer',
+  'sharp',
   'twilio',
   'tesseract.js',
   'jsqr',
