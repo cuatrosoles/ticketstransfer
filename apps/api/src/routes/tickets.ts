@@ -142,6 +142,8 @@ router.get('/marketplace/public', async (req, res) => {
         eventName: d.eventName,
         eventDate,
         eventPlace: d.eventPlace ?? null,
+        eventAddress: d.eventAddress ?? null,
+        eventCity: d.eventCity ?? null,
         eventImageUrl: d.eventImageUrl ?? null,
         category: d.category ?? null,
         quantityEntries: d.quantityEntries ?? null,
@@ -164,17 +166,24 @@ router.get('/event-image/preview', requireAuth, async (req: AuthRequest, res) =>
   const eventName = typeof req.query.eventName === 'string' ? req.query.eventName.trim() : '';
   const eventDate = typeof req.query.eventDate === 'string' ? req.query.eventDate.trim() : '';
   const eventPlace = typeof req.query.eventPlace === 'string' ? req.query.eventPlace.trim() : '';
+  const eventAddress = typeof req.query.eventAddress === 'string' ? req.query.eventAddress.trim() : '';
+  const eventCity = typeof req.query.eventCity === 'string' ? req.query.eventCity.trim() : '';
   const category = typeof req.query.category === 'string' ? req.query.category.trim() : 'OTRO';
   const ticketera = typeof req.query.ticketera === 'string' ? req.query.ticketera.trim() : null;
 
   if (eventName.length < 2 || !eventDate) {
     return res.status(400).json({ error: 'eventName y eventDate son requeridos para la vista previa.' });
   }
+  if (eventAddress.length < 2 || eventCity.length < 2) {
+    return res.status(400).json({ error: 'eventAddress y eventCity son requeridos para la vista previa.' });
+  }
 
   const preview = await previewEventImage({
     eventName,
     eventDate,
     eventPlace: eventPlace || null,
+    eventAddress: eventAddress || null,
+    eventCity: eventCity || null,
     category,
     ticketera,
   });
@@ -361,6 +370,8 @@ router.post(
       eventName: parsed.data.eventName,
       eventDate: parsed.data.eventDate,
       eventPlace: parsed.data.eventPlace ?? null,
+      eventAddress: parsed.data.eventAddress,
+      eventCity: parsed.data.eventCity,
       category: parsed.data.category ?? 'OTRO',
       ticketera: parsed.data.ticketera ?? null,
     };
@@ -371,6 +382,8 @@ router.post(
       eventName: parsed.data.eventName,
       eventDate: new Date(parsed.data.eventDate),
       eventPlace: parsed.data.eventPlace ?? null,
+      eventAddress: parsed.data.eventAddress,
+      eventCity: parsed.data.eventCity,
       sector: parsed.data.sector ?? null,
       row: parsed.data.row ?? null,
       seat: parsed.data.seat ?? null,
@@ -457,6 +470,8 @@ router.patch('/mine/:listingId', requireAuth, async (req: AuthRequest, res) => {
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (payload.eventName !== undefined) updates.eventName = payload.eventName;
   if (payload.eventPlace !== undefined) updates.eventPlace = payload.eventPlace ?? null;
+  if (payload.eventAddress !== undefined) updates.eventAddress = payload.eventAddress;
+  if (payload.eventCity !== undefined) updates.eventCity = payload.eventCity;
   if (payload.sector !== undefined) updates.sector = payload.sector ?? null;
   if (payload.row !== undefined) updates.row = payload.row ?? null;
   if (payload.seat !== undefined) updates.seat = payload.seat ?? null;
@@ -534,6 +549,8 @@ router.patch('/mine/:listingId', requireAuth, async (req: AuthRequest, res) => {
   if (payload.eventName !== undefined) nextImageInput.eventName = payload.eventName;
   if (payload.eventDate !== undefined) nextImageInput.eventDate = payload.eventDate;
   if (payload.eventPlace !== undefined) nextImageInput.eventPlace = payload.eventPlace ?? null;
+  if (payload.eventAddress !== undefined) nextImageInput.eventAddress = payload.eventAddress;
+  if (payload.eventCity !== undefined) nextImageInput.eventCity = payload.eventCity;
   if (payload.category !== undefined) nextImageInput.category = payload.category ?? null;
 
   if (shouldRefreshEventImage(prevImageInput, nextImageInput)) {

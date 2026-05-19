@@ -11,6 +11,7 @@ import {
   type EventImageSource,
 } from '@tickets-transfer/shared';
 import { uploadFile } from './firebase-storage.js';
+import { hasStrictLocationInput } from './event-location-match.js';
 import {
   providersForTicketera,
   titleMatchesEvent,
@@ -86,6 +87,8 @@ function logInput(input: EventImageInput, ctx: string) {
     eventName: input.eventName,
     eventDate: input.eventDate,
     eventPlace: input.eventPlace ?? null,
+    eventAddress: input.eventAddress ?? null,
+    eventCity: input.eventCity ?? null,
     category: normalizeEventImageCategory(input.category),
     ticketera: input.ticketera ?? null,
     gemini: USE_GEMINI,
@@ -307,7 +310,9 @@ async function searchOfficialImageWithGemini(input: EventImageInput): Promise<st
     '{"imageUrl":"https://ejemplo.com/poster.jpg o null","source":"ticketera o sitio"}',
     '',
     `Evento: ${input.eventName}`,
-    `Lugar: ${input.eventPlace || 'No especificado'}`,
+    `Lugar / venue: ${input.eventPlace || 'No especificado'}`,
+    `Dirección: ${input.eventAddress || 'No especificada'}`,
+    `Ciudad: ${input.eventCity || 'No especificada'}`,
     `Fecha: ${input.eventDate}`,
     `Categoría: ${category}`,
     '',
@@ -490,6 +495,8 @@ function buildAiPrompt(input: EventImageInput): string {
     `Concert poster ${labels[category] || 'live event'}`,
     input.eventName,
     input.eventPlace || '',
+    input.eventCity || '',
+    input.eventAddress || '',
     'dramatic lighting, crowd, stage, no text, no logos',
   ]
     .filter(Boolean)
@@ -524,18 +531,31 @@ async function tryPollinations(input: EventImageInput): Promise<ResolvedRemote |
 
 async function resolveRemoteImageUrl(input: EventImageInput): Promise<ResolvedRemote> {
   const category = normalizeEventImageCategory(input.category);
+  const strictLoc = hasStrictLocationInput(input);
 
   const steps: Array<() => Promise<ResolvedRemote | null>> = [
     async () => trySource('ticketera', await searchTicketeraImages(input)),
     async () => trySource('official', await searchOfficialImageWithGemini(input)),
-    async () => trySource('wikimedia', await searchWikipediaPageImage(input.eventName)),
-    async () =>
-      category === 'MUSICA'
-        ? trySource('official', await searchItunesArtwork(input.eventName))
-        : null,
-    async () => trySource('wikimedia', await searchWikimediaImage(input.eventName)),
-    async () => tryPollinations(input),
   ];
+
+  if (!strictLoc) {
+    steps.push(
+      async () => trySource('wikimedia', await searchWikipediaPageImage(input.eventName)),
+      async () =>
+        category === 'MUSICA'
+          ? trySource('official', await searchItunesArtwork(input.eventName))
+          : null,
+      async () => trySource('wikimedia', await searchWikimediaImage(input.eventName))
+    );
+  } else {
+    log('info', 'omitidas fuentes genéricas (ciudad+dirección definidas; evita imagen de otro evento)', {
+      eventCity: input.eventCity,
+    });
+  }
+
+  if (!strictLoc) {
+    steps.push(async () => tryPollinations(input));
+  }
 
   for (const step of steps) {
     const hit = await step().catch((e) => {
@@ -620,7 +640,14 @@ export function shouldRefreshEventImage(
   prev: EventImageInput,
   next: Partial<EventImageInput>
 ): boolean {
-  const fields: (keyof EventImageInput)[] = ['eventName', 'eventDate', 'eventPlace', 'category'];
+  const fields: (keyof EventImageInput)[] = [
+    'eventName',
+    'eventDate',
+    'eventPlace',
+    'eventAddress',
+    'eventCity',
+    'category',
+  ];
   return fields.some((f) => next[f] !== undefined && String(next[f] ?? '') !== String(prev[f] ?? ''));
 }
 
@@ -639,6 +666,8 @@ export function eventImageInputFromListing(data: Record<string, unknown>): Event
     eventName: String(data.eventName || ''),
     eventDate,
     eventPlace: (data.eventPlace as string | null) ?? null,
+    eventAddress: (data.eventAddress as string | null) ?? null,
+    eventCity: (data.eventCity as string | null) ?? null,
     category: (data.category as string | null) ?? null,
     ticketera: (data.ticketera as string | null) ?? null,
   };

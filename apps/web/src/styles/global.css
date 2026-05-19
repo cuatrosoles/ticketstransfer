@@ -1408,6 +1408,16 @@ a:hover { text-decoration: underline; }
   min-height: 48px;
 }
 
+.form-row-inline {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+@media (max-width: 520px) {
+  .form-row-inline { grid-template-columns: 1fr; }
+}
+
 /* Barra superior al volver al inicio */
 .top-loading-bar {
   position: fixed;

@@ -1,12 +1,20 @@
 /**
  * Proveedores de imágenes oficiales por ticketera (Argentina).
- * Cada proveedor usa el nombre del evento + fecha; sin URLs fijas por evento.
+ * Prioriza páginas del evento que coincidan en nombre, ciudad, dirección y fecha.
  */
+
+import {
+  buildEventSearchQuery,
+  passesLocationGate,
+  scoreEventPageContext,
+} from './event-location-match.js';
 
 export type EventImageSearchInput = {
   eventName: string;
   eventDate: string;
   eventPlace?: string | null;
+  eventAddress?: string | null;
+  eventCity?: string | null;
   category?: string | null;
   ticketera?: string | null;
 };
@@ -17,18 +25,22 @@ export type DownloadImageFn = (url: string, timeoutMs?: number) => Promise<CmsPr
 
 export type TicketeraImageProvider = {
   id: string;
-  /** IDs de ticketera en el formulario (shared TICKETERAS_IDS). */
   ticketeraIds: string[];
-  /** Busca URL de imagen oficial; null si no hay candidato. */
   findImageUrl: (
     input: EventImageSearchInput,
     deps: { download: DownloadImageFn; log: (msg: string, data?: Record<string, unknown>) => void }
   ) => Promise<string | null>;
 };
 
-/** Prefijos habituales en nombres de shows (tributo, homenaje, etc.). */
 const SHOW_PREFIX_RE =
   /^(experiencia|tributo|tributo a|homenaje|homenaje a|show|show de|festival|recital)\s+(.+)$/i;
+
+const FETCH_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  Accept: 'text/html,application/xhtml+xml',
+  'Accept-Language': 'es-AR,es;q=0.9',
+};
 
 export function normalizeAscii(text: string): string {
   return text
@@ -38,7 +50,6 @@ export function normalizeAscii(text: string): string {
     .trim();
 }
 
-/** Genera slugs probables para CDN tipo show-header/{slug}.png */
 export function buildEventSlugCandidates(eventName: string, eventDate: string): string[] {
   const slugs = new Set<string>();
   const norm = normalizeAscii(eventName);
@@ -75,7 +86,6 @@ export function buildEventSlugCandidates(eventName: string, eventDate: string): 
   return [...slugs].slice(0, 36);
 }
 
-/** Sufijos numéricos solo desde fecha + hash del nombre (sin IDs mágicos fijos). */
 function dateAndHashSuffixes(eventName: string, eventDate: string): string[] {
   const nums = new Set<string>();
   const iso = eventDate.match(/(20\d{2})-(\d{2})-(\d{2})/);
@@ -110,17 +120,120 @@ export function scoreImageUrlForEvent(url: string, eventName: string): number {
   return score;
 }
 
-async function probeCmsBase(
+type PageImageCandidate = { url: string; pageScore: number; imageScore: number };
+
+async function fetchHtml(pageUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch(pageUrl, {
+      headers: FETCH_HEADERS,
+      signal: AbortSignal.timeout(9000),
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+
+/** Extrae URLs de imágenes de ticketera solo de páginas que coinciden en lugar/fecha. */
+async function scrapeMatchedEventPages(
+  pageUrls: string[],
+  imageUrlPattern: RegExp,
+  input: EventImageSearchInput,
+  log: (msg: string, data?: Record<string, unknown>) => void,
+  providerId: string
+): Promise<PageImageCandidate[]> {
+  const candidates: PageImageCandidate[] = [];
+  const seenPages = new Set<string>();
+
+  for (let pageUrl of pageUrls) {
+    if (seenPages.has(pageUrl)) continue;
+    seenPages.add(pageUrl);
+    if (seenPages.size > 8) break;
+
+    const html = await fetchHtml(pageUrl);
+    if (!html) continue;
+
+    const pageScore = scoreEventPageContext(html, input);
+    if (!passesLocationGate(pageScore, input)) {
+      log(`${providerId} página descartada (lugar/fecha)`, {
+        pageUrl: pageUrl.slice(0, 90),
+        pageScore,
+        city: input.eventCity,
+      });
+      continue;
+    }
+
+    log(`${providerId} página válida`, { pageUrl: pageUrl.slice(0, 90), pageScore });
+
+    const found = new Set<string>();
+    for (const m of html.matchAll(imageUrlPattern)) {
+      found.add(m[0]);
+    }
+
+    for (const url of found) {
+      const imageScore = scoreImageUrlForEvent(url, input.eventName);
+      if (imageScore <= 0 && !url.includes('show-header')) continue;
+      candidates.push({
+        url,
+        pageScore,
+        imageScore: imageScore + (url.includes('show-header') ? 6 : 0),
+      });
+    }
+  }
+
+  candidates.sort(
+    (a, b) => b.pageScore + b.imageScore - (a.pageScore + a.imageScore)
+  );
+
+  if (candidates.length) {
+    log(`${providerId} imágenes en páginas válidas`, {
+      count: candidates.length,
+      top: candidates[0]?.url.slice(0, 90),
+      pageScore: candidates[0]?.pageScore,
+    });
+  }
+
+  return candidates;
+}
+
+function extractTicketekEventLinks(html: string, baseHost = 'https://www.ticketek.com.ar'): string[] {
+  const links = new Set<string>();
+  const patterns = [
+    /href="(https?:\/\/[^"]*ticketek[^"]*(?:\/evento|\/event|\/shows?|\/entradas)[^"]*)"/gi,
+    /href="(\/(?:evento|event|shows?|entradas)[^"]+)"/gi,
+  ];
+  for (const re of patterns) {
+    for (const m of html.matchAll(re)) {
+      let href = m[1];
+      if (href.startsWith('/')) href = `${baseHost}${href}`;
+      if (href.includes('ticketek')) links.add(href.split('#')[0]);
+    }
+  }
+  return [...links].slice(0, 10);
+}
+
+function extractCmsSlugsFromHtml(html: string, cmsPathSegment: string): string[] {
+  const slugs = new Set<string>();
+  const re = new RegExp(
+    `${cmsPathSegment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/([a-zA-Z0-9_-]+)\\.(?:png|jpe?g|webp)`,
+    'gi'
+  );
+  for (const m of html.matchAll(re)) {
+    if (m[1]) slugs.add(m[1]);
+  }
+  return [...slugs];
+}
+
+async function probeCmsSlugs(
   cmsBase: string,
-  eventName: string,
-  eventDate: string,
+  slugs: string[],
   download: DownloadImageFn,
   log: (msg: string, data?: Record<string, unknown>) => void,
   providerId: string
 ): Promise<string | null> {
-  const slugs = buildEventSlugCandidates(eventName, eventDate);
   const exts = ['png', 'jpg', 'webp'];
-  for (const slug of slugs) {
+  for (const slug of slugs.slice(0, 24)) {
     for (const ext of exts) {
       const url = `${cmsBase}/${slug}.${ext}`;
       const dl = await download(url, 3500);
@@ -130,43 +243,7 @@ async function probeCmsBase(
       }
     }
   }
-  log(`${providerId} CMS sin slug`, { tried: slugs.length });
   return null;
-}
-
-async function scrapePagesForImages(
-  pageUrls: string[],
-  imageUrlPattern: RegExp,
-  eventName: string,
-  log: (msg: string, data?: Record<string, unknown>) => void,
-  providerId: string
-): Promise<string[]> {
-  const found = new Set<string>();
-  for (const pageUrl of pageUrls) {
-    try {
-      const res = await fetch(pageUrl, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          Accept: 'text/html,application/xhtml+xml',
-          'Accept-Language': 'es-AR,es;q=0.9',
-        },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!res.ok) continue;
-      const html = await res.text();
-      for (const m of html.matchAll(imageUrlPattern)) {
-        found.add(m[0]);
-      }
-    } catch {
-      /* siguiente */
-    }
-  }
-  const ranked = [...found].sort(
-    (a, b) => scoreImageUrlForEvent(b, eventName) - scoreImageUrlForEvent(a, eventName)
-  );
-  if (ranked.length) log(`${providerId} scrape`, { count: ranked.length, top: ranked[0]?.slice(0, 80) });
-  return ranked;
 }
 
 const TICKETEK_CMS =
@@ -178,41 +255,101 @@ export const TICKETEK_PROVIDER: TicketeraImageProvider = {
   id: 'ticketek',
   ticketeraIds: ['TICKETEK', 'TICKET_PLUS', 'TICKETERA'],
   async findImageUrl(input, { download, log }) {
-    const name = input.eventName.trim();
-    const ranked = await scrapePagesForImages(
-      [
-        `https://www.ticketek.com.ar/search?q=${encodeURIComponent(name)}`,
-        `https://www.ticketek.com.ar/search?searchText=${encodeURIComponent(name)}`,
-      ],
+    const query = buildEventSearchQuery(input);
+    const searchUrls = [
+      `https://www.ticketek.com.ar/search?q=${encodeURIComponent(query)}`,
+      `https://www.ticketek.com.ar/search?searchText=${encodeURIComponent(query)}`,
+      `https://www.ticketek.com.ar/search?q=${encodeURIComponent(input.eventName.trim())}`,
+    ];
+
+    const detailPages: string[] = [];
+    for (const searchUrl of searchUrls) {
+      const html = await fetchHtml(searchUrl);
+      if (!html) continue;
+      detailPages.push(...extractTicketekEventLinks(html));
+      const fromSearch = await scrapeMatchedEventPages(
+        [searchUrl],
+        TICKETEK_CMS_RE,
+        input,
+        log,
+        'ticketek'
+      );
+      if (fromSearch[0]) return fromSearch[0].url;
+    }
+
+    const pageCandidates = await scrapeMatchedEventPages(
+      detailPages,
       TICKETEK_CMS_RE,
-      name,
+      input,
       log,
       'ticketek'
     );
-    for (const url of ranked) {
-      if (scoreImageUrlForEvent(url, name) > 0) return url;
+    if (pageCandidates[0]) return pageCandidates[0].url;
+
+    const confirmedSlugs = new Set<string>();
+    for (const pageUrl of detailPages.slice(0, 5)) {
+      const html = await fetchHtml(pageUrl);
+      if (!html) continue;
+      if (!passesLocationGate(scoreEventPageContext(html, input), input)) continue;
+      for (const slug of extractCmsSlugsFromHtml(html, 'show-header')) {
+        confirmedSlugs.add(slug);
+      }
     }
-    return probeCmsBase(TICKETEK_CMS, name, input.eventDate, download, log, 'ticketek');
+
+    const slugList = [
+      ...confirmedSlugs,
+      ...buildEventSlugCandidates(input.eventName, input.eventDate),
+    ];
+    const fromCms = await probeCmsSlugs(TICKETEK_CMS, slugList, download, log, 'ticketek');
+    if (fromCms) return fromCms;
+
+    log('ticketek sin imagen con lugar/fecha confirmados', {
+      city: input.eventCity,
+      place: input.eventPlace,
+    });
+    return null;
   },
 };
 
-/** All Access: sin CDN público documentado; scrape del sitio por URLs de imagen de eventos. */
 const ALLACCESS_IMAGE_RE =
   /https:\/\/[^"'\s]*(?:allaccess|cloudfront|amazonaws)[^"'\s]*\/[^"'\s]+\.(?:png|jpe?g|webp)(?:\?[^"'\s]*)?/gi;
+
+function extractAllAccessEventLinks(html: string): string[] {
+  const links = new Set<string>();
+  for (const m of html.matchAll(/href="(https?:\/\/[^"]*allaccess[^"]+)"/gi)) {
+    links.add(m[1].split('#')[0]);
+  }
+  for (const m of html.matchAll(/href="(\/evento\/[^"]+)"/gi)) {
+    links.add(`https://www.allaccess.com.ar${m[1].split('#')[0]}`);
+  }
+  return [...links].slice(0, 10);
+}
 
 export const ALLACCESS_PROVIDER: TicketeraImageProvider = {
   id: 'allaccess',
   ticketeraIds: ['ALLACCESS'],
   async findImageUrl(input, { log }) {
-    const name = input.eventName.trim();
-    const slug = normalizeAscii(name).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const urls = [
-      `https://www.allaccess.com.ar/search?query=${encodeURIComponent(name)}`,
+    const query = buildEventSearchQuery(input);
+    const slug = normalizeAscii(input.eventName).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const searchUrls = [
+      `https://www.allaccess.com.ar/search?query=${encodeURIComponent(query)}`,
       `https://www.allaccess.com.ar/evento/${encodeURIComponent(slug)}`,
-      'https://www.allaccess.com.ar/',
     ];
-    const ranked = await scrapePagesForImages(urls, ALLACCESS_IMAGE_RE, name, log, 'allaccess');
-    return ranked[0] ?? null;
+
+    const detailPages: string[] = [];
+    for (const url of searchUrls) {
+      const html = await fetchHtml(url);
+      if (html) detailPages.push(...extractAllAccessEventLinks(html), url);
+    }
+
+    const candidates = await scrapeMatchedEventPages(
+      [...new Set(detailPages)],
+      ALLACCESS_IMAGE_RE,
+      input,
+      log,
+      'allaccess'
+    );
+    return candidates[0]?.url ?? null;
   },
 };
 
@@ -239,9 +376,10 @@ const TITLE_STOPWORDS = new Set([
   'and',
   'y',
   'argentina',
+  'san',
+  'isidro',
 ]);
 
-/** Evita aceptar un artículo genérico cuando el evento tiene prefijo + artista (ej. tributo X vs solo X). */
 export function titleMatchesEvent(eventName: string, title: string): boolean {
   const titleNorm = normalizeAscii(title);
   const prefixMatch = eventName.match(SHOW_PREFIX_RE);

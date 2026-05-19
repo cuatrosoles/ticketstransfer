@@ -166,6 +166,8 @@ export type MarketplacePublicItem = {
   eventName: string;
   eventDate: string;
   eventPlace?: string | null;
+  eventAddress?: string | null;
+  eventCity?: string | null;
   eventImageUrl?: string | null;
   category?: string | null;
   quantityEntries?: string | null;
@@ -182,6 +184,8 @@ export type EventImagePreview = {
 export async function previewEventImage(params: {
   eventName: string;
   eventDate: string;
+  eventAddress: string;
+  eventCity: string;
   eventPlace?: string;
   category?: string;
   ticketera?: string;
@@ -189,6 +193,8 @@ export async function previewEventImage(params: {
   const q = new URLSearchParams({
     eventName: params.eventName,
     eventDate: params.eventDate,
+    eventAddress: params.eventAddress,
+    eventCity: params.eventCity,
     category: params.category || 'OTRO',
   });
   if (params.eventPlace) q.set('eventPlace', params.eventPlace);

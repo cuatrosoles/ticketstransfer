@@ -102,6 +102,8 @@ export function PublishTicketScreen() {
   const [eventName, setEventName] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventPlace, setEventPlace] = useState('');
+  const [eventAddress, setEventAddress] = useState('');
+  const [eventCity, setEventCity] = useState('');
   const [sector, setSector] = useState('');
   const [fila, setFila] = useState('');
   const [cantidadEntradas, setCantidadEntradas] = useState('');
@@ -133,7 +135,9 @@ export function PublishTicketScreen() {
   useEffect(() => {
     const name = eventName.trim();
     const date = eventDateDateOnly(eventDate);
-    if (name.length < 2 || !date) {
+    const address = eventAddress.trim();
+    const city = eventCity.trim();
+    if (name.length < 2 || !date || address.length < 2 || city.length < 2) {
       setEventImagePreview(null);
       return;
     }
@@ -143,6 +147,8 @@ export function PublishTicketScreen() {
       previewEventImage({
         eventName: name,
         eventDate: date,
+        eventAddress: address,
+        eventCity: city,
         eventPlace: eventPlace.trim() || undefined,
         ticketera,
       })
@@ -160,7 +166,7 @@ export function PublishTicketScreen() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [eventName, eventDate, eventPlace, ticketera]);
+  }, [eventName, eventDate, eventPlace, eventAddress, eventCity, ticketera]);
 
   useEffect(() => {
     if (!editListingId) return;
@@ -172,6 +178,8 @@ export function PublishTicketScreen() {
         setEventName(L.eventName || '');
         setEventDate(listingValueToDatetimeLocal(L.eventDate));
         setEventPlace(L.eventPlace || '');
+        setEventAddress((L as { eventAddress?: string }).eventAddress || '');
+        setEventCity((L as { eventCity?: string }).eventCity || '');
         setSector(L.sector || '');
         setFila((L.row as string) || '');
         setCantidadEntradas((L.quantityEntries as string) || '');
@@ -298,6 +306,14 @@ export function PublishTicketScreen() {
       Alert.alert('Falta fecha', 'Seleccioná la fecha y hora del evento.');
       return;
     }
+    if (eventAddress.trim().length < 2) {
+      Alert.alert('Falta dirección', 'Ingresá la dirección del evento.');
+      return;
+    }
+    if (eventCity.trim().length < 2) {
+      Alert.alert('Falta ciudad', 'Ingresá la ciudad del evento.');
+      return;
+    }
     const priceNum = parseFloat(price.replace(',', '.'));
     if (isNaN(priceNum) || priceNum <= 0) {
       Alert.alert('Precio inválido', 'Ingresá un precio válido.');
@@ -323,6 +339,8 @@ export function PublishTicketScreen() {
           eventName: eventName.trim(),
           eventDate: dateStr,
           eventPlace: eventPlace.trim() || undefined,
+          eventAddress: eventAddress.trim(),
+          eventCity: eventCity.trim(),
           sector: sector.trim() || undefined,
           row: fila.trim() || undefined,
           seat: butacasAsientos.trim() || undefined,
@@ -348,6 +366,8 @@ export function PublishTicketScreen() {
       formData.append('eventName', eventName.trim());
       formData.append('eventDate', dateStr);
       formData.append('eventPlace', eventPlace.trim());
+      formData.append('eventAddress', eventAddress.trim());
+      formData.append('eventCity', eventCity.trim());
       formData.append('sector', sector.trim());
       if (fila.trim()) formData.append('row', fila.trim());
       if (cantidadEntradas.trim()) formData.append('quantityEntries', cantidadEntradas.trim());
@@ -391,6 +411,8 @@ export function PublishTicketScreen() {
         setEventName('');
         setEventDate('');
         setEventPlace('');
+        setEventAddress('');
+        setEventCity('');
         setSector('');
         setFila('');
         setCantidadEntradas('');
@@ -514,14 +536,43 @@ export function PublishTicketScreen() {
       <Text style={styles.label}>Fecha y hora del evento *</Text>
       <EventDateTimePicker value={eventDate} onChange={setEventDate} placeholder="Tocá para elegir día, mes, año y hora" />
 
-      <Text style={styles.label}>Lugar</Text>
-      <TextInput style={styles.input} placeholder="Estadio / Teatro" placeholderTextColor={colors.textMuted} value={eventPlace} onChangeText={setEventPlace} />
+      <Text style={styles.label}>Lugar (nombre del recinto)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Ej. Centro Cultural San Isidro"
+        placeholderTextColor={colors.textMuted}
+        value={eventPlace}
+        onChangeText={setEventPlace}
+      />
+
+      <View style={styles.locationRow}>
+        <View style={styles.locationCol}>
+          <Text style={styles.label}>Dirección *</Text>
+          <TextInput
+            style={[styles.input, styles.locationInput]}
+            placeholder="Calle y número"
+            placeholderTextColor={colors.textMuted}
+            value={eventAddress}
+            onChangeText={setEventAddress}
+          />
+        </View>
+        <View style={styles.locationCol}>
+          <Text style={styles.label}>Ciudad *</Text>
+          <TextInput
+            style={[styles.input, styles.locationInput]}
+            placeholder="Ej. San Isidro"
+            placeholderTextColor={colors.textMuted}
+            value={eventCity}
+            onChangeText={setEventCity}
+          />
+        </View>
+      </View>
 
       {(eventImagePreview || eventImagePreviewLoading) ? (
         <View style={styles.previewWrap}>
           <Text style={styles.label}>Imagen del evento (vista previa)</Text>
           <Text style={styles.previewHint}>
-            Al publicar buscamos una portada oficial; si no hay, usamos una imagen por categoría.
+            Buscamos la portada en la ticketera elegida usando nombre, dirección, ciudad y fecha. Si no hay coincidencia exacta, usamos imagen por categoría.
           </Text>
           {eventImagePreviewLoading ? (
             <View style={styles.previewLoader}>
@@ -772,4 +823,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(96, 165, 250, 0.25)',
   },
   previewImage: { borderRadius: 12, marginBottom: spacing.sm },
+  locationRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  locationCol: { flex: 1 },
+  locationInput: { marginBottom: 0 },
 });

@@ -142,6 +142,8 @@ export type EventImagePreview = {
 export async function previewEventImage(params: {
   eventName: string;
   eventDate: string;
+  eventAddress: string;
+  eventCity: string;
   eventPlace?: string;
   category?: string;
   ticketera?: string;
@@ -149,6 +151,8 @@ export async function previewEventImage(params: {
   const q = new URLSearchParams({
     eventName: params.eventName,
     eventDate: params.eventDate,
+    eventAddress: params.eventAddress,
+    eventCity: params.eventCity,
     category: params.category || 'OTRO',
   });
   if (params.eventPlace) q.set('eventPlace', params.eventPlace);

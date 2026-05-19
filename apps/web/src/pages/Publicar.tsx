@@ -25,6 +25,8 @@ export function Publicar() {
   const [eventName, setEventName] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventPlace, setEventPlace] = useState('');
+  const [eventAddress, setEventAddress] = useState('');
+  const [eventCity, setEventCity] = useState('');
   const [sector, setSector] = useState('');
   const [row, setRow] = useState('');
   const [seat, setSeat] = useState('');
@@ -56,7 +58,9 @@ export function Publicar() {
   useEffect(() => {
     const name = eventName.trim();
     const date = eventDateDateOnly(eventDate);
-    if (name.length < 2 || !date) {
+    const address = eventAddress.trim();
+    const city = eventCity.trim();
+    if (name.length < 2 || !date || address.length < 2 || city.length < 2) {
       setEventImagePreview(null);
       setEventImagePreviewSource(null);
       return;
@@ -67,6 +71,8 @@ export function Publicar() {
       previewEventImage({
         eventName: name,
         eventDate: date,
+        eventAddress: address,
+        eventCity: city,
         eventPlace: eventPlace.trim() || undefined,
         category,
         ticketera,
@@ -90,7 +96,7 @@ export function Publicar() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [eventName, eventDate, eventPlace, category, ticketera]);
+  }, [eventName, eventDate, eventPlace, eventAddress, eventCity, category, ticketera]);
 
   useEffect(() => {
     if (!editListingId) return;
@@ -102,6 +108,8 @@ export function Publicar() {
         setEventName(L.eventName || '');
         setEventDate(listingValueToDatetimeLocal(L.eventDate));
         setEventPlace(L.eventPlace || '');
+        setEventAddress((L as { eventAddress?: string }).eventAddress || '');
+        setEventCity((L as { eventCity?: string }).eventCity || '');
         setSector(L.sector || '');
         setRow((L.row as string) || '');
         setSeat((L.seat as string) || '');
@@ -147,6 +155,8 @@ export function Publicar() {
     const body = {
       eventName: eventName.trim(),
       eventDate: eventDate.trim(),
+      eventAddress: eventAddress.trim(),
+      eventCity: eventCity.trim(),
       eventPlace: eventPlace.trim() || undefined,
       sector: sector.trim() || undefined,
       row: row.trim() || undefined,
@@ -192,6 +202,8 @@ export function Publicar() {
           eventName: parsed.data.eventName,
           eventDate: parsed.data.eventDate,
           eventPlace: parsed.data.eventPlace,
+          eventAddress: parsed.data.eventAddress,
+          eventCity: parsed.data.eventCity,
           sector: parsed.data.sector,
           row: parsed.data.row,
           seat: parsed.data.seat,
@@ -225,6 +237,8 @@ export function Publicar() {
       formData.append('eventName', parsed.data.eventName);
       formData.append('eventDate', parsed.data.eventDate);
       if (parsed.data.eventPlace) formData.append('eventPlace', parsed.data.eventPlace);
+      formData.append('eventAddress', parsed.data.eventAddress);
+      formData.append('eventCity', parsed.data.eventCity);
       if (parsed.data.sector) formData.append('sector', parsed.data.sector);
       if (parsed.data.row) formData.append('row', parsed.data.row);
       if (parsed.data.seat) formData.append('seat', parsed.data.seat);
@@ -342,14 +356,37 @@ export function Publicar() {
           required
         />
 
-        <label className="block-label">Lugar</label>
-        <input className="input-field" value={eventPlace} onChange={(e) => setEventPlace(e.target.value)} placeholder="Estadio / Teatro" />
+        <label className="block-label">Lugar (nombre del recinto)</label>
+        <input className="input-field" value={eventPlace} onChange={(e) => setEventPlace(e.target.value)} placeholder="Ej. Centro Cultural San Isidro" />
+
+        <div className="form-row-inline">
+          <div>
+            <label className="block-label">Dirección *</label>
+            <input
+              className="input-field"
+              value={eventAddress}
+              onChange={(e) => setEventAddress(e.target.value)}
+              placeholder="Calle y número"
+              required
+            />
+          </div>
+          <div>
+            <label className="block-label">Ciudad *</label>
+            <input
+              className="input-field"
+              value={eventCity}
+              onChange={(e) => setEventCity(e.target.value)}
+              placeholder="Ej. San Isidro"
+              required
+            />
+          </div>
+        </div>
 
         {(eventImagePreview || eventImagePreviewLoading) && (
           <div style={{ marginBottom: 16 }}>
             <label className="block-label">Imagen del evento (vista previa)</label>
             <p className="text-muted" style={{ fontSize: 13, marginBottom: 8 }}>
-              Se buscará automáticamente una imagen oficial al publicar. Si no se encuentra, usamos una portada por categoría.
+              Buscamos la portada en la ticketera elegida (nombre, dirección, ciudad y fecha). Si no hay coincidencia exacta, usamos imagen por categoría.
             </p>
             <div
               style={{

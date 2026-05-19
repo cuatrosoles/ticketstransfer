@@ -6,6 +6,7 @@ import * as React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import type { MarketplacePublicItem } from '../lib/api';
+import { formatEventLocationDisplay } from '@tickets-transfer/shared';
 import { EventCoverImage } from './EventCoverImage';
 import { colors, spacing } from '../theme';
 
@@ -76,7 +77,7 @@ export function HomeEventCard({
           {formatEventDateTime(item.eventDate)}
         </Text>
         <Text style={styles.meta} numberOfLines={2}>
-          {item.eventPlace || '—'}
+          {formatEventLocationDisplay(item)}
         </Text>
         <View style={styles.pricePill}>
           <Text style={styles.priceText}>{formatListingPrice(item.price)}</Text>

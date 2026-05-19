@@ -199,6 +199,8 @@ export type ListingVisibility = z.infer<typeof listingVisibilitySchema>;
 export declare const createTicketListingSchema: z.ZodObject<{
     eventName: z.ZodString;
     eventDate: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, unknown>;
+    eventAddress: z.ZodEffects<z.ZodString, string, string>;
+    eventCity: z.ZodEffects<z.ZodString, string, string>;
     eventPlace: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
     sector: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
     row: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
@@ -217,6 +219,8 @@ export declare const createTicketListingSchema: z.ZodObject<{
     ticketera: "TICKETEK" | "ALLACCESS" | "TICKET_PLUS" | "OTRA";
     eventName: string;
     eventDate: string;
+    eventAddress: string;
+    eventCity: string;
     tipoEntrada: "OTRO" | "GENERAL" | "CAMPO" | "PLATEA" | "VIP";
     price: number;
     currency: string;
@@ -232,6 +236,8 @@ export declare const createTicketListingSchema: z.ZodObject<{
 }, {
     ticketera: "TICKETEK" | "ALLACCESS" | "TICKET_PLUS" | "OTRA";
     eventName: string;
+    eventAddress: string;
+    eventCity: string;
     tipoEntrada: "OTRO" | "GENERAL" | "CAMPO" | "PLATEA" | "VIP";
     price: number;
     appBoletos: "OTRA" | "QUENTRO" | "ENIGMA";
@@ -250,6 +256,8 @@ export declare const createTicketListingSchema: z.ZodObject<{
 export declare const updateTicketListingSchema: z.ZodObject<{
     eventName: z.ZodOptional<z.ZodString>;
     eventDate: z.ZodOptional<z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, unknown>>;
+    eventAddress: z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>;
+    eventCity: z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>;
     eventPlace: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>>;
     sector: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>>;
     row: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>>;
@@ -272,6 +280,8 @@ export declare const updateTicketListingSchema: z.ZodObject<{
     ticketera?: "TICKETEK" | "ALLACCESS" | "TICKET_PLUS" | "OTRA" | undefined;
     eventName?: string | undefined;
     eventDate?: string | undefined;
+    eventAddress?: string | undefined;
+    eventCity?: string | undefined;
     eventPlace?: string | undefined;
     sector?: string | undefined;
     row?: string | undefined;
@@ -292,6 +302,8 @@ export declare const updateTicketListingSchema: z.ZodObject<{
     ticketera?: "TICKETEK" | "ALLACCESS" | "TICKET_PLUS" | "OTRA" | undefined;
     eventName?: string | undefined;
     eventDate?: unknown;
+    eventAddress?: string | undefined;
+    eventCity?: string | undefined;
     eventPlace?: string | undefined;
     sector?: string | undefined;
     row?: string | undefined;

@@ -9,6 +9,7 @@ import { TicketStubBackground } from './TicketStubBackground';
 import { EventCoverImage } from './EventCoverImage';
 import { colors, spacing } from '../theme';
 import type { MarketplacePublicItem } from '../lib/api';
+import { formatEventLocationDisplay } from '@tickets-transfer/shared';
 
 /** Espacio reservado sobre la franja decorativa del PNG (código de barras) para que el texto no se solape. */
 const BARCODE_SAFE_INSET = 52;
@@ -76,7 +77,7 @@ export function MarketplaceTicketCard({
             {formatEventDateTime(item.eventDate)}
           </Text>
           <Text style={[styles.meta, compact && styles.metaCompact]} numberOfLines={2}>
-            {item.eventPlace || '—'}
+            {formatEventLocationDisplay(item)}
           </Text>
           <Text style={[styles.seller, compact && styles.sellerCompact]} numberOfLines={2}>
             {item.seller.displayName} ({item.seller.reputationScore} pts)
