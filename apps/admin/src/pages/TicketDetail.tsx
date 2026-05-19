@@ -17,6 +17,7 @@ function eventCoverUrl(ticket: TicketDetailType): string {
 
 const EVENT_IMAGE_SOURCE_LABELS: Record<string, string> = {
   official: 'Fuente oficial',
+  ticketera: 'Ticketera (Ticketek / CMS)',
   wikimedia: 'Wikimedia',
   generated: 'Generada por IA',
   fallback: 'Imagen por defecto',

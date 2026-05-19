@@ -3,6 +3,7 @@
  * Ubicación: packages/shared/src/schemas.ts
  */
 import { z } from 'zod';
+import { parseDatetimeLocalValue } from './event-datetime.js';
 const registerBase = z.object({
     email: z.string().email('Email inválido'),
     password: z.string().min(8, 'Mínimo 8 caracteres').regex(/[A-Z]/, 'Al menos una mayúscula').regex(/[0-9]/, 'Al menos un número'),
@@ -43,23 +44,26 @@ const tipoEntradaEnum = z.enum(['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO']);
 const categoriaEventoEnum = z.enum(['MUSICA', 'DEPORTES', 'TEATRO', 'FESTIVALES', 'OTRO']);
 /** Visibilidad en el marketplace: público aparece en inicio; privado solo con ID + contraseña compartida por el vendedor */
 export const listingVisibilitySchema = z.enum(['PUBLIC', 'PRIVATE']);
-/** Normaliza fecha a YYYY-MM-DD desde DD/MM/YYYY, DD-MM-YYYY o YYYY-MM-DD */
+/** Normaliza a ISO (fecha y hora) desde datetime-local, ISO, DD/MM/YYYY, etc. */
 function normalizeEventDate(val) {
     const s = String(val ?? '').trim();
     if (!s)
         return val;
-    if (/^\d{4}-\d{2}-\d{2}/.test(s))
-        return s.slice(0, 10);
-    const match = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-    if (match) {
-        const [, d, m, y] = match;
-        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-    }
+    const parsed = parseDatetimeLocalValue(s);
+    if (parsed)
+        return parsed.toISOString();
     return val;
 }
+const eventDateSchema = z
+    .string()
+    .min(1, 'Fecha del evento requerida')
+    .refine((s) => {
+    const d = parseDatetimeLocalValue(s) ?? new Date(s);
+    return !Number.isNaN(d.getTime());
+}, 'Fecha u hora inválida');
 export const createTicketListingSchema = z.object({
     eventName: z.string().min(2, 'Nombre del evento requerido'),
-    eventDate: z.preprocess(normalizeEventDate, z.string().regex(/^\d{4}-\d{2}-\d{2}/, 'Fecha inválida (usa AAAA-MM-DD o DD/MM/AAAA)')),
+    eventDate: z.preprocess(normalizeEventDate, eventDateSchema),
     eventPlace: z.string().optional().transform((s) => (s === '' ? undefined : s)),
     sector: z.string().optional().transform((s) => (s === '' ? undefined : s)),
     row: z.string().optional().transform((s) => (s === '' ? undefined : s)),

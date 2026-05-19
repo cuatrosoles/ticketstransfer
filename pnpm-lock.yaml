@@ -170,6 +170,9 @@ importers:
       '@react-navigation/native-stack':
         specifier: ^6.9.17
         version: 6.11.0(@react-navigation/native@6.1.18(react-native@0.73.2(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(react@18.2.0))(react@18.2.0))(react-native-safe-area-context@4.5.0(react-native@0.73.2(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(react@18.2.0))(react@18.2.0))(react-native-screens@3.37.0(react-native@0.73.2(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(react@18.2.0))(react@18.2.0))(react-native@0.73.2(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(react@18.2.0))(react@18.2.0)
+      '@tickets-transfer/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       react:
         specifier: 18.2.0
         version: 18.2.0

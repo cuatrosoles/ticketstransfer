@@ -165,12 +165,19 @@ router.get('/event-image/preview', requireAuth, async (req: AuthRequest, res) =>
   const eventDate = typeof req.query.eventDate === 'string' ? req.query.eventDate.trim() : '';
   const eventPlace = typeof req.query.eventPlace === 'string' ? req.query.eventPlace.trim() : '';
   const category = typeof req.query.category === 'string' ? req.query.category.trim() : 'OTRO';
+  const ticketera = typeof req.query.ticketera === 'string' ? req.query.ticketera.trim() : null;
 
   if (eventName.length < 2 || !eventDate) {
     return res.status(400).json({ error: 'eventName y eventDate son requeridos para la vista previa.' });
   }
 
-  const preview = await previewEventImage({ eventName, eventDate, eventPlace: eventPlace || null, category });
+  const preview = await previewEventImage({
+    eventName,
+    eventDate,
+    eventPlace: eventPlace || null,
+    category,
+    ticketera,
+  });
   if (req.query.debug === '1') {
     return res.json({ ...preview, debug: true, hint: 'Revisá logs [event-image] en Vercel' });
   }
@@ -355,6 +362,7 @@ router.post(
       eventDate: parsed.data.eventDate,
       eventPlace: parsed.data.eventPlace ?? null,
       category: parsed.data.category ?? 'OTRO',
+      ticketera: parsed.data.ticketera ?? null,
     };
     const eventImage = await resolveAndStoreEventImage(listingId, eventImageInput);
 

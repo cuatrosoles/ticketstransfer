@@ -3,7 +3,7 @@
  */
 
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,9 +15,11 @@ import {
   Image,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { TabCompositeNavigationProp } from '../navigation/types';
+import type { MainTabParamList, TabCompositeNavigationProp } from '../navigation/types';
+import { TopLoadingBar } from '../components/TopLoadingBar';
 import { useAuth } from '../context/AuthContext';
 import { BiometricActivationModal } from '../components/BiometricActivationModal';
 import { AuthBackground } from '../components/AuthBackground';
@@ -38,6 +40,8 @@ export function HomeScreen() {
   const [marketplaceItems, setMarketplaceItems] = useState<MarketplacePublicItem[]>([]);
   const [marketplaceLoading, setMarketplaceLoading] = useState(true);
   const [marketplaceError, setMarketplaceError] = useState('');
+  const [topLoadingBar, setTopLoadingBar] = useState(false);
+  const route = useRoute<RouteProp<MainTabParamList, 'Home'>>();
   const {
     getPostRegisterRedirectToKyc,
     clearPostRegisterRedirectToKyc,
@@ -70,7 +74,7 @@ export function HomeScreen() {
     }
   }, [biometricAvailability, biometricEnabled, getPendingBiometricPrompt, clearPendingBiometricPrompt]);
 
-  useEffect(() => {
+  const loadMarketplace = useCallback(() => {
     let cancelled = false;
     setMarketplaceLoading(true);
     setMarketplaceError('');
@@ -89,6 +93,21 @@ export function HomeScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    const cleanup = loadMarketplace();
+    return cleanup;
+  }, [loadMarketplace]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (route.params?.refreshListings) {
+        setTopLoadingBar(true);
+        loadMarketplace();
+        navigation.setParams({ refreshListings: undefined });
+      }
+    }, [route.params?.refreshListings, loadMarketplace, navigation])
+  );
+
   const featured = marketplaceItems.slice(0, 2);
   const recommended = marketplaceItems.slice(2, 14);
 
@@ -100,6 +119,7 @@ export function HomeScreen() {
 
   return (
     <AuthBackground>
+      <TopLoadingBar visible={topLoadingBar} onFinish={() => setTopLoadingBar(false)} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <HomeHeroHeader

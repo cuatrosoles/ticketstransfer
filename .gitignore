@@ -10,6 +10,7 @@ firebase-service-account.json
 # Build outputs (no subir a Git)
 *.apk
 *.aab
+*.env
 apps/mobile/android/app/build/
 apps/mobile/android/.gradle/
 apps/mobile/ios/build/

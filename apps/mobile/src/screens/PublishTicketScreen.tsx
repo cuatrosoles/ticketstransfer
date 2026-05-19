@@ -37,6 +37,14 @@ import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { EventCoverImage } from '../components/EventCoverImage';
+import { EventDateTimePicker } from '../components/EventDateTimePicker';
+import { PublishProgressButton } from '../components/PublishProgressButton';
+import {
+  eventDateDateOnly,
+  eventDateForApi,
+  listingValueToDatetimeLocal,
+  runWithPublishProgress,
+} from '@tickets-transfer/shared';
 import { colors, spacing, radius } from '../theme';
 import { TICKETERA_LOGOS, APP_BOLETOS_LOGOS } from '../data/serviceLogos';
 
@@ -87,27 +95,6 @@ const chipStyles = StyleSheet.create({
   logo: { width: 24, height: 24 },
 });
 
-function listingDateToInput(v: unknown): string {
-  if (v == null) return '';
-  if (typeof v === 'string') return v.length >= 10 ? v.slice(0, 10) : v;
-  const sec = (v as { _seconds?: number })._seconds;
-  if (typeof sec === 'number') {
-    const d = new Date(sec * 1000);
-    return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
-  }
-  const d = new Date(v as string);
-  return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
-}
-
-function toApiDate(local: string): string {
-  const s = local.trim();
-  if (!s) return '';
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-  return s;
-}
-
 export function PublishTicketScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'Publish'>>();
@@ -134,6 +121,8 @@ export function PublishTicketScreen() {
   const [captureTicket, setCaptureTicket] = useState<ImageAsset | null>(null);
   const [captureOwnership, setCaptureOwnership] = useState<ImageAsset | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [publishProgress, setPublishProgress] = useState(0);
+  const [publishStageLabel, setPublishStageLabel] = useState('');
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [commissionPercentage, setCommissionPercentage] = useState(COMISION_PORCENTAJE_FALLBACK);
@@ -143,7 +132,7 @@ export function PublishTicketScreen() {
 
   useEffect(() => {
     const name = eventName.trim();
-    const date = toApiDate(eventDate);
+    const date = eventDateDateOnly(eventDate);
     if (name.length < 2 || !date) {
       setEventImagePreview(null);
       return;
@@ -151,7 +140,12 @@ export function PublishTicketScreen() {
     let cancelled = false;
     const timer = setTimeout(() => {
       setEventImagePreviewLoading(true);
-      previewEventImage({ eventName: name, eventDate: date, eventPlace: eventPlace.trim() || undefined })
+      previewEventImage({
+        eventName: name,
+        eventDate: date,
+        eventPlace: eventPlace.trim() || undefined,
+        ticketera,
+      })
         .then((res) => {
           if (!cancelled) setEventImagePreview(res.url);
         })
@@ -166,7 +160,7 @@ export function PublishTicketScreen() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [eventName, eventDate, eventPlace]);
+  }, [eventName, eventDate, eventPlace, ticketera]);
 
   useEffect(() => {
     if (!editListingId) return;
@@ -176,7 +170,7 @@ export function PublishTicketScreen() {
       .then((L) => {
         if (cancelled) return;
         setEventName(L.eventName || '');
-        setEventDate(listingDateToInput(L.eventDate));
+        setEventDate(listingValueToDatetimeLocal(L.eventDate));
         setEventPlace(L.eventPlace || '');
         setSector(L.sector || '');
         setFila((L.row as string) || '');
@@ -295,13 +289,13 @@ export function PublishTicketScreen() {
   };
 
   const handleSubmit = async () => {
-    const dateStr = toApiDate(eventDate);
+    const dateStr = eventDateForApi(eventDate);
     if (!eventName.trim()) {
       Alert.alert('Falta nombre', 'Ingresá el nombre del evento.');
       return;
     }
-    if (!dateStr) {
-      Alert.alert('Falta fecha', 'Ingresá la fecha del evento (AAAA-MM-DD o DD/MM/AAAA).');
+    if (!eventDate.trim() || !dateStr) {
+      Alert.alert('Falta fecha', 'Seleccioná la fecha y hora del evento.');
       return;
     }
     const priceNum = parseFloat(price.replace(',', '.'));
@@ -321,6 +315,8 @@ export function PublishTicketScreen() {
       return;
     }
     setSubmitting(true);
+    setPublishProgress(0);
+    setPublishStageLabel('');
     try {
       if (editListingId) {
         await updateMyListing(editListingId, {
@@ -383,7 +379,13 @@ export function PublishTicketScreen() {
           type: captureOwnership.type || 'image/jpeg',
         } as unknown as Blob);
       }
-      const listing = await createTicketListing(formData) as { id?: string };
+      const listing = await runWithPublishProgress(
+        () => createTicketListing(formData) as Promise<{ id?: string }>,
+        ({ progress, label }) => {
+          setPublishProgress(progress);
+          setPublishStageLabel(label);
+        }
+      );
       const listingId = listing?.id;
       const resetFormAndGoHome = () => {
         setEventName('');
@@ -405,7 +407,10 @@ export function PublishTicketScreen() {
         setListingVisibility('PRIVATE');
         setCaptureTicket(null);
         setCaptureOwnership(null);
-        (navigation as { navigate: (name: string) => void }).navigate('Main');
+        (navigation as { navigate: (name: string, params?: object) => void }).navigate('Main', {
+          screen: 'Home',
+          params: { refreshListings: true },
+        });
       };
       const copyAndConfirm = () => {
         if (listingId) {
@@ -429,6 +434,8 @@ export function PublishTicketScreen() {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo publicar.');
     } finally {
       setSubmitting(false);
+      setPublishProgress(0);
+      setPublishStageLabel('');
     }
   };
 
@@ -504,8 +511,8 @@ export function PublishTicketScreen() {
       <Text style={styles.label}>Nombre del evento *</Text>
       <TextInput style={styles.input} placeholder="Ej. Recital X" placeholderTextColor={colors.textMuted} value={eventName} onChangeText={setEventName} />
 
-      <Text style={styles.label}>Fecha (AAAA-MM-DD o DD/MM/AAAA) *</Text>
-      <TextInput style={styles.input} placeholder="2025-03-15" placeholderTextColor={colors.textMuted} value={eventDate} onChangeText={setEventDate} />
+      <Text style={styles.label}>Fecha y hora del evento *</Text>
+      <EventDateTimePicker value={eventDate} onChange={setEventDate} placeholder="Tocá para elegir día, mes, año y hora" />
 
       <Text style={styles.label}>Lugar</Text>
       <TextInput style={styles.input} placeholder="Estadio / Teatro" placeholderTextColor={colors.textMuted} value={eventPlace} onChangeText={setEventPlace} />
@@ -698,15 +705,24 @@ export function PublishTicketScreen() {
         </>
       ) : null}
 
-      <TouchableOpacity style={[styles.primaryButton, submitting && styles.disabled]} onPress={handleSubmit} disabled={submitting}>
-        {submitting ? (
-          <ActivityIndicator color={colors.white} />
-        ) : (
-          <Text style={styles.primaryButtonText}>
-            {editListingId ? 'Guardar cambios' : submitting ? 'Buscando imagen…' : 'Publicar'}
-          </Text>
-        )}
-      </TouchableOpacity>
+      {editListingId ? (
+        <TouchableOpacity style={[styles.primaryButton, submitting && styles.disabled]} onPress={handleSubmit} disabled={submitting}>
+          {submitting ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Text style={styles.primaryButtonText}>Guardar cambios</Text>
+          )}
+        </TouchableOpacity>
+      ) : (
+        <PublishProgressButton
+          label="Publicar"
+          loading={submitting}
+          progress={publishProgress}
+          progressLabel={publishStageLabel}
+          disabled={submitting}
+          onPress={handleSubmit}
+        />
+      )}
     </ScrollView>
     </AuthBackground>
   );

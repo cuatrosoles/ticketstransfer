@@ -5,24 +5,18 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createTicketListing, getMyListingDetail, updateMyListing, previewEventImage } from '../lib/api';
-import { createTicketListingSchema } from '@tickets-transfer/shared';
+import { PublishProgressButton } from '../components/PublishProgressButton';
+import {
+  createTicketListingSchema,
+  eventDateDateOnly,
+  listingValueToDatetimeLocal,
+  runWithPublishProgress,
+} from '@tickets-transfer/shared';
 
 const TIPOS_ENTRADA = ['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO'] as const;
 const TICKETERAS = ['TICKETEK', 'ALLACCESS', 'TICKET_PLUS', 'OTRA'] as const;
 const APPS_BOLETOS = ['QUENTRO', 'ENIGMA', 'OTRA'] as const;
 const CATEGORIAS = ['MUSICA', 'DEPORTES', 'TEATRO', 'FESTIVALES', 'OTRO'] as const;
-
-function listingDateToInput(v: unknown): string {
-  if (v == null) return '';
-  if (typeof v === 'string') return v.length >= 10 ? v.slice(0, 10) : v;
-  const sec = (v as { _seconds?: number })._seconds;
-  if (typeof sec === 'number') {
-    const d = new Date(sec * 1000);
-    return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
-  }
-  const d = new Date(v as string);
-  return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
-}
 
 export function Publicar() {
   const navigate = useNavigate();
@@ -50,6 +44,8 @@ export function Publicar() {
   const [captureTicketFile, setCaptureTicketFile] = useState<File | null>(null);
   const [captureOwnershipFile, setCaptureOwnershipFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [publishProgress, setPublishProgress] = useState(0);
+  const [publishStageLabel, setPublishStageLabel] = useState('');
   const [error, setError] = useState('');
   const [successListingId, setSuccessListingId] = useState<string | null>(null);
   const [editLoading, setEditLoading] = useState(false);
@@ -59,7 +55,7 @@ export function Publicar() {
 
   useEffect(() => {
     const name = eventName.trim();
-    const date = eventDate.trim();
+    const date = eventDateDateOnly(eventDate);
     if (name.length < 2 || !date) {
       setEventImagePreview(null);
       setEventImagePreviewSource(null);
@@ -73,6 +69,7 @@ export function Publicar() {
         eventDate: date,
         eventPlace: eventPlace.trim() || undefined,
         category,
+        ticketera,
       })
         .then((res) => {
           if (cancelled) return;
@@ -93,7 +90,7 @@ export function Publicar() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [eventName, eventDate, eventPlace, category]);
+  }, [eventName, eventDate, eventPlace, category, ticketera]);
 
   useEffect(() => {
     if (!editListingId) return;
@@ -103,7 +100,7 @@ export function Publicar() {
       .then((L) => {
         if (cancelled) return;
         setEventName(L.eventName || '');
-        setEventDate(listingDateToInput(L.eventDate));
+        setEventDate(listingValueToDatetimeLocal(L.eventDate));
         setEventPlace(L.eventPlace || '');
         setSector(L.sector || '');
         setRow((L.row as string) || '');
@@ -187,6 +184,8 @@ export function Publicar() {
     }
 
     setSubmitting(true);
+    setPublishProgress(0);
+    setPublishStageLabel('');
     try {
       if (editListingId) {
         await updateMyListing(editListingId, {
@@ -250,19 +249,31 @@ export function Publicar() {
         formData.append('captureOwnership', captureOwnershipFile, captureOwnershipFile.name || 'ownership.jpg');
       }
 
-      const result = await createTicketListing(formData);
+      const result = await runWithPublishProgress(
+        () => createTicketListing(formData),
+        ({ progress, label }) => {
+          setPublishProgress(progress);
+          setPublishStageLabel(label);
+        }
+      );
       const listingId = result?.id;
       if (listingId) {
         setSuccessListingId(listingId);
       } else {
-        navigate('/home');
+        navigate('/home', { state: { showHomeLoading: true } });
         window.alert('Tu ticket fue publicado y ya está disponible.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo publicar.');
     } finally {
       setSubmitting(false);
+      setPublishProgress(0);
+      setPublishStageLabel('');
     }
+  };
+
+  const goHomeAfterPublish = () => {
+    navigate('/home', { state: { showHomeLoading: true } });
   };
 
   const handleCopyId = (id: string) => {
@@ -299,8 +310,8 @@ export function Publicar() {
               Copiar al portapapeles
             </button>
           </div>
-          <button type="button" className="btn-secondary" onClick={() => navigate('/home')}>
-            Ir al inicio
+          <button type="button" className="btn-primary" onClick={goHomeAfterPublish}>
+            OK
           </button>
         </div>
       </div>
@@ -322,8 +333,14 @@ export function Publicar() {
         <label className="block-label">Nombre del evento *</label>
         <input className="input-field" value={eventName} onChange={(e) => setEventName(e.target.value)} placeholder="Ej. Recital X" required />
 
-        <label className="block-label">Fecha * (AAAA-MM-DD)</label>
-        <input className="input-field" type="text" value={eventDate} onChange={(e) => setEventDate(e.target.value)} placeholder="2025-03-15" required />
+        <label className="block-label">Fecha y hora del evento *</label>
+        <input
+          className="input-field datetime-field"
+          type="datetime-local"
+          value={eventDate}
+          onChange={(e) => setEventDate(e.target.value)}
+          required
+        />
 
         <label className="block-label">Lugar</label>
         <input className="input-field" value={eventPlace} onChange={(e) => setEventPlace(e.target.value)} placeholder="Estadio / Teatro" />
@@ -480,9 +497,21 @@ export function Publicar() {
           </>
         )}
 
-        <button type="submit" className="btn-primary" disabled={submitting} style={{ marginTop: 16 }}>
-          {submitting ? 'Buscando imagen y procesando ticket…' : editListingId ? 'Guardar cambios' : 'Publicar'}
-        </button>
+        {editListingId ? (
+          <button type="submit" className="btn-primary" disabled={submitting} style={{ marginTop: 16 }}>
+            {submitting ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+        ) : (
+          <div style={{ marginTop: 16 }}>
+            <PublishProgressButton
+              label="Publicar"
+              loading={submitting}
+              progress={publishProgress}
+              progressLabel={publishStageLabel}
+              disabled={submitting}
+            />
+          </div>
+        )}
       </form>
     </div>
   );

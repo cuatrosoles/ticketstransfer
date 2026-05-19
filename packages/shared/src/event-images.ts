@@ -6,7 +6,7 @@ import { CATEGORIAS_EVENTOS } from './constants.js';
 
 export type EventImageCategory = (typeof CATEGORIAS_EVENTOS)[number];
 
-export type EventImageSource = 'official' | 'wikimedia' | 'generated' | 'fallback';
+export type EventImageSource = 'official' | 'ticketera' | 'wikimedia' | 'generated' | 'fallback';
 
 /** URLs estáticas de respaldo cuando no se encuentra imagen oficial. */
 export const EVENT_IMAGE_CATEGORY_FALLBACKS: Record<EventImageCategory, string> = {

@@ -10,7 +10,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 /** Pestañas inferiores (Main autenticado) */
 export type MainTabParamList = {
-  Home: undefined;
+  Home: { refreshListings?: boolean } | undefined;
   Tienda: undefined;
   MisTickets: undefined;
   Favoritos: undefined;

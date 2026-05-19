@@ -136,7 +136,7 @@ export async function createTicketListing(formData: FormData) {
 
 export type EventImagePreview = {
   url: string;
-  source: 'official' | 'wikimedia' | 'generated' | 'fallback';
+  source: 'official' | 'ticketera' | 'wikimedia' | 'generated' | 'fallback';
 };
 
 export async function previewEventImage(params: {
@@ -144,6 +144,7 @@ export async function previewEventImage(params: {
   eventDate: string;
   eventPlace?: string;
   category?: string;
+  ticketera?: string;
 }): Promise<EventImagePreview> {
   const q = new URLSearchParams({
     eventName: params.eventName,
@@ -151,6 +152,7 @@ export async function previewEventImage(params: {
     category: params.category || 'OTRO',
   });
   if (params.eventPlace) q.set('eventPlace', params.eventPlace);
+  if (params.ticketera) q.set('ticketera', params.ticketera);
   return api<EventImagePreview>(`/api/tickets/event-image/preview?${q.toString()}`);
 }
 

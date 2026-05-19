@@ -1,6 +1,7 @@
 /**
  * Resuelve y almacena la imagen de portada de un evento al publicar tickets.
- * Estrategia: Gemini → Wikipedia → Wikimedia Commons → Pollinations → fallback por categoría.
+ * Estrategia: ticketera (Ticketek, All Access, …) → Gemini (opt-in) → Wikipedia → iTunes → Wikimedia → IA → fallback.
+ * Todo se deriva de eventName, eventDate, ticketera y category — sin URLs fijas por evento.
  */
 
 import sharp from 'sharp';
@@ -10,13 +11,13 @@ import {
   type EventImageSource,
 } from '@tickets-transfer/shared';
 import { uploadFile } from './firebase-storage.js';
+import {
+  providersForTicketera,
+  titleMatchesEvent,
+  type EventImageSearchInput,
+} from './ticketera-image-providers.js';
 
-export type EventImageInput = {
-  eventName: string;
-  eventDate: string;
-  eventPlace?: string | null;
-  category?: string | null;
-};
+export type EventImageInput = EventImageSearchInput;
 
 export type EventImageResult = {
   url: string;
@@ -34,6 +35,8 @@ const TIMEOUT_MS =
   Number(process.env.EVENT_IMAGE_TIMEOUT_MS) ||
   (process.env.VERCEL === '1' ? 28_000 : 15_000);
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY?.trim() || '';
+/** Gemini opt-in (cuota limitada). Sin esto solo ticketeras + Wikipedia + Pollinations. */
+const USE_GEMINI = process.env.EVENT_IMAGE_USE_GEMINI === '1' && Boolean(GEMINI_API_KEY);
 const ENABLE_AI_GENERATION = process.env.EVENT_IMAGE_AI_GENERATION !== '0';
 const MIN_IMAGE_BYTES = Number(process.env.EVENT_IMAGE_MIN_BYTES) || 800;
 const LOG_VERBOSE = process.env.EVENT_IMAGE_DEBUG === '1' || process.env.EVENT_IMAGE_DEBUG === 'true';
@@ -84,7 +87,8 @@ function logInput(input: EventImageInput, ctx: string) {
     eventDate: input.eventDate,
     eventPlace: input.eventPlace ?? null,
     category: normalizeEventImageCategory(input.category),
-    gemini: Boolean(GEMINI_API_KEY),
+    ticketera: input.ticketera ?? null,
+    gemini: USE_GEMINI,
     aiGeneration: ENABLE_AI_GENERATION,
     timeoutMs: TIMEOUT_MS,
   });
@@ -117,6 +121,38 @@ function isAllowedImageUrl(url: string): boolean {
     return false;
   }
   return false;
+}
+
+/** Busca imagen en ticketeras configuradas según `ticketera` del formulario (o todas si es OTRA/vacío). */
+async function searchTicketeraImages(input: EventImageInput): Promise<string | null> {
+  const providers = providersForTicketera(input.ticketera);
+  log('debug', 'ticketeras a probar', {
+    ticketera: input.ticketera ?? '(todas)',
+    providers: providers.map((p) => p.id),
+  });
+
+  const downloadAdapter = async (url: string, timeoutMs?: number) => {
+    const r = await downloadImageBuffer(url, timeoutMs);
+    return r.ok ? { ok: true as const, buffer: r.buffer } : { ok: false as const, reason: r.reason };
+  };
+
+  for (const provider of providers) {
+    try {
+      const url = await provider.findImageUrl(input, {
+        download: downloadAdapter,
+        log: (msg, data) => log('debug', `${provider.id}: ${msg}`, data),
+      });
+      if (url) {
+        log('info', 'ticketera candidata', { provider: provider.id, url: url.slice(0, 100) });
+        return url;
+      }
+    } catch (e) {
+      log('warn', `ticketera ${provider.id} error`, {
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+  return null;
 }
 
 function extractHttpsImageUrls(text: string): string[] {
@@ -259,8 +295,8 @@ function parseJsonFromText(text: string): Record<string, unknown> | null {
 }
 
 async function searchOfficialImageWithGemini(input: EventImageInput): Promise<string | null> {
-  if (!GEMINI_API_KEY) {
-    log('info', 'gemini omitido (sin GEMINI_API_KEY)');
+  if (!USE_GEMINI) {
+    log('info', 'gemini omitido (EVENT_IMAGE_USE_GEMINI≠1 o sin API key)');
     return null;
   }
 
@@ -350,16 +386,20 @@ async function searchWikipediaPageImage(eventName: string): Promise<string | nul
     if (!pages) continue;
 
     for (const page of Object.values(pages)) {
-      const title = (page.title || '').toLowerCase();
+      const title = page.title || '';
       if (/disambiguation|lista de|list of|category:/i.test(title)) continue;
+      if (!titleMatchesEvent(eventName, title)) {
+        log('debug', 'wikipedia descartado (título no coincide)', { eventName, title });
+        continue;
+      }
       const src = page.thumbnail?.source;
       if (src && isAllowedImageUrl(src)) {
-        log('info', 'wikipedia thumbnail', { lang, title: page.title, url: src.slice(0, 100) });
+        log('info', 'wikipedia thumbnail', { lang, title, url: src.slice(0, 100) });
         return src;
       }
     }
   }
-  log('debug', 'wikipedia sin resultados', { eventName });
+  log('debug', 'wikipedia sin resultados relevantes', { eventName });
   return null;
 }
 
@@ -378,6 +418,8 @@ async function searchItunesArtwork(eventName: string): Promise<string | null> {
   for (const item of data.results || []) {
     const base = item.artworkUrl100;
     if (!base) continue;
+    const label = [item.collectionName, item.artistName].filter(Boolean).join(' ');
+    if (!titleMatchesEvent(eventName, label)) continue;
     const url = base.replace(/100x100bb\.(jpg|png)/, '600x600bb.$1');
     if (isAllowedImageUrl(url)) {
       log('info', 'itunes artwork', {
@@ -415,19 +457,23 @@ async function searchWikimediaImage(eventName: string): Promise<string | null> {
   if (!pages) return null;
 
   for (const page of Object.values(pages)) {
-    const title = (page.title || '').toLowerCase();
+    const title = page.title || '';
     if (/logo|icon|svg|flag|map|signature|diagram|symbol/i.test(title)) continue;
+    if (!titleMatchesEvent(eventName, title)) {
+      log('debug', 'wikimedia descartado (título no coincide)', { eventName, title });
+      continue;
+    }
     const info = page.imageinfo?.[0];
     const candidates = [info?.thumburl, info?.url].filter(Boolean) as string[];
     for (const url of candidates) {
       if (/\.svg(\?|$)/i.test(url)) continue;
       if (isAllowedImageUrl(url)) {
-        log('info', 'wikimedia imagen', { title: page.title, url: url.slice(0, 100) });
+        log('info', 'wikimedia imagen', { title, url: url.slice(0, 100) });
         return url;
       }
     }
   }
-  log('debug', 'wikimedia sin candidatos', { eventName });
+  log('debug', 'wikimedia sin candidatos relevantes', { eventName });
   return null;
 }
 
@@ -480,6 +526,7 @@ async function resolveRemoteImageUrl(input: EventImageInput): Promise<ResolvedRe
   const category = normalizeEventImageCategory(input.category);
 
   const steps: Array<() => Promise<ResolvedRemote | null>> = [
+    async () => trySource('ticketera', await searchTicketeraImages(input)),
     async () => trySource('official', await searchOfficialImageWithGemini(input)),
     async () => trySource('wikimedia', await searchWikipediaPageImage(input.eventName)),
     async () =>
@@ -593,5 +640,6 @@ export function eventImageInputFromListing(data: Record<string, unknown>): Event
     eventDate,
     eventPlace: (data.eventPlace as string | null) ?? null,
     category: (data.category as string | null) ?? null,
+    ticketera: (data.ticketera as string | null) ?? null,
   };
 }
