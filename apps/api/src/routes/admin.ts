@@ -3,6 +3,8 @@
  */
 
 import { Router } from 'express';
+import multer from 'multer';
+import { storeEventCoverFromBuffer } from '../lib/event-image-resolver.js';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { requireAuth, requireAdmin, type AuthRequest } from '../middleware/auth.js';
 import { getPlatformSettings, invalidateSettingsCache } from '../lib/settings.js';
@@ -20,6 +22,11 @@ import { sendPushNotification } from '../lib/firebase-messaging.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
+
+const eventImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 const PUNTOS_POR_RATING_POSITIVO = 5;
 const REDACTED_MESSAGE = '[Contenido removido por moderación]';
@@ -804,6 +811,79 @@ router.get('/tickets', async (req: AuthRequest, res) => {
     })
   );
   res.json({ tickets, total });
+});
+
+/** Eliminar portada del evento */
+router.delete('/tickets/:id/event-image', async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const docRef = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id);
+  const doc = await docRef.get();
+  if (!doc.exists) return res.status(404).json({ error: 'Ticket no encontrado' });
+  await docRef.update({
+    eventImageUrl: null,
+    eventImageSource: null,
+    updatedAt: new Date(),
+  });
+  const updated = await docRef.get();
+  const d = updated.data()!;
+  res.json({ id: updated.id, eventImageUrl: d.eventImageUrl ?? null, eventImageSource: d.eventImageSource ?? null });
+});
+
+/** Reemplazar portada del evento (archivo) */
+router.post(
+  '/tickets/:id/event-image',
+  eventImageUpload.single('eventImage'),
+  async (req: AuthRequest, res) => {
+    const { id } = req.params;
+    const file = req.file;
+    if (!file?.buffer?.length) {
+      return res.status(400).json({ error: 'Enviá una imagen en el campo eventImage' });
+    }
+    const docRef = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id);
+    const doc = await docRef.get();
+    if (!doc.exists) return res.status(404).json({ error: 'Ticket no encontrado' });
+    try {
+      const eventImageUrl = await storeEventCoverFromBuffer(id, file.buffer);
+      await docRef.update({
+        eventImageUrl,
+        eventImageSource: 'admin',
+        updatedAt: new Date(),
+      });
+      res.json({ eventImageUrl, eventImageSource: 'admin' });
+    } catch (e) {
+      res.status(400).json({
+        error: e instanceof Error ? e.message : 'No se pudo procesar la imagen',
+      });
+    }
+  }
+);
+
+/** Establecer portada por URL o quitar (body: { eventImageUrl: string | null }) */
+router.patch('/tickets/:id/event-image', async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const { eventImageUrl } = req.body as { eventImageUrl?: string | null };
+  const docRef = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id);
+  const doc = await docRef.get();
+  if (!doc.exists) return res.status(404).json({ error: 'Ticket no encontrado' });
+
+  if (eventImageUrl === null || eventImageUrl === '') {
+    await docRef.update({
+      eventImageUrl: null,
+      eventImageSource: null,
+      updatedAt: new Date(),
+    });
+    return res.json({ eventImageUrl: null, eventImageSource: null });
+  }
+  if (typeof eventImageUrl !== 'string' || !/^https?:\/\//i.test(eventImageUrl.trim())) {
+    return res.status(400).json({ error: 'URL de imagen inválida (debe comenzar con http:// o https://)' });
+  }
+  const url = eventImageUrl.trim();
+  await docRef.update({
+    eventImageUrl: url,
+    eventImageSource: 'admin',
+    updatedAt: new Date(),
+  });
+  res.json({ eventImageUrl: url, eventImageSource: 'admin' });
 });
 
 /** Detalle de un ticket */

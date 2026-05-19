@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, apiForm } from '../lib/api';
 
 const CATEGORY_FALLBACKS: Record<string, string> = {
   MUSICA: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=800&q=80&fm=jpg',
@@ -70,6 +70,9 @@ export function TicketDetail() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<TicketDetailType>>({});
   const [rejectReason, setRejectReason] = useState('');
+  const [imageBusy, setImageBusy] = useState(false);
+  const [eventImageUrlDraft, setEventImageUrlDraft] = useState('');
+  const eventImageFileRef = useRef<HTMLInputElement>(null);
 
   const load = () => {
     if (!id) return;
@@ -77,6 +80,7 @@ export function TicketDetail() {
     api<TicketDetailType>(`/api/admin/tickets/${id}`)
       .then((t) => {
         setTicket(t);
+        setEventImageUrlDraft(t.eventImageUrl ?? '');
         setForm({
           eventName: t.eventName,
           eventDate: typeof t.eventDate === 'string' ? t.eventDate.slice(0, 10) : t.eventDate ? new Date(t.eventDate).toISOString().slice(0, 10) : '',
@@ -168,6 +172,65 @@ export function TicketDetail() {
     }
   };
 
+  const uploadEventImageFile = async (file: File) => {
+    if (!id) return;
+    setImageBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('eventImage', file);
+      const res = await apiForm<{ eventImageUrl: string; eventImageSource: string }>(
+        `/api/admin/tickets/${id}/event-image`,
+        fd
+      );
+      setTicket((prev) =>
+        prev ? { ...prev, eventImageUrl: res.eventImageUrl, eventImageSource: res.eventImageSource } : prev
+      );
+      setEventImageUrlDraft(res.eventImageUrl);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'No se pudo subir la imagen');
+    } finally {
+      setImageBusy(false);
+      if (eventImageFileRef.current) eventImageFileRef.current.value = '';
+    }
+  };
+
+  const saveEventImageUrl = async () => {
+    if (!id) return;
+    const url = eventImageUrlDraft.trim();
+    if (!url) {
+      alert('Ingresá una URL o usá Eliminar portada.');
+      return;
+    }
+    setImageBusy(true);
+    try {
+      const res = await api<{ eventImageUrl: string; eventImageSource: string }>(
+        `/api/admin/tickets/${id}/event-image`,
+        { method: 'PATCH', body: JSON.stringify({ eventImageUrl: url }) }
+      );
+      setTicket((prev) =>
+        prev ? { ...prev, eventImageUrl: res.eventImageUrl, eventImageSource: res.eventImageSource } : prev
+      );
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'No se pudo guardar la URL');
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
+  const removeEventImage = async () => {
+    if (!id || !confirm('¿Eliminar la portada del evento? Se usará la imagen por categoría hasta que subas otra.')) return;
+    setImageBusy(true);
+    try {
+      await api(`/api/admin/tickets/${id}/event-image`, { method: 'DELETE' });
+      setTicket((prev) => (prev ? { ...prev, eventImageUrl: null, eventImageSource: null } : prev));
+      setEventImageUrlDraft('');
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'No se pudo eliminar la portada');
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
   const formatDate = (d: string | Date) => {
     if (!d) return '-';
     const date = typeof d === 'string' ? new Date(d) : d;
@@ -255,6 +318,60 @@ export function TicketDetail() {
               Sin portada asignada — se muestra imagen por categoría.
             </p>
           )}
+          <input
+            ref={eventImageFileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void uploadEventImageFile(file);
+            }}
+          />
+          <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={imageBusy}
+              onClick={() => eventImageFileRef.current?.click()}
+            >
+              {imageBusy ? 'Procesando…' : ticket.eventImageUrl ? 'Reemplazar imagen' : 'Subir imagen'}
+            </button>
+            {ticket.eventImageUrl ? (
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                disabled={imageBusy}
+                onClick={() => void removeEventImage()}
+              >
+                Eliminar portada
+              </button>
+            ) : null}
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: '0.875rem' }}>
+              URL de imagen (reemplazar por enlace)
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+              <input
+                type="url"
+                className="input"
+                placeholder="https://…"
+                value={eventImageUrlDraft}
+                onChange={(e) => setEventImageUrlDraft(e.target.value)}
+                style={{ flex: '1 1 240px', minWidth: 200 }}
+                disabled={imageBusy}
+              />
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={imageBusy}
+                onClick={() => void saveEventImageUrl()}
+              >
+                Guardar URL
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -276,6 +276,11 @@ async function prepareImageBuffer(buffer: Buffer): Promise<PreparedImage> {
   }
 }
 
+/** Sube portada de evento (p. ej. desde panel admin). */
+export async function storeEventCoverFromBuffer(listingId: string, buffer: Buffer): Promise<string> {
+  return uploadEventImage(listingId, buffer);
+}
+
 async function uploadEventImage(listingId: string, buffer: Buffer): Promise<string> {
   const prepared = await prepareImageBuffer(buffer);
   const path = `tickets/${listingId}/event_cover_${Date.now()}.${prepared.ext}`;

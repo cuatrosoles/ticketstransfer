@@ -11,6 +11,7 @@ import { AuthProvider } from './src/context/AuthContext';
 import { BrandingProvider } from './src/context/BrandingContext';
 import { FavoritesProvider } from './src/context/FavoritesContext';
 import { ProfileImageProvider } from './src/context/ProfileImageContext';
+import { PostPublishLoadingProvider } from './src/context/PostPublishLoadingContext';
 import { FcmConversationOpener } from './src/components/FcmConversationOpener';
 import { FcmForegroundMessageSync } from './src/components/FcmForegroundMessageSync';
 import { SplashScreen } from './src/components/SplashScreen';
@@ -53,9 +54,11 @@ export default function App() {
             <FavoritesProvider>
               <ProfileImageProvider>
                 <NavigationContainer ref={navigationRef} linking={linking}>
-                <FcmConversationOpener navigationRef={navigationRef} />
-                <FcmForegroundMessageSync />
-                <RootNavigator />
+                  <PostPublishLoadingProvider>
+                    <FcmConversationOpener navigationRef={navigationRef} />
+                    <FcmForegroundMessageSync />
+                    <RootNavigator />
+                  </PostPublishLoadingProvider>
                 </NavigationContainer>
               </ProfileImageProvider>
             </FavoritesProvider>

@@ -19,7 +19,6 @@ import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/nativ
 import type { RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { MainTabParamList, TabCompositeNavigationProp } from '../navigation/types';
-import { TopLoadingBar } from '../components/TopLoadingBar';
 import { useAuth } from '../context/AuthContext';
 import { BiometricActivationModal } from '../components/BiometricActivationModal';
 import { AuthBackground } from '../components/AuthBackground';
@@ -40,7 +39,6 @@ export function HomeScreen() {
   const [marketplaceItems, setMarketplaceItems] = useState<MarketplacePublicItem[]>([]);
   const [marketplaceLoading, setMarketplaceLoading] = useState(true);
   const [marketplaceError, setMarketplaceError] = useState('');
-  const [topLoadingBar, setTopLoadingBar] = useState(false);
   const route = useRoute<RouteProp<MainTabParamList, 'Home'>>();
   const {
     getPostRegisterRedirectToKyc,
@@ -101,7 +99,6 @@ export function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       if (route.params?.refreshListings) {
-        setTopLoadingBar(true);
         loadMarketplace();
         navigation.setParams({ refreshListings: undefined });
       }
@@ -119,7 +116,6 @@ export function HomeScreen() {
 
   return (
     <AuthBackground>
-      <TopLoadingBar visible={topLoadingBar} onFinish={() => setTopLoadingBar(false)} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <HomeHeroHeader

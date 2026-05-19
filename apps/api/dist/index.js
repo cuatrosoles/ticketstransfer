@@ -20265,6 +20265,9 @@ async function prepareImageBuffer(buffer) {
     throw err;
   }
 }
+async function storeEventCoverFromBuffer(listingId, buffer) {
+  return uploadEventImage(listingId, buffer);
+}
 async function uploadEventImage(listingId, buffer) {
   const prepared = await prepareImageBuffer(buffer);
   const path5 = `tickets/${listingId}/event_cover_${Date.now()}.${prepared.ext}`;
@@ -22012,6 +22015,7 @@ var messagesRouter = router6;
 
 // src/routes/admin.ts
 import { Router as Router7 } from "express";
+import multer4 from "multer";
 
 // src/lib/payouts.ts
 init_email();
@@ -22152,6 +22156,10 @@ async function retryTransfer(transferId) {
 // src/routes/admin.ts
 import { FieldValue as FieldValue2 } from "firebase-admin/firestore";
 var router7 = Router7();
+var eventImageUpload = multer4({
+  storage: multer4.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
 var PUNTOS_POR_RATING_POSITIVO2 = 5;
 var REDACTED_MESSAGE = "[Contenido removido por moderaci\xF3n]";
 router7.use(requireAuth);
@@ -22818,6 +22826,72 @@ router7.get("/tickets", async (req, res) => {
     })
   );
   res.json({ tickets, total });
+});
+router7.delete("/tickets/:id/event-image", async (req, res) => {
+  const { id } = req.params;
+  const docRef = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id);
+  const doc = await docRef.get();
+  if (!doc.exists) return res.status(404).json({ error: "Ticket no encontrado" });
+  await docRef.update({
+    eventImageUrl: null,
+    eventImageSource: null,
+    updatedAt: /* @__PURE__ */ new Date()
+  });
+  const updated = await docRef.get();
+  const d = updated.data();
+  res.json({ id: updated.id, eventImageUrl: d.eventImageUrl ?? null, eventImageSource: d.eventImageSource ?? null });
+});
+router7.post(
+  "/tickets/:id/event-image",
+  eventImageUpload.single("eventImage"),
+  async (req, res) => {
+    const { id } = req.params;
+    const file = req.file;
+    if (!file?.buffer?.length) {
+      return res.status(400).json({ error: "Envi\xE1 una imagen en el campo eventImage" });
+    }
+    const docRef = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id);
+    const doc = await docRef.get();
+    if (!doc.exists) return res.status(404).json({ error: "Ticket no encontrado" });
+    try {
+      const eventImageUrl = await storeEventCoverFromBuffer(id, file.buffer);
+      await docRef.update({
+        eventImageUrl,
+        eventImageSource: "admin",
+        updatedAt: /* @__PURE__ */ new Date()
+      });
+      res.json({ eventImageUrl, eventImageSource: "admin" });
+    } catch (e) {
+      res.status(400).json({
+        error: e instanceof Error ? e.message : "No se pudo procesar la imagen"
+      });
+    }
+  }
+);
+router7.patch("/tickets/:id/event-image", async (req, res) => {
+  const { id } = req.params;
+  const { eventImageUrl } = req.body;
+  const docRef = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id);
+  const doc = await docRef.get();
+  if (!doc.exists) return res.status(404).json({ error: "Ticket no encontrado" });
+  if (eventImageUrl === null || eventImageUrl === "") {
+    await docRef.update({
+      eventImageUrl: null,
+      eventImageSource: null,
+      updatedAt: /* @__PURE__ */ new Date()
+    });
+    return res.json({ eventImageUrl: null, eventImageSource: null });
+  }
+  if (typeof eventImageUrl !== "string" || !/^https?:\/\//i.test(eventImageUrl.trim())) {
+    return res.status(400).json({ error: "URL de imagen inv\xE1lida (debe comenzar con http:// o https://)" });
+  }
+  const url = eventImageUrl.trim();
+  await docRef.update({
+    eventImageUrl: url,
+    eventImageSource: "admin",
+    updatedAt: /* @__PURE__ */ new Date()
+  });
+  res.json({ eventImageUrl: url, eventImageSource: "admin" });
 });
 router7.get("/tickets/:id", async (req, res) => {
   const { id } = req.params;

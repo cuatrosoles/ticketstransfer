@@ -2,10 +2,11 @@
  * Publicar ticket (web) – Formulario completo. La API guarda la captura original y genera la versión pública redactada (QR + datos sensibles).
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createTicketListing, getMyListingDetail, updateMyListing, previewEventImage } from '../lib/api';
 import { PublishProgressButton } from '../components/PublishProgressButton';
+import { usePostPublishLoading } from '../context/PostPublishLoadingContext';
 import {
   createTicketListingSchema,
   eventDateDateOnly,
@@ -20,6 +21,10 @@ const CATEGORIAS = ['MUSICA', 'DEPORTES', 'TEATRO', 'FESTIVALES', 'OTRO'] as con
 
 export function Publicar() {
   const navigate = useNavigate();
+  const { startPostPublishLoading } = usePostPublishLoading();
+  const submitLockedRef = useRef(false);
+  const ticketFileInputRef = useRef<HTMLInputElement>(null);
+  const ownershipFileInputRef = useRef<HTMLInputElement>(null);
   const [searchParams] = useSearchParams();
   const editListingId = searchParams.get('editar')?.trim() || '';
   const [eventName, setEventName] = useState('');
@@ -148,8 +153,39 @@ export function Publicar() {
     setCaptureTicketFile(file || null);
   }, []);
 
+  const clearPublishForm = useCallback(() => {
+    setEventName('');
+    setEventDate('');
+    setEventPlace('');
+    setEventAddress('');
+    setEventCity('');
+    setSector('');
+    setRow('');
+    setSeat('');
+    setQuantityEntries('');
+    setTipoEntrada('GENERAL');
+    setTipoEntradaOtro('');
+    setPrice('');
+    setTicketera('TICKETEK');
+    setTicketeraOtra('');
+    setAppBoletos('QUENTRO');
+    setAppBoletosOtra('');
+    setOrderRef('');
+    setCategory('OTRO');
+    setPublicationPassword('');
+    setShowPubPassword(false);
+    setListingVisibility('PRIVATE');
+    setCaptureTicketFile(null);
+    setCaptureOwnershipFile(null);
+    setEventImagePreview(null);
+    setEventImagePreviewSource(null);
+    if (ticketFileInputRef.current) ticketFileInputRef.current.value = '';
+    if (ownershipFileInputRef.current) ownershipFileInputRef.current.value = '';
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitLockedRef.current || submitting) return;
     setError('');
     const priceNum = parseFloat(price.replace(',', '.').replace(/\s/g, ''));
     const body = {
@@ -193,6 +229,7 @@ export function Publicar() {
       return;
     }
 
+    submitLockedRef.current = true;
     setSubmitting(true);
     setPublishProgress(0);
     setPublishStageLabel('');
@@ -233,6 +270,15 @@ export function Publicar() {
         return;
       }
 
+      const ownershipFile = captureOwnershipFile;
+      const visibility = listingVisibility;
+      const pubPassword = publicationPassword.trim();
+      const extraTipo = tipoEntradaOtro.trim();
+      const extraTicketera = ticketeraOtra.trim();
+      const extraApp = appBoletosOtra.trim();
+
+      clearPublishForm();
+
       const formData = new FormData();
       formData.append('eventName', parsed.data.eventName);
       formData.append('eventDate', parsed.data.eventDate);
@@ -249,18 +295,18 @@ export function Publicar() {
       formData.append('ticketera', parsed.data.ticketera);
       formData.append('appBoletos', parsed.data.appBoletos);
       if (parsed.data.orderRef) formData.append('orderRef', parsed.data.orderRef);
-      if (tipoEntrada === 'OTRO' && tipoEntradaOtro.trim()) formData.append('tipoEntradaOtro', tipoEntradaOtro.trim());
-      if (ticketera === 'OTRA' && ticketeraOtra.trim()) formData.append('ticketeraOtra', ticketeraOtra.trim());
-      if (appBoletos === 'OTRA' && appBoletosOtra.trim()) formData.append('appBoletosOtra', appBoletosOtra.trim());
+      if (parsed.data.tipoEntrada === 'OTRO' && extraTipo) formData.append('tipoEntradaOtro', extraTipo);
+      if (parsed.data.ticketera === 'OTRA' && extraTicketera) formData.append('ticketeraOtra', extraTicketera);
+      if (parsed.data.appBoletos === 'OTRA' && extraApp) formData.append('appBoletosOtra', extraApp);
       formData.append('category', parsed.data.category ?? 'OTRO');
-      formData.append('visibility', listingVisibility);
-      if (listingVisibility === 'PRIVATE' && publicationPassword.trim()) {
-        formData.append('publicationPassword', publicationPassword.trim());
+      formData.append('visibility', visibility);
+      if (visibility === 'PRIVATE' && pubPassword) {
+        formData.append('publicationPassword', pubPassword);
       }
 
       formData.append('captureTicket', ticketFile, ticketFile.name || 'ticket.jpg');
-      if (captureOwnershipFile) {
-        formData.append('captureOwnership', captureOwnershipFile, captureOwnershipFile.name || 'ownership.jpg');
+      if (ownershipFile) {
+        formData.append('captureOwnership', ownershipFile, ownershipFile.name || 'ownership.jpg');
       }
 
       const result = await runWithPublishProgress(
@@ -274,12 +320,14 @@ export function Publicar() {
       if (listingId) {
         setSuccessListingId(listingId);
       } else {
-        navigate('/home', { state: { showHomeLoading: true } });
+        startPostPublishLoading();
+        navigate('/home');
         window.alert('Tu ticket fue publicado y ya está disponible.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo publicar.');
     } finally {
+      submitLockedRef.current = false;
       setSubmitting(false);
       setPublishProgress(0);
       setPublishStageLabel('');
@@ -287,7 +335,8 @@ export function Publicar() {
   };
 
   const goHomeAfterPublish = () => {
-    navigate('/home', { state: { showHomeLoading: true } });
+    startPostPublishLoading();
+    navigate('/home');
   };
 
   const handleCopyId = (id: string) => {
@@ -484,13 +533,19 @@ export function Publicar() {
         <p className="text-muted" style={{ marginBottom: 8, fontSize: 13 }}>
           Podés subir la captura tal cual la tenés en el celular; no hace falta pixelarla a mano.
         </p>
-        <input type="file" accept="image/*" onChange={onCaptureTicketChange} style={{ marginBottom: 8 }} />
+        <input ref={ticketFileInputRef} type="file" accept="image/*" onChange={onCaptureTicketChange} style={{ marginBottom: 8 }} />
 
         <label className="block-label">Captura de titularidad o factura (opcional)</label>
         <p className="text-muted" style={{ marginBottom: 8, fontSize: 13 }}>
           Mismo tratamiento automático que la captura del ticket.
         </p>
-        <input type="file" accept="image/*" onChange={(e) => setCaptureOwnershipFile(e.target.files?.[0] || null)} style={{ marginBottom: 12 }} />
+        <input
+          ref={ownershipFileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={(e) => setCaptureOwnershipFile(e.target.files?.[0] || null)}
+          style={{ marginBottom: 12 }}
+        />
 
         <label className="block-label">Visibilidad</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>

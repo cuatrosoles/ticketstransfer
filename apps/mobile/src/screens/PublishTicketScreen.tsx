@@ -4,7 +4,7 @@
  */
 
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -47,6 +47,7 @@ import {
 } from '@tickets-transfer/shared';
 import { colors, spacing, radius } from '../theme';
 import { TICKETERA_LOGOS, APP_BOLETOS_LOGOS } from '../data/serviceLogos';
+import { usePostPublishLoading } from '../context/PostPublishLoadingContext';
 
 const TIPOS_ENTRADA = ['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO'];
 const TICKETERAS = ['TICKETEK', 'ALLACCESS', 'TICKET_PLUS', 'OTRA'];
@@ -97,7 +98,9 @@ const chipStyles = StyleSheet.create({
 
 export function PublishTicketScreen() {
   const navigation = useNavigation();
+  const { startPostPublishLoading } = usePostPublishLoading();
   const route = useRoute<RouteProp<RootStackParamList, 'Publish'>>();
+  const submitLockedRef = useRef(false);
   const editListingId = route.params?.editListingId;
   const [eventName, setEventName] = useState('');
   const [eventDate, setEventDate] = useState('');
@@ -296,7 +299,34 @@ export function PublishTicketScreen() {
     ]);
   };
 
+  const clearPublishForm = useCallback(() => {
+    setEventName('');
+    setEventDate('');
+    setEventPlace('');
+    setEventAddress('');
+    setEventCity('');
+    setSector('');
+    setFila('');
+    setCantidadEntradas('');
+    setTipoEntrada('GENERAL');
+    setTipoEntradaOtro('');
+    setPrice('');
+    setTicketera('TICKETEK');
+    setTicketeraOtra('');
+    setAppBoletos('QUENTRO');
+    setAppBoletosOtra('');
+    setButacasAsientos('');
+    setOrderRef('');
+    setPublicationPassword('');
+    setListingVisibility('PRIVATE');
+    setCaptureTicket(null);
+    setCaptureOwnership(null);
+    setEventImagePreview(null);
+    setShowPubPassword(false);
+  }, []);
+
   const handleSubmit = async () => {
+    if (submitLockedRef.current || submitting) return;
     const dateStr = eventDateForApi(eventDate);
     if (!eventName.trim()) {
       Alert.alert('Falta nombre', 'Ingresá el nombre del evento.');
@@ -334,6 +364,7 @@ export function PublishTicketScreen() {
       );
       return;
     }
+    submitLockedRef.current = true;
     setSubmitting(true);
     setPublishProgress(0);
     setPublishStageLabel('');
@@ -366,41 +397,64 @@ export function PublishTicketScreen() {
         return;
       }
 
+      const ticketCap = captureTicket!;
+      const ownershipCap = captureOwnership;
+      const snapshot = {
+        eventName: eventName.trim(),
+        eventPlace: eventPlace.trim(),
+        eventAddress: eventAddress.trim(),
+        eventCity: eventCity.trim(),
+        sector: sector.trim(),
+        fila: fila.trim(),
+        cantidadEntradas: cantidadEntradas.trim(),
+        tipoEntrada,
+        tipoEntradaOtro: tipoEntradaOtro.trim(),
+        ticketera,
+        ticketeraOtra: ticketeraOtra.trim(),
+        appBoletos,
+        appBoletosOtra: appBoletosOtra.trim(),
+        butacasAsientos: butacasAsientos.trim(),
+        orderRef: orderRef.trim(),
+        publicationPassword: publicationPassword.trim(),
+        listingVisibility,
+      };
+
+      clearPublishForm();
+
       const formData = new FormData();
-      formData.append('eventName', eventName.trim());
+      formData.append('eventName', snapshot.eventName);
       formData.append('eventDate', dateStr);
-      formData.append('eventPlace', eventPlace.trim());
-      formData.append('eventAddress', eventAddress.trim());
-      formData.append('eventCity', eventCity.trim());
-      formData.append('sector', sector.trim());
-      if (fila.trim()) formData.append('row', fila.trim());
-      if (cantidadEntradas.trim()) formData.append('quantityEntries', cantidadEntradas.trim());
-      formData.append('tipoEntrada', tipoEntrada);
+      formData.append('eventPlace', snapshot.eventPlace);
+      formData.append('eventAddress', snapshot.eventAddress);
+      formData.append('eventCity', snapshot.eventCity);
+      formData.append('sector', snapshot.sector);
+      if (snapshot.fila) formData.append('row', snapshot.fila);
+      if (snapshot.cantidadEntradas) formData.append('quantityEntries', snapshot.cantidadEntradas);
+      formData.append('tipoEntrada', snapshot.tipoEntrada);
       formData.append('price', String(priceNum));
       formData.append('currency', 'ARS');
-      formData.append('ticketera', ticketera);
-      formData.append('appBoletos', appBoletos);
-      formData.append('visibility', listingVisibility);
-      if (orderRef.trim()) formData.append('orderRef', orderRef.trim());
-      if (listingVisibility === 'PRIVATE' && publicationPassword.trim()) {
-        formData.append('publicationPassword', publicationPassword.trim());
+      formData.append('ticketera', snapshot.ticketera);
+      formData.append('appBoletos', snapshot.appBoletos);
+      formData.append('visibility', snapshot.listingVisibility);
+      if (snapshot.orderRef) formData.append('orderRef', snapshot.orderRef);
+      if (snapshot.listingVisibility === 'PRIVATE' && snapshot.publicationPassword) {
+        formData.append('publicationPassword', snapshot.publicationPassword);
       }
-      if (ticketera === 'OTRA' && ticketeraOtra.trim()) formData.append('ticketeraOtra', ticketeraOtra.trim());
-      if (appBoletos === 'OTRA' && appBoletosOtra.trim()) formData.append('appBoletosOtra', appBoletosOtra.trim());
-      if (butacasAsientos.trim()) formData.append('seat', butacasAsientos.trim());
-      if (tipoEntrada === 'OTRO' && tipoEntradaOtro.trim()) formData.append('tipoEntradaOtro', tipoEntradaOtro.trim());
+      if (snapshot.ticketera === 'OTRA' && snapshot.ticketeraOtra) formData.append('ticketeraOtra', snapshot.ticketeraOtra);
+      if (snapshot.appBoletos === 'OTRA' && snapshot.appBoletosOtra) formData.append('appBoletosOtra', snapshot.appBoletosOtra);
+      if (snapshot.butacasAsientos) formData.append('seat', snapshot.butacasAsientos);
+      if (snapshot.tipoEntrada === 'OTRO' && snapshot.tipoEntradaOtro) formData.append('tipoEntradaOtro', snapshot.tipoEntradaOtro);
       const uri = (u: string) => (Platform.OS === 'android' ? u : u.replace('file://', ''));
-      const ticketCap = captureTicket!;
       formData.append('captureTicket', {
         uri: uri(ticketCap.uri),
         name: ticketCap.fileName || 'ticket.jpg',
         type: ticketCap.type || 'image/jpeg',
       } as unknown as Blob);
-      if (captureOwnership?.uri) {
+      if (ownershipCap?.uri) {
         formData.append('captureOwnership', {
-          uri: uri(captureOwnership.uri),
-          name: captureOwnership.fileName || 'ownership.jpg',
-          type: captureOwnership.type || 'image/jpeg',
+          uri: uri(ownershipCap.uri),
+          name: ownershipCap.fileName || 'ownership.jpg',
+          type: ownershipCap.type || 'image/jpeg',
         } as unknown as Blob);
       }
       const listing = await runWithPublishProgress(
@@ -411,28 +465,8 @@ export function PublishTicketScreen() {
         }
       );
       const listingId = listing?.id;
-      const resetFormAndGoHome = () => {
-        setEventName('');
-        setEventDate('');
-        setEventPlace('');
-        setEventAddress('');
-        setEventCity('');
-        setSector('');
-        setFila('');
-        setCantidadEntradas('');
-        setTipoEntrada('GENERAL');
-        setTipoEntradaOtro('');
-        setPrice('');
-        setTicketera('TICKETEK');
-        setTicketeraOtra('');
-        setAppBoletos('QUENTRO');
-        setAppBoletosOtra('');
-        setButacasAsientos('');
-        setOrderRef('');
-        setPublicationPassword('');
-        setListingVisibility('PRIVATE');
-        setCaptureTicket(null);
-        setCaptureOwnership(null);
+      const goHomeAfterPublish = () => {
+        startPostPublishLoading();
         (navigation as { navigate: (name: string, params?: object) => void }).navigate('Main', {
           screen: 'Home',
           params: { refreshListings: true },
@@ -441,9 +475,11 @@ export function PublishTicketScreen() {
       const copyAndConfirm = () => {
         if (listingId) {
           Clipboard.setString(listingId);
-          Alert.alert('Copiado', 'El código del ticket se copió al portapapeles. Podés compartirlo por redes, email, etc.', [{ text: 'OK', onPress: resetFormAndGoHome }]);
+          Alert.alert('Copiado', 'El código del ticket se copió al portapapeles. Podés compartirlo por redes, email, etc.', [
+            { text: 'OK', onPress: goHomeAfterPublish },
+          ]);
         } else {
-          resetFormAndGoHome();
+          goHomeAfterPublish();
         }
       };
       Alert.alert(
@@ -453,12 +489,13 @@ export function PublishTicketScreen() {
           : 'Tu ticket fue publicado.',
         [
           ...(listingId ? [{ text: 'Copiar código', onPress: copyAndConfirm }] : []),
-          { text: 'OK', onPress: resetFormAndGoHome },
+          { text: 'OK', onPress: goHomeAfterPublish },
         ]
       );
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo publicar.');
     } finally {
+      submitLockedRef.current = false;
       setSubmitting(false);
       setPublishProgress(0);
       setPublishStageLabel('');

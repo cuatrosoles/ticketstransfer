@@ -34,3 +34,16 @@ export async function login(_email: string, _password: string) {
 export async function getMe() {
   return api<{ id: string; email: string; role: string }>('/api/auth/me');
 }
+
+/** Petición multipart (subida de archivos) sin Content-Type JSON. */
+export async function apiForm<T>(path: string, formData: FormData, method = 'POST'): Promise<T> {
+  const token = await getToken();
+  const headers: HeadersInit = {};
+  if (token) {
+    (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_BASE}${path}`, { method, headers, body: formData });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error || 'Error en la solicitud');
+  return data as T;
+}

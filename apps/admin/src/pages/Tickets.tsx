@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 
 const STATUS_OPTIONS = [
@@ -17,24 +17,20 @@ type TicketItem = {
   eventName: string;
   eventDate: string | Date;
   eventPlace: string | null;
+  eventImageUrl?: string | null;
   sector: string | null;
-  /** PUBLIC = marketplace; PRIVATE = ID + contraseña; undefined = documento legacy */
   visibility?: 'PUBLIC' | 'PRIVATE' | string;
   status: string;
   tipoEntrada: string;
   price: number;
   currency: string;
-  ticketera: string;
-  appBoletos: string;
-  captureTicketUrl: string | null;
-  captureOwnershipUrl: string | null;
-  createdAt: string | Date;
   seller: { id: string; email: string; firstName: string | null; lastName: string | null } | null;
 };
 
 const VALID_STATUSES = new Set(STATUS_OPTIONS.map((o) => o.value));
 
 export function Tickets() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const rawStatus = searchParams.get('status') || 'TODOS';
   const statusFromUrl = VALID_STATUSES.has(rawStatus) ? rawStatus : 'TODOS';
@@ -71,7 +67,7 @@ export function Tickets() {
   }, [statusFilter]);
 
   const formatDate = (d: string | Date) => {
-    if (!d) return '-';
+    if (!d) return '—';
     const date = typeof d === 'string' ? new Date(d) : d;
     return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
@@ -85,26 +81,10 @@ export function Tickets() {
     return <span className={`badge badge-${c}`}>{s}</span>;
   };
 
-  const visibilityBadge = (v: string | undefined) => {
-    if (v === 'PUBLIC') {
-      return (
-        <span className="badge badge-approved" title="Visible en marketplace / inicio app">
-          Tipo: Público
-        </span>
-      );
-    }
-    if (v === 'PRIVATE') {
-      return (
-        <span className="badge badge-open" title="Solo con ID y contraseña compartida por el vendedor">
-          Tipo: Privado
-        </span>
-      );
-    }
-    return (
-      <span className="badge badge-pending" title="Sin campo en Firestore (comportamiento previo a visibilidad)">
-        Tipo: Legacy
-      </span>
-    );
+  const visibilityLabel = (v: string | undefined) => {
+    if (v === 'PUBLIC') return 'Público';
+    if (v === 'PRIVATE') return 'Privado';
+    return 'Legacy';
   };
 
   if (loading) return <p>Cargando…</p>;
@@ -129,6 +109,7 @@ export function Tickets() {
           ))}
         </select>
       </div>
+
       {tickets.length === 0 ? (
         <div className="card">
           <p>No hay tickets con el filtro seleccionado.</p>
@@ -139,53 +120,78 @@ export function Tickets() {
           )}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {tickets.map((t) => (
-            <div key={t.id} className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
-                <div style={{ flex: 1, minWidth: 200 }}>
-                  <Link to={`/tickets/${t.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                    <strong style={{ fontSize: '1.1rem' }}>{t.eventName}</strong>
-                  </Link>
-                  <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                    {statusBadge(t.status)}
-                    {visibilityBadge(t.visibility)}
-                  </div>
-                  <div style={{ marginTop: 8, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                    Fecha: {formatDate(t.eventDate)} · {t.eventPlace || 'Sin lugar'}
-                  </div>
-                  <div style={{ marginTop: 4 }}>
-                    {t.sector && <span>Sector: {t.sector}</span>}
-                    <span style={{ marginLeft: 12 }}>{t.tipoEntrada}</span>
-                    <span style={{ marginLeft: 12, fontWeight: 600 }}>
+        <div className="card">
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: 48 }} />
+                  <th>Evento</th>
+                  <th>Fecha</th>
+                  <th>Lugar</th>
+                  <th>Estado</th>
+                  <th>Visibilidad</th>
+                  <th>Precio</th>
+                  <th>Vendedor</th>
+                  <th style={{ width: 120 }} />
+                </tr>
+              </thead>
+              <tbody>
+                {tickets.map((t) => (
+                  <tr
+                    key={t.id}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => navigate(`/tickets/${t.id}`)}
+                    title="Clic para ver detalle completo"
+                  >
+                    <td>
+                      {t.eventImageUrl ? (
+                        <img
+                          src={t.eventImageUrl}
+                          alt=""
+                          style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }}
+                        />
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+                      )}
+                    </td>
+                    <td>
+                      <strong>{t.eventName}</strong>
+                      {t.sector ? (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          {t.sector} · {t.tipoEntrada}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td>{formatDate(t.eventDate)}</td>
+                    <td style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {t.eventPlace || '—'}
+                    </td>
+                    <td>{statusBadge(t.status)}</td>
+                    <td>{visibilityLabel(t.visibility)}</td>
+                    <td>
                       ${t.price?.toLocaleString?.('es-AR') ?? t.price} {t.currency}
-                    </span>
-                  </div>
-                  <div style={{ marginTop: 8, fontSize: '0.875rem' }}>
-                    Vendedor: <strong>{t.seller?.email}</strong>{' '}
-                    {[t.seller?.firstName, t.seller?.lastName].filter(Boolean).join(' ')}
-                  </div>
-                  <div style={{ marginTop: 8, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                    {t.captureTicketUrl && (
-                      <a href={t.captureTicketUrl} target="_blank" rel="noopener noreferrer">
-                        Ver captura
-                      </a>
-                    )}
-                    {t.captureOwnershipUrl && (
-                      <a href={t.captureOwnershipUrl} target="_blank" rel="noopener noreferrer">
-                        Ver titularidad
-                      </a>
-                    )}
-                  </div>
-                </div>
-                <Link to={`/tickets/${t.id}`} className="btn btn-primary btn-sm">
-                  Ver / Editar
-                </Link>
-              </div>
-            </div>
-          ))}
+                    </td>
+                    <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {t.seller?.email ?? '—'}
+                    </td>
+                    <td>
+                      <Link
+                        to={`/tickets/${t.id}`}
+                        className="btn btn-primary btn-sm"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Ver / Editar
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
+
       {total > 0 && (
         <p style={{ marginTop: 12, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
           Total: {total} ticket{total !== 1 ? 's' : ''}
