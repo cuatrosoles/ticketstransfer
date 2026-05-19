@@ -356,8 +356,11 @@ export function Publicar() {
           required
         />
 
-        <label className="block-label">Lugar (nombre del recinto)</label>
-        <input className="input-field" value={eventPlace} onChange={(e) => setEventPlace(e.target.value)} placeholder="Ej. Centro Cultural San Isidro" />
+        <label className="block-label">Lugar (nombre del recinto) *</label>
+        <input className="input-field" value={eventPlace} onChange={(e) => setEventPlace(e.target.value)} placeholder="Ej. Auditorio de Belgrano" required />
+        <p className="text-muted" style={{ fontSize: 12, marginTop: -6, marginBottom: 12 }}>
+          Debe coincidir con el nombre del venue en Ticketek (ej. para buscar la imagen oficial).
+        </p>
 
         <div className="form-row-inline">
           <div>
@@ -376,7 +379,7 @@ export function Publicar() {
               className="input-field"
               value={eventCity}
               onChange={(e) => setEventCity(e.target.value)}
-              placeholder="Ej. San Isidro"
+              placeholder="Ej. CABA"
               required
             />
           </div>

@@ -13600,6 +13600,34 @@ function getEventImageCategoryFallback(category) {
   return EVENT_IMAGE_CATEGORY_FALLBACKS[normalizeEventImageCategory(category)];
 }
 
+// ../../packages/shared/src/event-datetime.ts
+function parseDatetimeLocalValue(value) {
+  const s = value.trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) {
+    const d2 = new Date(s);
+    return Number.isNaN(d2.getTime()) ? null : d2;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const d2 = /* @__PURE__ */ new Date(`${s}T12:00:00`);
+    return Number.isNaN(d2.getTime()) ? null : d2;
+  }
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+  if (m) {
+    const [, d2, mo, y, h, min] = m;
+    const dt = new Date(
+      Number(y),
+      Number(mo) - 1,
+      Number(d2),
+      h != null ? Number(h) : 12,
+      min != null ? Number(min) : 0
+    );
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 // ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/external.js
 var external_exports = {};
 __export(external_exports, {
@@ -17683,18 +17711,20 @@ var listingVisibilitySchema = external_exports.enum(["PUBLIC", "PRIVATE"]);
 function normalizeEventDate(val) {
   const s = String(val ?? "").trim();
   if (!s) return val;
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const match = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-  if (match) {
-    const [, d, m, y] = match;
-    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-  }
+  const parsed = parseDatetimeLocalValue(s);
+  if (parsed) return parsed.toISOString();
   return val;
 }
+var eventDateSchema = external_exports.string().min(1, "Fecha del evento requerida").refine((s) => {
+  const d = parseDatetimeLocalValue(s) ?? new Date(s);
+  return !Number.isNaN(d.getTime());
+}, "Fecha u hora inv\xE1lida");
 var createTicketListingSchema = external_exports.object({
   eventName: external_exports.string().min(2, "Nombre del evento requerido"),
-  eventDate: external_exports.preprocess(normalizeEventDate, external_exports.string().regex(/^\d{4}-\d{2}-\d{2}/, "Fecha inv\xE1lida (usa AAAA-MM-DD o DD/MM/AAAA)")),
-  eventPlace: external_exports.string().optional().transform((s) => s === "" ? void 0 : s),
+  eventDate: external_exports.preprocess(normalizeEventDate, eventDateSchema),
+  eventAddress: external_exports.string().min(2, "Direcci\xF3n requerida").transform((s) => s.trim()),
+  eventCity: external_exports.string().min(2, "Ciudad requerida").transform((s) => s.trim()),
+  eventPlace: external_exports.string().min(2, "Nombre del recinto requerido (como figura en la ticketera)").transform((s) => s.trim()),
   sector: external_exports.string().optional().transform((s) => s === "" ? void 0 : s),
   row: external_exports.string().optional().transform((s) => s === "" ? void 0 : s),
   seat: external_exports.string().optional().transform((s) => s === "" ? void 0 : s),
@@ -19482,8 +19512,124 @@ async function storeListingCaptureWithRedaction(listingId, kind, file) {
 // src/lib/event-image-resolver.ts
 import sharp from "sharp";
 
+// src/lib/ticketek-ssr.ts
+var TICKETEK_BOT_UA = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+var TICKETEK_HOST = "https://www.ticketek.com.ar";
+function textToSlug(text) {
+  return normalizeAscii(text).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+function buildTicketekEventUrlCandidates(input) {
+  const urls = /* @__PURE__ */ new Set();
+  const eventSlugs = /* @__PURE__ */ new Set();
+  const full = textToSlug(input.eventName);
+  if (full.length >= 4) eventSlugs.add(full);
+  for (const s of buildEventSlugCandidates(input.eventName, input.eventDate)) {
+    if (s.includes("-") || s.length >= 8) eventSlugs.add(s);
+  }
+  const venueSlugs = /* @__PURE__ */ new Set();
+  const place = (input.eventPlace || "").trim();
+  if (place.length >= 3) {
+    venueSlugs.add(textToSlug(place));
+    const parts = normalizeAscii(place).split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+    if (parts.length >= 2) {
+      venueSlugs.add(parts.slice(-2).join("-"));
+    }
+  }
+  for (const es of eventSlugs) {
+    for (const vs of venueSlugs) {
+      urls.add(`${TICKETEK_HOST}/${es}/${vs}`);
+    }
+  }
+  return [...urls].slice(0, 12);
+}
+async function fetchTicketekSsrHtml(pageUrl) {
+  try {
+    const res = await fetch(pageUrl, {
+      headers: {
+        "User-Agent": TICKETEK_BOT_UA,
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "es-AR,es;q=0.9"
+      },
+      signal: AbortSignal.timeout(12e3),
+      redirect: "follow"
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+function normalizeTicketekCmsUrl(raw) {
+  let u = raw.trim().replace(/^\/\//, "https://");
+  u = u.replace(/https?:\/\/admin\.ticketek\.com\.ar/i, "https://prod-cms-static.ticketek.com.ar");
+  if (u.startsWith("/")) u = `https://prod-cms-static.ticketek.com.ar${u}`;
+  return u;
+}
+function extractShowHeaderImagesFromHtml(html) {
+  const found = /* @__PURE__ */ new Set();
+  const patterns = [
+    /property="og:image"\s+content="([^"]+)"/gi,
+    /data-image="([^"]*show-header[^"]+)"/gi,
+    /ng-src="([^"]*show-header[^"]+)"/gi,
+    /src="([^"]*show-header[^"]+)"/gi,
+    /(https?:\/\/[^"'\s]*show-header\/[a-zA-Z0-9_-]+\.(?:png|jpe?g|webp))/gi
+  ];
+  for (const re of patterns) {
+    for (const m of html.matchAll(re)) {
+      const raw = m[1] || m[0];
+      if (!raw || !raw.includes("show-header")) continue;
+      found.add(normalizeTicketekCmsUrl(raw));
+    }
+  }
+  return [...found];
+}
+function extractCmsSlugFromImageUrl(url) {
+  const m = url.match(/show-header\/([a-zA-Z0-9_-]+)\./i);
+  return m?.[1] ?? null;
+}
+function isUnsafeBareCmsSlug(slug, eventName) {
+  if (/[0-9]/.test(slug)) return false;
+  if (slug.includes("-")) return false;
+  const words = normalizeAscii(eventName).split(/[^a-z0-9]+/).filter((w) => w.length >= 3);
+  if (words.length < 2) return false;
+  const last = words[words.length - 1];
+  return slug === last || slug === words.join("");
+}
+function scoreTicketekPage(html, pageUrl, input) {
+  let score = scoreEventPageContext(html, input);
+  const path5 = pageUrl.replace(TICKETEK_HOST, "").toLowerCase();
+  const eventSlug = textToSlug(input.eventName);
+  if (eventSlug.length >= 4 && path5.includes(eventSlug)) score += 25;
+  const venueSlug = input.eventPlace ? textToSlug(input.eventPlace) : "";
+  if (venueSlug.length >= 4 && path5.includes(venueSlug)) score += 30;
+  const titleM = html.match(/<title[^>]*>([^<]+)</i);
+  if (titleM && titleMatchesEvent(input.eventName, titleM[1])) score += 15;
+  const venueAttr = html.match(/data-venue="([^"]+)"/i);
+  if (venueAttr && input.eventPlace) {
+    const v = normalizeAscii(venueAttr[1]);
+    const p = normalizeAscii(input.eventPlace);
+    if (v.includes(p) || p.includes(v)) score += 20;
+  }
+  return score;
+}
+function ticketekPageMatchesEvent(html, pageUrl, input) {
+  const score = scoreTicketekPage(html, pageUrl, input);
+  const path5 = pageUrl.toLowerCase();
+  const needsVenue = Boolean((input.eventPlace || "").trim());
+  if (needsVenue) {
+    const venueSlug = textToSlug(input.eventPlace);
+    if (venueSlug.length >= 4 && path5.includes(venueSlug)) return score >= 20;
+  }
+  return score >= 18;
+}
+
 // src/lib/ticketera-image-providers.ts
 var SHOW_PREFIX_RE = /^(experiencia|tributo|tributo a|homenaje|homenaje a|show|show de|festival|recital)\s+(.+)$/i;
+var FETCH_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  Accept: "text/html,application/xhtml+xml",
+  "Accept-Language": "es-AR,es;q=0.9"
+};
 function normalizeAscii(text) {
   return text.normalize("NFD").replace(new RegExp("\\p{Diacritic}", "gu"), "").toLowerCase().trim();
 }
@@ -19547,10 +19693,67 @@ function scoreImageUrlForEvent(url, eventName) {
   }
   return score;
 }
-async function probeCmsBase(cmsBase, eventName, eventDate, download, log2, providerId) {
-  const slugs = buildEventSlugCandidates(eventName, eventDate);
+async function fetchHtml(pageUrl) {
+  try {
+    const res = await fetch(pageUrl, {
+      headers: FETCH_HEADERS,
+      signal: AbortSignal.timeout(9e3)
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+async function scrapeMatchedEventPages(pageUrls, imageUrlPattern, input, log2, providerId) {
+  const candidates = [];
+  const seenPages = /* @__PURE__ */ new Set();
+  for (let pageUrl of pageUrls) {
+    if (seenPages.has(pageUrl)) continue;
+    seenPages.add(pageUrl);
+    if (seenPages.size > 8) break;
+    const html = await fetchHtml(pageUrl);
+    if (!html) continue;
+    const pageScore = scoreEventPageContext(html, input);
+    if (!passesLocationGate(pageScore, input)) {
+      log2(`${providerId} p\xE1gina descartada (lugar/fecha)`, {
+        pageUrl: pageUrl.slice(0, 90),
+        pageScore,
+        city: input.eventCity
+      });
+      continue;
+    }
+    log2(`${providerId} p\xE1gina v\xE1lida`, { pageUrl: pageUrl.slice(0, 90), pageScore });
+    const found = /* @__PURE__ */ new Set();
+    for (const m of html.matchAll(imageUrlPattern)) {
+      found.add(m[0]);
+    }
+    for (const url of found) {
+      const imageScore = scoreImageUrlForEvent(url, input.eventName);
+      if (imageScore <= 0 && !url.includes("show-header")) continue;
+      candidates.push({
+        url,
+        pageScore,
+        imageScore: imageScore + (url.includes("show-header") ? 6 : 0)
+      });
+    }
+  }
+  candidates.sort(
+    (a, b) => b.pageScore + b.imageScore - (a.pageScore + a.imageScore)
+  );
+  if (candidates.length) {
+    log2(`${providerId} im\xE1genes en p\xE1ginas v\xE1lidas`, {
+      count: candidates.length,
+      top: candidates[0]?.url.slice(0, 90),
+      pageScore: candidates[0]?.pageScore
+    });
+  }
+  return candidates;
+}
+async function probeCmsSlugs(cmsBase, slugs, download, log2, providerId, eventNameForFilter = "") {
   const exts = ["png", "jpg", "webp"];
-  for (const slug of slugs) {
+  const filtered = slugs.filter((s) => !isUnsafeBareCmsSlug(s, eventNameForFilter));
+  for (const slug of filtered.slice(0, 24)) {
     for (const ext of exts) {
       const url = `${cmsBase}/${slug}.${ext}`;
       const dl = await download(url, 3500);
@@ -19560,72 +19763,105 @@ async function probeCmsBase(cmsBase, eventName, eventDate, download, log2, provi
       }
     }
   }
-  log2(`${providerId} CMS sin slug`, { tried: slugs.length });
   return null;
 }
-async function scrapePagesForImages(pageUrls, imageUrlPattern, eventName, log2, providerId) {
-  const found = /* @__PURE__ */ new Set();
-  for (const pageUrl of pageUrls) {
-    try {
-      const res = await fetch(pageUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          Accept: "text/html,application/xhtml+xml",
-          "Accept-Language": "es-AR,es;q=0.9"
-        },
-        signal: AbortSignal.timeout(8e3)
-      });
-      if (!res.ok) continue;
-      const html = await res.text();
-      for (const m of html.matchAll(imageUrlPattern)) {
-        found.add(m[0]);
-      }
-    } catch {
-    }
-  }
-  const ranked = [...found].sort(
-    (a, b) => scoreImageUrlForEvent(b, eventName) - scoreImageUrlForEvent(a, eventName)
-  );
-  if (ranked.length) log2(`${providerId} scrape`, { count: ranked.length, top: ranked[0]?.slice(0, 80) });
-  return ranked;
-}
 var TICKETEK_CMS = "https://prod-cms-static.ticketek.com.ar/sites/default/files/images/show-header";
-var TICKETEK_CMS_RE = /https:\/\/prod-cms-static\.ticketek\.com\.ar\/sites\/default\/files\/images\/show-header\/[a-zA-Z0-9_-]+\.(?:png|jpe?g|webp)/gi;
 var TICKETEK_PROVIDER = {
   id: "ticketek",
   ticketeraIds: ["TICKETEK", "TICKET_PLUS", "TICKETERA"],
   async findImageUrl(input, { download, log: log2 }) {
-    const name = input.eventName.trim();
-    const ranked = await scrapePagesForImages(
-      [
-        `https://www.ticketek.com.ar/search?q=${encodeURIComponent(name)}`,
-        `https://www.ticketek.com.ar/search?searchText=${encodeURIComponent(name)}`
-      ],
-      TICKETEK_CMS_RE,
-      name,
-      log2,
-      "ticketek"
-    );
-    for (const url of ranked) {
-      if (scoreImageUrlForEvent(url, name) > 0) return url;
+    const canonicalUrls = buildTicketekEventUrlCandidates(input);
+    log2("ticketek URLs can\xF3nicas (show/venue)", {
+      count: canonicalUrls.length,
+      sample: canonicalUrls.slice(0, 4),
+      eventPlace: input.eventPlace
+    });
+    const verifiedSlugs = /* @__PURE__ */ new Set();
+    const imageCandidates = [];
+    for (const pageUrl of canonicalUrls) {
+      const html = await fetchTicketekSsrHtml(pageUrl);
+      if (!html) {
+        log2("ticketek SSR sin HTML", { pageUrl });
+        continue;
+      }
+      const pageScore = scoreTicketekPage(html, pageUrl, input);
+      if (!ticketekPageMatchesEvent(html, pageUrl, input)) {
+        log2("ticketek p\xE1gina descartada", { pageUrl, pageScore });
+        continue;
+      }
+      log2("ticketek p\xE1gina v\xE1lida (SSR)", { pageUrl, pageScore });
+      for (const imgUrl of extractShowHeaderImagesFromHtml(html)) {
+        const slug = extractCmsSlugFromImageUrl(imgUrl);
+        if (slug) verifiedSlugs.add(slug);
+        imageCandidates.push({ url: imgUrl, score: pageScore + 60 });
+      }
     }
-    return probeCmsBase(TICKETEK_CMS, name, input.eventDate, download, log2, "ticketek");
+    imageCandidates.sort((a, b) => b.score - a.score);
+    for (const { url } of imageCandidates) {
+      const normalized = normalizeTicketekCmsUrl(url);
+      const dl = await download(normalized, 8e3);
+      if (dl.ok) {
+        log2("ticketek imagen desde SSR", { url: normalized.slice(0, 110), slug: extractCmsSlugFromImageUrl(normalized) });
+        return normalized;
+      }
+    }
+    const slugList = [...verifiedSlugs];
+    for (const s of buildEventSlugCandidates(input.eventName, input.eventDate)) {
+      if (!isUnsafeBareCmsSlug(s, input.eventName) && (s.includes("-") || s.length >= 10)) {
+        slugList.push(s);
+      }
+    }
+    const fromCms = await probeCmsSlugs(
+      TICKETEK_CMS,
+      [...new Set(slugList)],
+      download,
+      log2,
+      "ticketek",
+      input.eventName
+    );
+    if (fromCms) return fromCms;
+    log2("ticketek sin imagen para show/venue", {
+      eventPlace: input.eventPlace,
+      eventCity: input.eventCity,
+      verifiedSlugs: [...verifiedSlugs]
+    });
+    return null;
   }
 };
 var ALLACCESS_IMAGE_RE = /https:\/\/[^"'\s]*(?:allaccess|cloudfront|amazonaws)[^"'\s]*\/[^"'\s]+\.(?:png|jpe?g|webp)(?:\?[^"'\s]*)?/gi;
+function extractAllAccessEventLinks(html) {
+  const links = /* @__PURE__ */ new Set();
+  for (const m of html.matchAll(/href="(https?:\/\/[^"]*allaccess[^"]+)"/gi)) {
+    links.add(m[1].split("#")[0]);
+  }
+  for (const m of html.matchAll(/href="(\/evento\/[^"]+)"/gi)) {
+    links.add(`https://www.allaccess.com.ar${m[1].split("#")[0]}`);
+  }
+  return [...links].slice(0, 10);
+}
 var ALLACCESS_PROVIDER = {
   id: "allaccess",
   ticketeraIds: ["ALLACCESS"],
   async findImageUrl(input, { log: log2 }) {
-    const name = input.eventName.trim();
-    const slug = normalizeAscii(name).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    const urls = [
-      `https://www.allaccess.com.ar/search?query=${encodeURIComponent(name)}`,
-      `https://www.allaccess.com.ar/evento/${encodeURIComponent(slug)}`,
-      "https://www.allaccess.com.ar/"
+    const query = buildEventSearchQuery(input);
+    const slug = normalizeAscii(input.eventName).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const searchUrls = [
+      `https://www.allaccess.com.ar/search?query=${encodeURIComponent(query)}`,
+      `https://www.allaccess.com.ar/evento/${encodeURIComponent(slug)}`
     ];
-    const ranked = await scrapePagesForImages(urls, ALLACCESS_IMAGE_RE, name, log2, "allaccess");
-    return ranked[0] ?? null;
+    const detailPages = [];
+    for (const url of searchUrls) {
+      const html = await fetchHtml(url);
+      if (html) detailPages.push(...extractAllAccessEventLinks(html), url);
+    }
+    const candidates = await scrapeMatchedEventPages(
+      [...new Set(detailPages)],
+      ALLACCESS_IMAGE_RE,
+      input,
+      log2,
+      "allaccess"
+    );
+    return candidates[0]?.url ?? null;
   }
 };
 var TICKETERA_PROVIDERS = [TICKETEK_PROVIDER, ALLACCESS_PROVIDER];
@@ -19679,6 +19915,118 @@ function providersForTicketera(ticketeraId) {
   return matched.length ? matched : TICKETERA_PROVIDERS;
 }
 
+// src/lib/event-location-match.ts
+var LOCATION_STOPWORDS = /* @__PURE__ */ new Set([
+  "calle",
+  "avenida",
+  "av",
+  "av.",
+  "pasaje",
+  "de",
+  "del",
+  "la",
+  "el",
+  "los",
+  "las",
+  "y",
+  "nro",
+  "numero",
+  "n",
+  "piso",
+  "dto",
+  "departamento",
+  "provincia",
+  "argentina",
+  "buenos",
+  "aires",
+  "cp"
+]);
+function buildEventSearchQuery(input) {
+  return [input.eventName, input.eventPlace, input.eventCity, input.eventAddress].map((s) => (s || "").trim()).filter(Boolean).join(" ");
+}
+function getLocationTokens(input) {
+  const raw = [input.eventCity, input.eventPlace, input.eventAddress].filter(Boolean);
+  const tokens = /* @__PURE__ */ new Set();
+  for (const part of raw) {
+    const norm = normalizeAscii(part);
+    for (const w of norm.split(/[^a-z0-9]+/)) {
+      if (w.length >= 3 && !LOCATION_STOPWORDS.has(w)) tokens.add(w);
+    }
+    if (norm.length >= 4) {
+      const compact = norm.replace(/[^a-z0-9]+/g, "");
+      if (compact.length >= 5) tokens.add(compact);
+    }
+  }
+  return [...tokens].sort((a, b) => b.length - a.length);
+}
+function extractDayMonth(eventDate) {
+  const iso = eventDate.match(/(20\d{2})-(\d{2})-(\d{2})/);
+  if (iso) {
+    return { year: iso[1], month: String(Number(iso[2])), day: String(Number(iso[3])) };
+  }
+  const dmy = eventDate.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](20\d{2})/);
+  if (dmy) {
+    return { day: String(Number(dmy[1])), month: String(Number(dmy[2])), year: dmy[3] };
+  }
+  return {};
+}
+var MONTH_NAMES = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre"
+];
+function scoreEventPageContext(text, input) {
+  const norm = normalizeAscii(text);
+  let score = 0;
+  const locTokens = getLocationTokens(input);
+  let locHits = 0;
+  for (const t of locTokens) {
+    if (norm.includes(t)) {
+      locHits += 1;
+      score += Math.min(12, t.length);
+    }
+  }
+  const city = normalizeAscii(input.eventCity || "");
+  if (city.length >= 3 && norm.includes(city.replace(/[^a-z0-9]+/g, ""))) {
+    score += 18;
+  }
+  const { day, month, year } = extractDayMonth(input.eventDate);
+  if (day && month) {
+    const patterns = [
+      `${day}/${month}`,
+      `${day}-${month}`,
+      `${day} de ${MONTH_NAMES[Number(month) - 1] || ""}`
+    ].filter(Boolean);
+    for (const p of patterns) {
+      if (norm.includes(normalizeAscii(p))) score += 14;
+    }
+    if (year && norm.includes(year)) score += 4;
+  }
+  if (titleMatchesEvent(input.eventName, text.slice(0, 8e3))) score += 10;
+  if (locHits >= 2) score += 8;
+  else if (locHits === 1 && (input.eventCity || "").length >= 4) score += 4;
+  return score;
+}
+function passesLocationGate(score, input) {
+  const hasCity = Boolean((input.eventCity || "").trim());
+  const hasVenue = Boolean((input.eventPlace || "").trim() || (input.eventAddress || "").trim());
+  if (!hasCity && !hasVenue) return score >= 6;
+  if (hasCity) return score >= 16;
+  return score >= 12;
+}
+function hasStrictLocationInput(input) {
+  return Boolean((input.eventCity || "").trim() && (input.eventAddress || "").trim());
+}
+
 // src/lib/event-image-resolver.ts
 var TIMEOUT_MS = Number(process.env.EVENT_IMAGE_TIMEOUT_MS) || (process.env.VERCEL === "1" ? 28e3 : 15e3);
 var GEMINI_API_KEY = process.env.GEMINI_API_KEY?.trim() || "";
@@ -19728,6 +20076,8 @@ function logInput(input, ctx) {
     eventName: input.eventName,
     eventDate: input.eventDate,
     eventPlace: input.eventPlace ?? null,
+    eventAddress: input.eventAddress ?? null,
+    eventCity: input.eventCity ?? null,
     category: normalizeEventImageCategory(input.category),
     ticketera: input.ticketera ?? null,
     gemini: USE_GEMINI,
@@ -19924,7 +20274,9 @@ async function searchOfficialImageWithGemini(input) {
     '{"imageUrl":"https://ejemplo.com/poster.jpg o null","source":"ticketera o sitio"}',
     "",
     `Evento: ${input.eventName}`,
-    `Lugar: ${input.eventPlace || "No especificado"}`,
+    `Lugar / venue: ${input.eventPlace || "No especificado"}`,
+    `Direcci\xF3n: ${input.eventAddress || "No especificada"}`,
+    `Ciudad: ${input.eventCity || "No especificada"}`,
     `Fecha: ${input.eventDate}`,
     `Categor\xEDa: ${category}`,
     "",
@@ -20067,6 +20419,8 @@ function buildAiPrompt(input) {
     `Concert poster ${labels[category] || "live event"}`,
     input.eventName,
     input.eventPlace || "",
+    input.eventCity || "",
+    input.eventAddress || "",
     "dramatic lighting, crowd, stage, no text, no logos"
   ].filter(Boolean).join(", ");
 }
@@ -20092,14 +20446,25 @@ async function tryPollinations(input) {
 }
 async function resolveRemoteImageUrl(input) {
   const category = normalizeEventImageCategory(input.category);
+  const strictLoc = hasStrictLocationInput(input);
   const steps = [
     async () => trySource("ticketera", await searchTicketeraImages(input)),
-    async () => trySource("official", await searchOfficialImageWithGemini(input)),
-    async () => trySource("wikimedia", await searchWikipediaPageImage(input.eventName)),
-    async () => category === "MUSICA" ? trySource("official", await searchItunesArtwork(input.eventName)) : null,
-    async () => trySource("wikimedia", await searchWikimediaImage(input.eventName)),
-    async () => tryPollinations(input)
+    async () => trySource("official", await searchOfficialImageWithGemini(input))
   ];
+  if (!strictLoc) {
+    steps.push(
+      async () => trySource("wikimedia", await searchWikipediaPageImage(input.eventName)),
+      async () => category === "MUSICA" ? trySource("official", await searchItunesArtwork(input.eventName)) : null,
+      async () => trySource("wikimedia", await searchWikimediaImage(input.eventName))
+    );
+  } else {
+    log("info", "omitidas fuentes gen\xE9ricas (ciudad+direcci\xF3n definidas; evita imagen de otro evento)", {
+      eventCity: input.eventCity
+    });
+  }
+  if (!strictLoc) {
+    steps.push(async () => tryPollinations(input));
+  }
   for (const step of steps) {
     const hit = await step().catch((e) => {
       log("warn", "paso lanz\xF3 excepci\xF3n", { error: e instanceof Error ? e.message : String(e) });
@@ -20168,7 +20533,14 @@ async function previewEventImage(input) {
   }
 }
 function shouldRefreshEventImage(prev, next) {
-  const fields = ["eventName", "eventDate", "eventPlace", "category"];
+  const fields = [
+    "eventName",
+    "eventDate",
+    "eventPlace",
+    "eventAddress",
+    "eventCity",
+    "category"
+  ];
   return fields.some((f) => next[f] !== void 0 && String(next[f] ?? "") !== String(prev[f] ?? ""));
 }
 function eventImageInputFromListing(data) {
@@ -20185,6 +20557,8 @@ function eventImageInputFromListing(data) {
     eventName: String(data.eventName || ""),
     eventDate,
     eventPlace: data.eventPlace ?? null,
+    eventAddress: data.eventAddress ?? null,
+    eventCity: data.eventCity ?? null,
     category: data.category ?? null,
     ticketera: data.ticketera ?? null
   };
@@ -20276,6 +20650,8 @@ router3.get("/marketplace/public", async (req, res) => {
         eventName: d.eventName,
         eventDate,
         eventPlace: d.eventPlace ?? null,
+        eventAddress: d.eventAddress ?? null,
+        eventCity: d.eventCity ?? null,
         eventImageUrl: d.eventImageUrl ?? null,
         category: d.category ?? null,
         quantityEntries: d.quantityEntries ?? null,
@@ -20294,15 +20670,22 @@ router3.get("/event-image/preview", requireAuth, async (req, res) => {
   const eventName = typeof req.query.eventName === "string" ? req.query.eventName.trim() : "";
   const eventDate = typeof req.query.eventDate === "string" ? req.query.eventDate.trim() : "";
   const eventPlace = typeof req.query.eventPlace === "string" ? req.query.eventPlace.trim() : "";
+  const eventAddress = typeof req.query.eventAddress === "string" ? req.query.eventAddress.trim() : "";
+  const eventCity = typeof req.query.eventCity === "string" ? req.query.eventCity.trim() : "";
   const category = typeof req.query.category === "string" ? req.query.category.trim() : "OTRO";
   const ticketera = typeof req.query.ticketera === "string" ? req.query.ticketera.trim() : null;
   if (eventName.length < 2 || !eventDate) {
     return res.status(400).json({ error: "eventName y eventDate son requeridos para la vista previa." });
   }
+  if (eventAddress.length < 2 || eventCity.length < 2) {
+    return res.status(400).json({ error: "eventAddress y eventCity son requeridos para la vista previa." });
+  }
   const preview = await previewEventImage({
     eventName,
     eventDate,
     eventPlace: eventPlace || null,
+    eventAddress: eventAddress || null,
+    eventCity: eventCity || null,
     category,
     ticketera
   });
@@ -20471,6 +20854,8 @@ router3.post(
       eventName: parsed.data.eventName,
       eventDate: parsed.data.eventDate,
       eventPlace: parsed.data.eventPlace ?? null,
+      eventAddress: parsed.data.eventAddress,
+      eventCity: parsed.data.eventCity,
       category: parsed.data.category ?? "OTRO",
       ticketera: parsed.data.ticketera ?? null
     };
@@ -20480,6 +20865,8 @@ router3.post(
       eventName: parsed.data.eventName,
       eventDate: new Date(parsed.data.eventDate),
       eventPlace: parsed.data.eventPlace ?? null,
+      eventAddress: parsed.data.eventAddress,
+      eventCity: parsed.data.eventCity,
       sector: parsed.data.sector ?? null,
       row: parsed.data.row ?? null,
       seat: parsed.data.seat ?? null,
@@ -20556,6 +20943,8 @@ router3.patch("/mine/:listingId", requireAuth, async (req, res) => {
   const updates = { updatedAt: /* @__PURE__ */ new Date() };
   if (payload.eventName !== void 0) updates.eventName = payload.eventName;
   if (payload.eventPlace !== void 0) updates.eventPlace = payload.eventPlace ?? null;
+  if (payload.eventAddress !== void 0) updates.eventAddress = payload.eventAddress;
+  if (payload.eventCity !== void 0) updates.eventCity = payload.eventCity;
   if (payload.sector !== void 0) updates.sector = payload.sector ?? null;
   if (payload.row !== void 0) updates.row = payload.row ?? null;
   if (payload.seat !== void 0) updates.seat = payload.seat ?? null;
@@ -20620,6 +21009,8 @@ router3.patch("/mine/:listingId", requireAuth, async (req, res) => {
   if (payload.eventName !== void 0) nextImageInput.eventName = payload.eventName;
   if (payload.eventDate !== void 0) nextImageInput.eventDate = payload.eventDate;
   if (payload.eventPlace !== void 0) nextImageInput.eventPlace = payload.eventPlace ?? null;
+  if (payload.eventAddress !== void 0) nextImageInput.eventAddress = payload.eventAddress;
+  if (payload.eventCity !== void 0) nextImageInput.eventCity = payload.eventCity;
   if (payload.category !== void 0) nextImageInput.category = payload.category ?? null;
   if (shouldRefreshEventImage(prevImageInput, nextImageInput)) {
     const merged = { ...prevImageInput, ...nextImageInput };

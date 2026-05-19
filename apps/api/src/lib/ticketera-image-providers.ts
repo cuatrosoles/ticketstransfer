@@ -8,6 +8,16 @@ import {
   passesLocationGate,
   scoreEventPageContext,
 } from './event-location-match.js';
+import {
+  buildTicketekEventUrlCandidates,
+  extractCmsSlugFromImageUrl,
+  extractShowHeaderImagesFromHtml,
+  fetchTicketekSsrHtml,
+  isUnsafeBareCmsSlug,
+  normalizeTicketekCmsUrl,
+  scoreTicketekPage,
+  ticketekPageMatchesEvent,
+} from './ticketek-ssr.js';
 
 export type EventImageSearchInput = {
   eventName: string;
@@ -230,10 +240,12 @@ async function probeCmsSlugs(
   slugs: string[],
   download: DownloadImageFn,
   log: (msg: string, data?: Record<string, unknown>) => void,
-  providerId: string
+  providerId: string,
+  eventNameForFilter = ''
 ): Promise<string | null> {
   const exts = ['png', 'jpg', 'webp'];
-  for (const slug of slugs.slice(0, 24)) {
+  const filtered = slugs.filter((s) => !isUnsafeBareCmsSlug(s, eventNameForFilter));
+  for (const slug of filtered.slice(0, 24)) {
     for (const ext of exts) {
       const url = `${cmsBase}/${slug}.${ext}`;
       const dl = await download(url, 3500);
@@ -255,57 +267,66 @@ export const TICKETEK_PROVIDER: TicketeraImageProvider = {
   id: 'ticketek',
   ticketeraIds: ['TICKETEK', 'TICKET_PLUS', 'TICKETERA'],
   async findImageUrl(input, { download, log }) {
-    const query = buildEventSearchQuery(input);
-    const searchUrls = [
-      `https://www.ticketek.com.ar/search?q=${encodeURIComponent(query)}`,
-      `https://www.ticketek.com.ar/search?searchText=${encodeURIComponent(query)}`,
-      `https://www.ticketek.com.ar/search?q=${encodeURIComponent(input.eventName.trim())}`,
-    ];
+    const canonicalUrls = buildTicketekEventUrlCandidates(input);
+    log('ticketek URLs canónicas (show/venue)', {
+      count: canonicalUrls.length,
+      sample: canonicalUrls.slice(0, 4),
+      eventPlace: input.eventPlace,
+    });
 
-    const detailPages: string[] = [];
-    for (const searchUrl of searchUrls) {
-      const html = await fetchHtml(searchUrl);
-      if (!html) continue;
-      detailPages.push(...extractTicketekEventLinks(html));
-      const fromSearch = await scrapeMatchedEventPages(
-        [searchUrl],
-        TICKETEK_CMS_RE,
-        input,
-        log,
-        'ticketek'
-      );
-      if (fromSearch[0]) return fromSearch[0].url;
-    }
+    const verifiedSlugs = new Set<string>();
+    const imageCandidates: { url: string; score: number }[] = [];
 
-    const pageCandidates = await scrapeMatchedEventPages(
-      detailPages,
-      TICKETEK_CMS_RE,
-      input,
-      log,
-      'ticketek'
-    );
-    if (pageCandidates[0]) return pageCandidates[0].url;
-
-    const confirmedSlugs = new Set<string>();
-    for (const pageUrl of detailPages.slice(0, 5)) {
-      const html = await fetchHtml(pageUrl);
-      if (!html) continue;
-      if (!passesLocationGate(scoreEventPageContext(html, input), input)) continue;
-      for (const slug of extractCmsSlugsFromHtml(html, 'show-header')) {
-        confirmedSlugs.add(slug);
+    for (const pageUrl of canonicalUrls) {
+      const html = await fetchTicketekSsrHtml(pageUrl);
+      if (!html) {
+        log('ticketek SSR sin HTML', { pageUrl });
+        continue;
+      }
+      const pageScore = scoreTicketekPage(html, pageUrl, input);
+      if (!ticketekPageMatchesEvent(html, pageUrl, input)) {
+        log('ticketek página descartada', { pageUrl, pageScore });
+        continue;
+      }
+      log('ticketek página válida (SSR)', { pageUrl, pageScore });
+      for (const imgUrl of extractShowHeaderImagesFromHtml(html)) {
+        const slug = extractCmsSlugFromImageUrl(imgUrl);
+        if (slug) verifiedSlugs.add(slug);
+        imageCandidates.push({ url: imgUrl, score: pageScore + 60 });
       }
     }
 
-    const slugList = [
-      ...confirmedSlugs,
-      ...buildEventSlugCandidates(input.eventName, input.eventDate),
-    ];
-    const fromCms = await probeCmsSlugs(TICKETEK_CMS, slugList, download, log, 'ticketek');
+    imageCandidates.sort((a, b) => b.score - a.score);
+    for (const { url } of imageCandidates) {
+      const normalized = normalizeTicketekCmsUrl(url);
+      const dl = await download(normalized, 8000);
+      if (dl.ok) {
+        log('ticketek imagen desde SSR', { url: normalized.slice(0, 110), slug: extractCmsSlugFromImageUrl(normalized) });
+        return normalized;
+      }
+    }
+
+    const slugList: string[] = [...verifiedSlugs];
+    for (const s of buildEventSlugCandidates(input.eventName, input.eventDate)) {
+      if (!isUnsafeBareCmsSlug(s, input.eventName) && (s.includes('-') || s.length >= 10)) {
+        slugList.push(s);
+      }
+    }
+
+    const fromCms = await probeCmsSlugs(
+      TICKETEK_CMS,
+      [...new Set(slugList)],
+      download,
+      log,
+      'ticketek',
+      input.eventName
+    );
     if (fromCms) return fromCms;
 
-    log('ticketek sin imagen con lugar/fecha confirmados', {
-      city: input.eventCity,
-      place: input.eventPlace,
+    log('ticketek sin imagen para show/venue', {
+      eventPlace: input.eventPlace,
+      eventCity: input.eventCity,
+      verifiedSlugs: [...verifiedSlugs],
     });
     return null;
   },
@@ -376,8 +397,6 @@ const TITLE_STOPWORDS = new Set([
   'and',
   'y',
   'argentina',
-  'san',
-  'isidro',
 ]);
 
 export function titleMatchesEvent(eventName: string, title: string): boolean {

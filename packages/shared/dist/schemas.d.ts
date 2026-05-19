@@ -201,7 +201,7 @@ export declare const createTicketListingSchema: z.ZodObject<{
     eventDate: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, unknown>;
     eventAddress: z.ZodEffects<z.ZodString, string, string>;
     eventCity: z.ZodEffects<z.ZodString, string, string>;
-    eventPlace: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
+    eventPlace: z.ZodEffects<z.ZodString, string, string>;
     sector: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
     row: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
     seat: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
@@ -221,11 +221,11 @@ export declare const createTicketListingSchema: z.ZodObject<{
     eventDate: string;
     eventAddress: string;
     eventCity: string;
+    eventPlace: string;
     tipoEntrada: "OTRO" | "GENERAL" | "CAMPO" | "PLATEA" | "VIP";
     price: number;
     currency: string;
     appBoletos: "OTRA" | "QUENTRO" | "ENIGMA";
-    eventPlace?: string | undefined;
     sector?: string | undefined;
     row?: string | undefined;
     seat?: string | undefined;
@@ -238,11 +238,11 @@ export declare const createTicketListingSchema: z.ZodObject<{
     eventName: string;
     eventAddress: string;
     eventCity: string;
+    eventPlace: string;
     tipoEntrada: "OTRO" | "GENERAL" | "CAMPO" | "PLATEA" | "VIP";
     price: number;
     appBoletos: "OTRA" | "QUENTRO" | "ENIGMA";
     eventDate?: unknown;
-    eventPlace?: string | undefined;
     sector?: string | undefined;
     row?: string | undefined;
     seat?: string | undefined;
@@ -258,7 +258,7 @@ export declare const updateTicketListingSchema: z.ZodObject<{
     eventDate: z.ZodOptional<z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, unknown>>;
     eventAddress: z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>;
     eventCity: z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>;
-    eventPlace: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>>;
+    eventPlace: z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>;
     sector: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>>;
     row: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>>;
     seat: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>>;

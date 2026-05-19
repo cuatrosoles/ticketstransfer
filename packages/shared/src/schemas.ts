@@ -76,7 +76,10 @@ export const createTicketListingSchema = z.object({
   eventDate: z.preprocess(normalizeEventDate, eventDateSchema),
   eventAddress: z.string().min(2, 'Dirección requerida').transform((s) => s.trim()),
   eventCity: z.string().min(2, 'Ciudad requerida').transform((s) => s.trim()),
-  eventPlace: z.string().optional().transform((s) => (s === '' ? undefined : s)),
+  eventPlace: z
+    .string()
+    .min(2, 'Nombre del recinto requerido (como figura en la ticketera)')
+    .transform((s) => s.trim()),
   sector: z.string().optional().transform((s) => (s === '' ? undefined : s)),
   row: z.string().optional().transform((s) => (s === '' ? undefined : s)),
   seat: z.string().optional().transform((s) => (s === '' ? undefined : s)),

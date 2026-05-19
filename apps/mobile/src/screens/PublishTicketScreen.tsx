@@ -306,6 +306,10 @@ export function PublishTicketScreen() {
       Alert.alert('Falta fecha', 'Seleccioná la fecha y hora del evento.');
       return;
     }
+    if (eventPlace.trim().length < 2) {
+      Alert.alert('Falta recinto', 'Ingresá el nombre del recinto como figura en Ticketek (ej. Auditorio de Belgrano).');
+      return;
+    }
     if (eventAddress.trim().length < 2) {
       Alert.alert('Falta dirección', 'Ingresá la dirección del evento.');
       return;
@@ -536,14 +540,17 @@ export function PublishTicketScreen() {
       <Text style={styles.label}>Fecha y hora del evento *</Text>
       <EventDateTimePicker value={eventDate} onChange={setEventDate} placeholder="Tocá para elegir día, mes, año y hora" />
 
-      <Text style={styles.label}>Lugar (nombre del recinto)</Text>
+      <Text style={styles.label}>Lugar (nombre del recinto) *</Text>
       <TextInput
         style={styles.input}
-        placeholder="Ej. Centro Cultural San Isidro"
+        placeholder="Ej. Auditorio de Belgrano"
         placeholderTextColor={colors.textMuted}
         value={eventPlace}
         onChangeText={setEventPlace}
       />
+      <Text style={styles.previewHint}>
+        Debe coincidir con el venue en Ticketek para obtener la imagen oficial del evento.
+      </Text>
 
       <View style={styles.locationRow}>
         <View style={styles.locationCol}>
@@ -560,7 +567,7 @@ export function PublishTicketScreen() {
           <Text style={styles.label}>Ciudad *</Text>
           <TextInput
             style={[styles.input, styles.locationInput]}
-            placeholder="Ej. San Isidro"
+            placeholder="Ej. CABA"
             placeholderTextColor={colors.textMuted}
             value={eventCity}
             onChangeText={setEventCity}
