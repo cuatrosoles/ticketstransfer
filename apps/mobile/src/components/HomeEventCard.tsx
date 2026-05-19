@@ -4,9 +4,9 @@
 
 import * as React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import type { MarketplacePublicItem } from '../lib/api';
+import { EventCoverImage } from './EventCoverImage';
 import { colors, spacing } from '../theme';
 
 export function formatListingPrice(price?: number | null): string {
@@ -49,14 +49,13 @@ export function HomeEventCard({
       accessibilityRole="button"
       accessibilityLabel={`${item.eventName}, comprar`}
     >
-      <View style={[styles.imageZone, { height: imgH }]}>
-        <LinearGradient
-          colors={['rgba(37, 99, 235, 0.55)', 'rgba(15, 23, 42, 0.95)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
+      <View style={styles.coverWrap}>
+        <EventCoverImage
+          eventImageUrl={item.eventImageUrl}
+          category={item.category}
+          height={imgH}
+          showGlyph
         />
-        <Text style={styles.glyph}>♪</Text>
         {showFavoriteToggle && onFavoritePress ? (
           <TouchableOpacity
             style={styles.favBtn}
@@ -105,14 +104,16 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  imageZone: {
-    width: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
+  coverWrap: {
     position: 'relative',
+    width: '100%',
   },
-  glyph: { fontSize: 42, color: 'rgba(248, 250, 252, 0.35)', fontWeight: '700' },
+  body: {
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+    gap: 4,
+  },
   favBtn: {
     position: 'absolute',
     top: 8,
@@ -126,12 +127,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.28)',
     zIndex: 4,
-  },
-  body: {
-    paddingHorizontal: spacing.sm,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-    gap: 4,
   },
   title: {
     fontSize: 14,

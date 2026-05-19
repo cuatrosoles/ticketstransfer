@@ -5,6 +5,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { api, ensureImageUrl } from '../lib/api';
+import { getEventImageCategoryFallback } from '@tickets-transfer/shared';
 
 type Seller = {
   id: string;
@@ -22,6 +23,8 @@ type TicketPreview = {
   eventName: string;
   eventDate: string;
   eventPlace?: string | null;
+  eventImageUrl?: string | null;
+  category?: string | null;
   sector?: string | null;
   row?: string | null;
   seat?: string | null;
@@ -207,11 +210,33 @@ export function ComprarTicketDetalle() {
 
   const imgQr = preview.captureTicketUrl ? ensureImageUrl(preview.captureTicketUrl) : null;
   const imgFactura = preview.captureOwnershipUrl ? ensureImageUrl(preview.captureOwnershipUrl) : null;
+  const imgEvent =
+    ensureImageUrl(preview.eventImageUrl) || getEventImageCategoryFallback(preview.category);
 
   return (
     <div className="page-content comprar-ticket-page">
       <h1 className="page-title">Comprar Ticket</h1>
       {error && !preview.showFull && <p className="form-error">{error}</p>}
+
+      <div
+        className="comprar-event-cover"
+        style={{
+          marginBottom: 16,
+          borderRadius: 12,
+          overflow: 'hidden',
+          height: 200,
+          border: '1px solid rgba(96, 165, 250, 0.25)',
+        }}
+      >
+        <img
+          src={imgEvent}
+          alt={`Portada ${preview.eventName}`}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = getEventImageCategoryFallback(preview.category);
+          }}
+        />
+      </div>
 
       <div className="glass ticket-stub-web">
         <div className="ticket-stub-notch ticket-stub-notch-left" aria-hidden />

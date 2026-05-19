@@ -30,11 +30,13 @@ import {
   getCommissionPercentage,
   getMyListingDetail,
   updateMyListing,
+  previewEventImage,
   type Profile,
 } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
+import { EventCoverImage } from '../components/EventCoverImage';
 import { colors, spacing, radius } from '../theme';
 import { TICKETERA_LOGOS, APP_BOLETOS_LOGOS } from '../data/serviceLogos';
 
@@ -97,6 +99,15 @@ function listingDateToInput(v: unknown): string {
   return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
 }
 
+function toApiDate(local: string): string {
+  const s = local.trim();
+  if (!s) return '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  return s;
+}
+
 export function PublishTicketScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'Publish'>>();
@@ -127,6 +138,35 @@ export function PublishTicketScreen() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [commissionPercentage, setCommissionPercentage] = useState(COMISION_PORCENTAJE_FALLBACK);
   const [editListingLoading, setEditListingLoading] = useState(false);
+  const [eventImagePreview, setEventImagePreview] = useState<string | null>(null);
+  const [eventImagePreviewLoading, setEventImagePreviewLoading] = useState(false);
+
+  useEffect(() => {
+    const name = eventName.trim();
+    const date = toApiDate(eventDate);
+    if (name.length < 2 || !date) {
+      setEventImagePreview(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      setEventImagePreviewLoading(true);
+      previewEventImage({ eventName: name, eventDate: date, eventPlace: eventPlace.trim() || undefined })
+        .then((res) => {
+          if (!cancelled) setEventImagePreview(res.url);
+        })
+        .catch(() => {
+          if (!cancelled) setEventImagePreview(null);
+        })
+        .finally(() => {
+          if (!cancelled) setEventImagePreviewLoading(false);
+        });
+    }, 700);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [eventName, eventDate, eventPlace]);
 
   useEffect(() => {
     if (!editListingId) return;
@@ -252,15 +292,6 @@ export function PublishTicketScreen() {
           launchImageLibrarySafe({ mediaType: 'photo', quality: 0.8 }, (res) => processImageResult(res, setter)),
       },
     ]);
-  };
-
-  const toApiDate = (local: string): string => {
-    const s = local.trim();
-    if (!s) return '';
-    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-    const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-    if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-    return s;
   };
 
   const handleSubmit = async () => {
@@ -479,6 +510,22 @@ export function PublishTicketScreen() {
       <Text style={styles.label}>Lugar</Text>
       <TextInput style={styles.input} placeholder="Estadio / Teatro" placeholderTextColor={colors.textMuted} value={eventPlace} onChangeText={setEventPlace} />
 
+      {(eventImagePreview || eventImagePreviewLoading) ? (
+        <View style={styles.previewWrap}>
+          <Text style={styles.label}>Imagen del evento (vista previa)</Text>
+          <Text style={styles.previewHint}>
+            Al publicar buscamos una portada oficial; si no hay, usamos una imagen por categoría.
+          </Text>
+          {eventImagePreviewLoading ? (
+            <View style={styles.previewLoader}>
+              <ActivityIndicator color={colors.primaryLight} />
+            </View>
+          ) : (
+            <EventCoverImage eventImageUrl={eventImagePreview} height={140} showGlyph={false} style={styles.previewImage} />
+          )}
+        </View>
+      ) : null}
+
       <Text style={styles.label}>Sector</Text>
       <TextInput style={styles.input} placeholder="Platea, Campo..." placeholderTextColor={colors.textMuted} value={sector} onChangeText={setSector} />
 
@@ -655,7 +702,9 @@ export function PublishTicketScreen() {
         {submitting ? (
           <ActivityIndicator color={colors.white} />
         ) : (
-          <Text style={styles.primaryButtonText}>{editListingId ? 'Guardar cambios' : 'Publicar'}</Text>
+          <Text style={styles.primaryButtonText}>
+            {editListingId ? 'Guardar cambios' : submitting ? 'Buscando imagen…' : 'Publicar'}
+          </Text>
         )}
       </TouchableOpacity>
     </ScrollView>
@@ -695,4 +744,16 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: colors.white, fontWeight: '600', fontSize: 16 },
   disabled: { opacity: 0.7 },
   visibilityHint: { fontSize: 12, color: colors.primaryLight, marginBottom: spacing.md, lineHeight: 18 },
+  previewWrap: { marginBottom: spacing.md },
+  previewHint: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.sm, lineHeight: 17 },
+  previewLoader: {
+    height: 140,
+    borderRadius: 12,
+    backgroundColor: 'rgba(30, 58, 138, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.25)',
+  },
+  previewImage: { borderRadius: 12, marginBottom: spacing.sm },
 });

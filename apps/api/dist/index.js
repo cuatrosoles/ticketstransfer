@@ -13548,6 +13548,7 @@ var COLLECTIONS = {
 };
 
 // ../../packages/shared/src/constants.ts
+var CATEGORIAS_EVENTOS = ["MUSICA", "DEPORTES", "TEATRO", "FESTIVALES", "OTRO"];
 var TICKET_LISTING_STATUS = [
   "BORRADOR",
   "PENDIENTE_VERIFICACION",
@@ -13580,6 +13581,24 @@ var DISPUTE_STATUS = [
   "RESUELTA_FAVOR_VENDEDOR"
 ];
 var HORAS_MAX_TRANSFERENCIA_VENDEDOR = 72;
+
+// ../../packages/shared/src/event-images.ts
+var EVENT_IMAGE_CATEGORY_FALLBACKS = {
+  MUSICA: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=800&q=80",
+  DEPORTES: "https://images.unsplash.com/photo-1461896836934-ffe607be7d0e?auto=format&fit=crop&w=800&q=80",
+  TEATRO: "https://images.unsplash.com/photo-1503090549741-5a710f340b0b?auto=format&fit=crop&w=800&q=80",
+  FESTIVALES: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&w=800&q=80",
+  OTRO: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=800&q=80"
+};
+function normalizeEventImageCategory(raw) {
+  if (raw && CATEGORIAS_EVENTOS.includes(raw)) {
+    return raw;
+  }
+  return "OTRO";
+}
+function getEventImageCategoryFallback(category) {
+  return EVENT_IMAGE_CATEGORY_FALLBACKS[normalizeEventImageCategory(category)];
+}
 
 // ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/external.js
 var external_exports = {};
@@ -19021,7 +19040,7 @@ var TICKET_QR_FALLBACK_REGIONS_VERCEL = [
   { x: 0, y: 0.55, width: 0.44, height: 0.45 }
 ];
 var DEFAULT_REGIONS = FALLBACK_PIXELATE_REGIONS;
-var PIXELATE_BLOCK_SIZE = 28;
+var PIXELATE_BLOCK_SIZE = 56;
 function clamp01(n) {
   return Math.max(0, Math.min(1, n));
 }
@@ -19460,6 +19479,273 @@ async function storeListingCaptureWithRedaction(listingId, kind, file) {
   return { originalUrl, redactedUrl };
 }
 
+// src/lib/event-image-resolver.ts
+import { Jimp as Jimp3 } from "jimp";
+var TIMEOUT_MS = Number(process.env.EVENT_IMAGE_TIMEOUT_MS) || 1e4;
+var GEMINI_API_KEY = process.env.GEMINI_API_KEY?.trim() || "";
+var ENABLE_AI_GENERATION = process.env.EVENT_IMAGE_AI_GENERATION !== "0";
+var BLOCKED_HOSTS = [
+  "pinterest.",
+  "pinimg.",
+  "facebook.",
+  "instagram.",
+  "tiktok.",
+  "twitter.",
+  "x.com",
+  "reddit."
+];
+var TRUSTED_HOST_HINTS = [
+  "ticketek",
+  "allaccess",
+  "ticketmaster",
+  "movistararena",
+  "luna",
+  "teatro",
+  "estadio",
+  "wikipedia.org",
+  "wikimedia.org",
+  "spotifycdn",
+  "cloudfront.net",
+  "googleusercontent.com",
+  "fbcdn.net"
+];
+function withTimeout(promise, ms, label) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timeout`)), ms);
+    promise.then((v) => {
+      clearTimeout(timer);
+      resolve(v);
+    }).catch((e) => {
+      clearTimeout(timer);
+      reject(e);
+    });
+  });
+}
+function isAllowedImageUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") return false;
+    const host = u.hostname.toLowerCase();
+    if (BLOCKED_HOSTS.some((b) => host.includes(b))) return false;
+    return /\.(jpe?g|png|webp)(\?|$)/i.test(u.pathname + u.search) || TRUSTED_HOST_HINTS.some((h) => host.includes(h));
+  } catch {
+    return false;
+  }
+}
+async function downloadImageBuffer(url, timeoutMs = 6e3) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      redirect: "follow",
+      headers: {
+        "User-Agent": "TicketsTransfer/2.0 EventImageResolver",
+        Accept: "image/jpeg,image/png,image/webp,*/*"
+      }
+    });
+    if (!res.ok) return null;
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    if (!ct.startsWith("image/")) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length < 4e3 || buf.length > 5 * 1024 * 1024) return null;
+    return buf;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function normalizeImageBuffer(buffer) {
+  const image = await Jimp3.read(buffer);
+  const w = image.width;
+  const h = image.height;
+  if (w < 120 || h < 80) throw new Error("Imagen demasiado peque\xF1a");
+  if (w > 1200) image.resize({ w: 1200 });
+  return image.getBuffer("image/jpeg", { quality: 82 });
+}
+async function uploadEventImage(listingId, buffer) {
+  const normalized = await normalizeImageBuffer(buffer);
+  const path5 = `tickets/${listingId}/event_cover_${Date.now()}.jpg`;
+  return uploadFile(path5, normalized, "image/jpeg");
+}
+function parseJsonFromText(text) {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const raw = fenced ? fenced[1].trim() : trimmed;
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    return JSON.parse(raw.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+async function searchOfficialImageWithGemini(input) {
+  if (!GEMINI_API_KEY) return null;
+  const category = normalizeEventImageCategory(input.category);
+  const prompt = [
+    "Sos un asistente que encuentra im\xE1genes promocionales OFICIALES de eventos en Argentina.",
+    "Devolv\xE9 SOLO JSON v\xE1lido (sin markdown) con esta forma:",
+    '{"imageUrl":"https://...jpg|png|webp directa O null","source":"nombre breve de la fuente"}',
+    "",
+    `Evento: ${input.eventName}`,
+    `Lugar: ${input.eventPlace || "No especificado"}`,
+    `Fecha: ${input.eventDate}`,
+    `Categor\xEDa: ${category}`,
+    "",
+    "Reglas:",
+    "- URL HTTPS directa a imagen (no HTML, no PDF).",
+    "- Prefer\xED sitios oficiales: ticketeras (Ticketek, All Access), venue, artista, productora.",
+    "- Evit\xE1 redes sociales, Pinterest, blogs no oficiales.",
+    "- Sin desnudos, violencia expl\xEDcita ni contenido adulto.",
+    "- Si no hay imagen oficial fiable, imageUrl debe ser null."
+  ].join("\n");
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        tools: [{ google_search: {} }],
+        generationConfig: { temperature: 0.15, maxOutputTokens: 400 }
+      })
+    }
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+  const parsed = parseJsonFromText(text);
+  const url = typeof parsed?.imageUrl === "string" ? parsed.imageUrl.trim() : "";
+  if (!url || url === "null") return null;
+  return isAllowedImageUrl(url) ? url : null;
+}
+async function searchWikimediaImage(eventName) {
+  const q = encodeURIComponent(`${eventName} concert OR show OR event poster`);
+  const apiUrl = `https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrsearch=${q}&gsrlimit=6&prop=imageinfo&iiprop=url&iiurlwidth=900`;
+  const res = await fetch(apiUrl, {
+    headers: { "User-Agent": "TicketsTransfer/2.0 EventImageResolver" }
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const pages = data.query?.pages;
+  if (!pages) return null;
+  for (const page of Object.values(pages)) {
+    const title = (page.title || "").toLowerCase();
+    if (/logo|icon|svg|flag|map|signature|diagram/.test(title)) continue;
+    const info = page.imageinfo?.[0];
+    const url = info?.thumburl || info?.url;
+    if (url && isAllowedImageUrl(url)) return url;
+  }
+  return null;
+}
+function buildAiPrompt(input) {
+  const category = normalizeEventImageCategory(input.category);
+  const labels = {
+    MUSICA: "concierto musical",
+    DEPORTES: "evento deportivo en estadio",
+    TEATRO: "obra de teatro en escenario",
+    FESTIVALES: "festival al aire libre",
+    OTRO: "evento en vivo"
+  };
+  return [
+    `Poster art\xEDstico profesional para ${labels[category] || "evento"}:`,
+    `"${input.eventName}"`,
+    input.eventPlace ? `en ${input.eventPlace}` : "",
+    input.eventDate ? `fecha ${input.eventDate}` : "",
+    "estilo moderno vibrante, sin texto, sin logos, sin marcas, sin personas reconocibles, apto todo p\xFAblico, alta calidad"
+  ].filter(Boolean).join(", ");
+}
+async function generateAiImageUrl(input) {
+  if (!ENABLE_AI_GENERATION) return null;
+  const prompt = buildAiPrompt(input);
+  const seed = Math.abs([...prompt].reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % 999983);
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=900&height=506&nologo=true&seed=${seed}`;
+  const buf = await downloadImageBuffer(url, 8e3);
+  return buf ? url : null;
+}
+async function resolveRemoteImageUrl(input) {
+  const official = await searchOfficialImageWithGemini(input).catch(() => null);
+  if (official) {
+    const buf = await downloadImageBuffer(official);
+    if (buf) return { url: official, source: "official" };
+  }
+  const wiki = await searchWikimediaImage(input.eventName).catch(() => null);
+  if (wiki) {
+    const buf = await downloadImageBuffer(wiki);
+    if (buf) return { url: wiki, source: "wikimedia" };
+  }
+  if (ENABLE_AI_GENERATION) {
+    const aiUrl = await generateAiImageUrl(input).catch(() => null);
+    if (aiUrl) {
+      const buf = await downloadImageBuffer(aiUrl, 9e3);
+      if (buf) return { url: aiUrl, source: "generated" };
+    }
+  }
+  return {
+    url: getEventImageCategoryFallback(input.category),
+    source: "fallback"
+  };
+}
+async function resolveAndStoreEventImage(listingId, input) {
+  try {
+    const resolved = await withTimeout(resolveRemoteImageUrl(input), TIMEOUT_MS, "event-image");
+    const buffer = await downloadImageBuffer(resolved.url, 7e3) || await downloadImageBuffer(getEventImageCategoryFallback(input.category), 5e3);
+    if (!buffer) {
+      return { url: getEventImageCategoryFallback(input.category), source: "fallback" };
+    }
+    const storedUrl = await uploadEventImage(listingId, buffer);
+    return { url: storedUrl, source: resolved.source };
+  } catch (err) {
+    console.warn("[event-image] fallback por error:", err instanceof Error ? err.message : err);
+    try {
+      const fallbackBuf = await downloadImageBuffer(getEventImageCategoryFallback(input.category), 5e3);
+      if (fallbackBuf) {
+        const storedUrl = await uploadEventImage(listingId, fallbackBuf);
+        return { url: storedUrl, source: "fallback" };
+      }
+    } catch {
+    }
+    return {
+      url: getEventImageCategoryFallback(input.category),
+      source: "fallback"
+    };
+  }
+}
+async function previewEventImage(input) {
+  try {
+    return await withTimeout(resolveRemoteImageUrl(input), TIMEOUT_MS, "event-image-preview");
+  } catch {
+    return {
+      url: getEventImageCategoryFallback(input.category),
+      source: "fallback"
+    };
+  }
+}
+function shouldRefreshEventImage(prev, next) {
+  const fields = ["eventName", "eventDate", "eventPlace", "category"];
+  return fields.some((f) => next[f] !== void 0 && String(next[f] ?? "") !== String(prev[f] ?? ""));
+}
+function eventImageInputFromListing(data) {
+  const eventDateRaw = data.eventDate;
+  let eventDate = "";
+  if (eventDateRaw instanceof Date) {
+    eventDate = eventDateRaw.toISOString().slice(0, 10);
+  } else if (typeof eventDateRaw === "string") {
+    eventDate = eventDateRaw.slice(0, 10);
+  } else if (eventDateRaw && typeof eventDateRaw === "object" && "_seconds" in eventDateRaw) {
+    eventDate = new Date(eventDateRaw._seconds * 1e3).toISOString().slice(0, 10);
+  }
+  return {
+    eventName: String(data.eventName || ""),
+    eventDate,
+    eventPlace: data.eventPlace ?? null,
+    category: data.category ?? null
+  };
+}
+
 // src/routes/tickets.ts
 var updateTicketListingSchema2 = createTicketListingSchema.partial().extend({
   publicationPassword: external_exports.string().nullable().optional().transform((s) => s === "" ? null : s),
@@ -19546,7 +19832,10 @@ router3.get("/marketplace/public", async (req, res) => {
         eventName: d.eventName,
         eventDate,
         eventPlace: d.eventPlace ?? null,
+        eventImageUrl: d.eventImageUrl ?? null,
+        category: d.category ?? null,
         quantityEntries: d.quantityEntries ?? null,
+        price: d.price != null && d.price !== "" ? Number(d.price) : null,
         seller: sellerData ? {
           id: d.sellerId,
           displayName: name,
@@ -19556,6 +19845,17 @@ router3.get("/marketplace/public", async (req, res) => {
     })
   );
   res.json({ limit, items, scope: scope === "store" ? "store" : "home" });
+});
+router3.get("/event-image/preview", requireAuth, async (req, res) => {
+  const eventName = typeof req.query.eventName === "string" ? req.query.eventName.trim() : "";
+  const eventDate = typeof req.query.eventDate === "string" ? req.query.eventDate.trim() : "";
+  const eventPlace = typeof req.query.eventPlace === "string" ? req.query.eventPlace.trim() : "";
+  const category = typeof req.query.category === "string" ? req.query.category.trim() : "OTRO";
+  if (eventName.length < 2 || !eventDate) {
+    return res.status(400).json({ error: "eventName y eventDate son requeridos para la vista previa." });
+  }
+  const preview = await previewEventImage({ eventName, eventDate, eventPlace: eventPlace || null, category });
+  res.json(preview);
 });
 router3.get("/:id", async (req, res) => {
   const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).get();
@@ -19713,6 +20013,13 @@ router3.post(
     const appBoletosOtra = req.body.appBoletosOtra?.trim() || null;
     const tipoEntradaOtro = req.body.tipoEntradaOtro?.trim() || null;
     const quantityEntries = parsed.data.quantityEntries != null ? String(parsed.data.quantityEntries) : null;
+    const eventImageInput = {
+      eventName: parsed.data.eventName,
+      eventDate: parsed.data.eventDate,
+      eventPlace: parsed.data.eventPlace ?? null,
+      category: parsed.data.category ?? "OTRO"
+    };
+    const eventImage = await resolveAndStoreEventImage(listingId, eventImageInput);
     const listingData = {
       sellerId: req.user.id,
       eventName: parsed.data.eventName,
@@ -19729,6 +20036,8 @@ router3.post(
       appBoletos: parsed.data.appBoletos,
       orderRef: parsed.data.orderRef ?? null,
       category: parsed.data.category ?? "OTRO",
+      eventImageUrl: eventImage.url,
+      eventImageSource: eventImage.source,
       status: "DISPONIBLE",
       ...visibility !== void 0 ? { visibility } : {},
       captureTicketUrl: captureTicketUrl ?? null,
@@ -19850,6 +20159,18 @@ router3.patch("/mine/:listingId", requireAuth, async (req, res) => {
   const keys = Object.keys(updates).filter((k) => k !== "updatedAt");
   if (keys.length === 0) {
     return res.status(400).json({ error: "Ning\xFAn campo para actualizar" });
+  }
+  const prevImageInput = eventImageInputFromListing(d);
+  const nextImageInput = {};
+  if (payload.eventName !== void 0) nextImageInput.eventName = payload.eventName;
+  if (payload.eventDate !== void 0) nextImageInput.eventDate = payload.eventDate;
+  if (payload.eventPlace !== void 0) nextImageInput.eventPlace = payload.eventPlace ?? null;
+  if (payload.category !== void 0) nextImageInput.category = payload.category ?? null;
+  if (shouldRefreshEventImage(prevImageInput, nextImageInput)) {
+    const merged = { ...prevImageInput, ...nextImageInput };
+    const refreshedImage = await resolveAndStoreEventImage(req.params.listingId, merged);
+    updates.eventImageUrl = refreshedImage.url;
+    updates.eventImageSource = refreshedImage.source;
   }
   await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).update(updates);
   const refreshed = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).get();

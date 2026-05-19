@@ -46,6 +46,7 @@ export function MiPublicacion() {
   }
 
   const imgQr = listing.captureTicketUrl ? ensureImageUrl(listing.captureTicketUrl) : null;
+  const imgEvent = listing.eventImageUrl ? ensureImageUrl(listing.eventImageUrl) : null;
   const imgFactura = listing.captureOwnershipUrl ? ensureImageUrl(listing.captureOwnershipUrl) : null;
   const imgQrOriginal = listing.captureTicketOriginalUrl ? ensureImageUrl(listing.captureTicketOriginalUrl) : null;
   const imgFacturaOriginal = listing.captureOwnershipOriginalUrl
@@ -57,6 +58,11 @@ export function MiPublicacion() {
       <h1 className="page-title">Mi publicación</h1>
 
       <div className="glass ticket-stub-web mb-2">
+        {imgEvent ? (
+          <div style={{ marginBottom: 16, borderRadius: 12, overflow: 'hidden', maxHeight: 200 }}>
+            <img src={imgEvent} alt={`Portada ${listing.eventName}`} style={{ width: '100%', height: 200, objectFit: 'cover' }} />
+          </div>
+        ) : null}
         <p className="ticket-stub-id">TICKET ID N°: {listing.id}</p>
         <hr className="ticket-stub-perf" />
         <dl className="comprar-preview-list">

@@ -166,11 +166,33 @@ export type MarketplacePublicItem = {
   eventName: string;
   eventDate: string;
   eventPlace?: string | null;
+  eventImageUrl?: string | null;
+  category?: string | null;
   quantityEntries?: string | null;
   /** Precio publicado cuando existe en el listing */
   price?: number | null;
   seller: { id: string; displayName: string; reputationScore: number };
 };
+
+export type EventImagePreview = {
+  url: string;
+  source: 'official' | 'wikimedia' | 'generated' | 'fallback';
+};
+
+export async function previewEventImage(params: {
+  eventName: string;
+  eventDate: string;
+  eventPlace?: string;
+  category?: string;
+}): Promise<EventImagePreview> {
+  const q = new URLSearchParams({
+    eventName: params.eventName,
+    eventDate: params.eventDate,
+    category: params.category || 'OTRO',
+  });
+  if (params.eventPlace) q.set('eventPlace', params.eventPlace);
+  return api<EventImagePreview>(`/api/tickets/event-image/preview?${q.toString()}`);
+}
 
 export async function getMarketplacePublicListings(): Promise<{ limit: number; items: MarketplacePublicItem[] }> {
   return api<{ limit: number; items: MarketplacePublicItem[] }>('/api/tickets/marketplace/public');

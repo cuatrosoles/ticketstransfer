@@ -8,6 +8,12 @@ import { z } from 'zod';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { getAuth } from '../lib/firebase-admin.js';
 import { storeListingCaptureWithRedaction } from '../lib/ticket-listing-images.js';
+import {
+  eventImageInputFromListing,
+  previewEventImage,
+  resolveAndStoreEventImage,
+  shouldRefreshEventImage,
+} from '../lib/event-image-resolver.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { createTicketListingSchema } from '@tickets-transfer/shared';
 import { getMarketplaceHomePublicListingsLimit } from '../lib/settings.js';
@@ -136,6 +142,8 @@ router.get('/marketplace/public', async (req, res) => {
         eventName: d.eventName,
         eventDate,
         eventPlace: d.eventPlace ?? null,
+        eventImageUrl: d.eventImageUrl ?? null,
+        category: d.category ?? null,
         quantityEntries: d.quantityEntries ?? null,
         price: d.price != null && d.price !== '' ? Number(d.price) : null,
         seller: sellerData
@@ -149,6 +157,21 @@ router.get('/marketplace/public', async (req, res) => {
     })
   );
   res.json({ limit, items, scope: scope === 'store' ? 'store' : 'home' });
+});
+
+/** Vista previa de imagen de evento (formularios web/mobile). */
+router.get('/event-image/preview', requireAuth, async (req: AuthRequest, res) => {
+  const eventName = typeof req.query.eventName === 'string' ? req.query.eventName.trim() : '';
+  const eventDate = typeof req.query.eventDate === 'string' ? req.query.eventDate.trim() : '';
+  const eventPlace = typeof req.query.eventPlace === 'string' ? req.query.eventPlace.trim() : '';
+  const category = typeof req.query.category === 'string' ? req.query.category.trim() : 'OTRO';
+
+  if (eventName.length < 2 || !eventDate) {
+    return res.status(400).json({ error: 'eventName y eventDate son requeridos para la vista previa.' });
+  }
+
+  const preview = await previewEventImage({ eventName, eventDate, eventPlace: eventPlace || null, category });
+  res.json(preview);
 });
 
 router.get('/:id', async (req, res) => {
@@ -324,6 +347,14 @@ router.post(
     const tipoEntradaOtro = (req.body.tipoEntradaOtro as string)?.trim() || null;
     const quantityEntries = parsed.data.quantityEntries != null ? String(parsed.data.quantityEntries) : null;
 
+    const eventImageInput = {
+      eventName: parsed.data.eventName,
+      eventDate: parsed.data.eventDate,
+      eventPlace: parsed.data.eventPlace ?? null,
+      category: parsed.data.category ?? 'OTRO',
+    };
+    const eventImage = await resolveAndStoreEventImage(listingId, eventImageInput);
+
     const listingData = {
       sellerId: req.user!.id,
       eventName: parsed.data.eventName,
@@ -340,6 +371,8 @@ router.post(
       appBoletos: parsed.data.appBoletos,
       orderRef: parsed.data.orderRef ?? null,
       category: parsed.data.category ?? 'OTRO',
+      eventImageUrl: eventImage.url,
+      eventImageSource: eventImage.source,
       status: 'DISPONIBLE',
       ...(visibility !== undefined ? { visibility } : {}),
       captureTicketUrl: captureTicketUrl ?? null,
@@ -483,6 +516,20 @@ router.patch('/mine/:listingId', requireAuth, async (req: AuthRequest, res) => {
   const keys = Object.keys(updates).filter((k) => k !== 'updatedAt');
   if (keys.length === 0) {
     return res.status(400).json({ error: 'Ningún campo para actualizar' });
+  }
+
+  const prevImageInput = eventImageInputFromListing(d as Record<string, unknown>);
+  const nextImageInput: Partial<typeof prevImageInput> = {};
+  if (payload.eventName !== undefined) nextImageInput.eventName = payload.eventName;
+  if (payload.eventDate !== undefined) nextImageInput.eventDate = payload.eventDate;
+  if (payload.eventPlace !== undefined) nextImageInput.eventPlace = payload.eventPlace ?? null;
+  if (payload.category !== undefined) nextImageInput.category = payload.category ?? null;
+
+  if (shouldRefreshEventImage(prevImageInput, nextImageInput)) {
+    const merged = { ...prevImageInput, ...nextImageInput };
+    const refreshedImage = await resolveAndStoreEventImage(req.params.listingId, merged);
+    updates.eventImageUrl = refreshedImage.url;
+    updates.eventImageSource = refreshedImage.source;
   }
 
   await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).update(updates);

@@ -30,6 +30,8 @@ export function ticketPreviewToMarketplaceItem(p: {
     eventName: p.eventName,
     eventDate: p.eventDate,
     eventPlace: p.eventPlace ?? null,
+    eventImageUrl: (p as { eventImageUrl?: string | null }).eventImageUrl ?? null,
+    category: (p as { category?: string | null }).category ?? null,
     quantityEntries: p.quantityEntries ?? null,
     price: p.price ?? null,
     seller: {

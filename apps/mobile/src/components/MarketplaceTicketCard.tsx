@@ -6,6 +6,7 @@ import * as React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { TicketStubBackground } from './TicketStubBackground';
+import { EventCoverImage } from './EventCoverImage';
 import { colors, spacing } from '../theme';
 import type { MarketplacePublicItem } from '../lib/api';
 
@@ -60,6 +61,13 @@ export function MarketplaceTicketCard({
             paddingBottom: padBottom,
           }}
         >
+          <EventCoverImage
+            eventImageUrl={item.eventImageUrl}
+            category={item.category}
+            height={compact ? 64 : 78}
+            showGlyph={false}
+            style={styles.cover}
+          />
           <Text style={[styles.event, compact && styles.eventCompact]} numberOfLines={2}>
             {item.eventName}
           </Text>
@@ -94,6 +102,7 @@ export function MarketplaceTicketCard({
 const styles = StyleSheet.create({
   wrap: { width: '100%', position: 'relative' },
   stub: { width: '100%' },
+  cover: { borderRadius: 10, marginBottom: spacing.sm },
   fabFav: {
     position: 'absolute',
     top: 10,

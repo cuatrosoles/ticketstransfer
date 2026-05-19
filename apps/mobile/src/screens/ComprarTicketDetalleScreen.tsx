@@ -25,6 +25,7 @@ import { ticketPreviewToMarketplaceItem } from '../lib/ticketPreviewToMarketplac
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { TicketStubBackground } from '../components/TicketStubBackground';
+import { EventCoverImage } from '../components/EventCoverImage';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { useFavorites } from '../context/FavoritesContext';
 import { colors, spacing, radius } from '../theme';
@@ -49,6 +50,8 @@ type TicketPreview = {
   eventName: string;
   eventDate: string;
   eventPlace?: string | null;
+  eventImageUrl?: string | null;
+  category?: string | null;
   sector?: string | null;
   row?: string | null;
   seat?: string | null;
@@ -142,6 +145,14 @@ export function ComprarTicketDetalleScreen() {
         />
         {error && !preview.showFull ? <Text style={styles.error}>{error}</Text> : null}
 
+        <EventCoverImage
+          eventImageUrl={preview.eventImageUrl}
+          category={preview.category}
+          height={160}
+          showGlyph={false}
+          style={styles.eventCover}
+        />
+
         <TicketStubBackground
           backgroundOrientation="portrait"
           style={styles.ticketWrap}
@@ -228,6 +239,7 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', alignItems: 'center' },
   favHeaderHit: { marginRight: 12 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  eventCover: { borderRadius: 14, marginBottom: spacing.lg },
   ticketWrap: { marginBottom: spacing.lg },
   ticketInner: {
     paddingTop: spacing.xl,

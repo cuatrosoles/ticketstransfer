@@ -4,7 +4,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { createTicketListing, getMyListingDetail, updateMyListing } from '../lib/api';
+import { createTicketListing, getMyListingDetail, updateMyListing, previewEventImage } from '../lib/api';
 import { createTicketListingSchema } from '@tickets-transfer/shared';
 
 const TIPOS_ENTRADA = ['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO'] as const;
@@ -53,6 +53,47 @@ export function Publicar() {
   const [error, setError] = useState('');
   const [successListingId, setSuccessListingId] = useState<string | null>(null);
   const [editLoading, setEditLoading] = useState(false);
+  const [eventImagePreview, setEventImagePreview] = useState<string | null>(null);
+  const [eventImagePreviewLoading, setEventImagePreviewLoading] = useState(false);
+  const [eventImagePreviewSource, setEventImagePreviewSource] = useState<string | null>(null);
+
+  useEffect(() => {
+    const name = eventName.trim();
+    const date = eventDate.trim();
+    if (name.length < 2 || !date) {
+      setEventImagePreview(null);
+      setEventImagePreviewSource(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setEventImagePreviewLoading(true);
+      previewEventImage({
+        eventName: name,
+        eventDate: date,
+        eventPlace: eventPlace.trim() || undefined,
+        category,
+      })
+        .then((res) => {
+          if (cancelled) return;
+          setEventImagePreview(res.url);
+          setEventImagePreviewSource(res.source);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setEventImagePreview(null);
+            setEventImagePreviewSource(null);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setEventImagePreviewLoading(false);
+        });
+    }, 700);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [eventName, eventDate, eventPlace, category]);
 
   useEffect(() => {
     if (!editListingId) return;
@@ -287,6 +328,42 @@ export function Publicar() {
         <label className="block-label">Lugar</label>
         <input className="input-field" value={eventPlace} onChange={(e) => setEventPlace(e.target.value)} placeholder="Estadio / Teatro" />
 
+        {(eventImagePreview || eventImagePreviewLoading) && (
+          <div style={{ marginBottom: 16 }}>
+            <label className="block-label">Imagen del evento (vista previa)</label>
+            <p className="text-muted" style={{ fontSize: 13, marginBottom: 8 }}>
+              Se buscará automáticamente una imagen oficial al publicar. Si no se encuentra, usamos una portada por categoría.
+            </p>
+            <div
+              style={{
+                position: 'relative',
+                borderRadius: 12,
+                overflow: 'hidden',
+                height: 160,
+                background: 'rgba(15,23,42,0.5)',
+                border: '1px solid rgba(96,165,250,0.25)',
+              }}
+            >
+              {eventImagePreviewLoading ? (
+                <div className="screen-center" style={{ height: '100%' }}>
+                  <div className="loader" />
+                </div>
+              ) : eventImagePreview ? (
+                <img
+                  src={eventImagePreview}
+                  alt="Vista previa del evento"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : null}
+            </div>
+            {eventImagePreviewSource ? (
+              <p className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
+                Origen: {eventImagePreviewSource === 'official' ? 'fuente oficial' : eventImagePreviewSource === 'wikimedia' ? 'Wikimedia' : eventImagePreviewSource === 'generated' ? 'generada por IA' : 'imagen por defecto'}
+              </p>
+            ) : null}
+          </div>
+        )}
+
         <label className="block-label">Sector</label>
         <input className="input-field" value={sector} onChange={(e) => setSector(e.target.value)} placeholder="Platea, Campo..." />
 
@@ -404,7 +481,7 @@ export function Publicar() {
         )}
 
         <button type="submit" className="btn-primary" disabled={submitting} style={{ marginTop: 16 }}>
-          {submitting ? 'Procesando y enviando…' : editListingId ? 'Guardar cambios' : 'Publicar'}
+          {submitting ? 'Buscando imagen y procesando ticket…' : editListingId ? 'Guardar cambios' : 'Publicar'}
         </button>
       </form>
     </div>

@@ -2,6 +2,26 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api';
 
+const CATEGORY_FALLBACKS: Record<string, string> = {
+  MUSICA: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=800&q=80',
+  DEPORTES: 'https://images.unsplash.com/photo-1461896836934-ffe607be7d0e?auto=format&fit=crop&w=800&q=80',
+  TEATRO: 'https://images.unsplash.com/photo-1503090549741-5a710f340b0b?auto=format&fit=crop&w=800&q=80',
+  FESTIVALES: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&w=800&q=80',
+  OTRO: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=800&q=80',
+};
+
+function eventCoverUrl(ticket: TicketDetailType): string {
+  if (ticket.eventImageUrl) return ticket.eventImageUrl;
+  return CATEGORY_FALLBACKS[ticket.category] || CATEGORY_FALLBACKS.OTRO;
+}
+
+const EVENT_IMAGE_SOURCE_LABELS: Record<string, string> = {
+  official: 'Fuente oficial',
+  wikimedia: 'Wikimedia',
+  generated: 'Generada por IA',
+  fallback: 'Imagen por defecto',
+};
+
 const STATUS_OPTIONS = ['PENDIENTE_VERIFICACION', 'DISPONIBLE', 'PAUSADO', 'RECHAZADO', 'ELIMINADO'];
 const TIPOS_ENTRADA = ['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO'];
 const TICKETERAS = ['TICKETEK', 'ALLACCESS', 'TICKET_PLUS', 'OTRA'];
@@ -27,6 +47,8 @@ type TicketDetailType = {
   appBoletosOtra: string | null;
   orderRef: string | null;
   category: string;
+  eventImageUrl?: string | null;
+  eventImageSource?: string | null;
   status: string;
   captureTicketUrl: string | null;
   captureTicketOriginalUrl?: string | null;
@@ -202,6 +224,38 @@ export function TicketDetail() {
           />
         </div>
       )}
+
+      <div className="card" style={{ marginBottom: 12, overflow: 'hidden', padding: 0 }}>
+        <div style={{ position: 'relative' }}>
+          <img
+            src={eventCoverUrl(ticket)}
+            alt={`Portada ${ticket.eventName}`}
+            style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = CATEGORY_FALLBACKS[ticket.category] || CATEGORY_FALLBACKS.OTRO;
+            }}
+          />
+        </div>
+        <div style={{ padding: '12px 16px' }}>
+          <strong>Portada del evento</strong>
+          {ticket.eventImageSource ? (
+            <span style={{ marginLeft: 8, fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+              ({EVENT_IMAGE_SOURCE_LABELS[ticket.eventImageSource] ?? ticket.eventImageSource})
+            </span>
+          ) : null}
+          {ticket.eventImageUrl ? (
+            <p style={{ margin: '8px 0 0', fontSize: '0.8125rem' }}>
+              <a href={ticket.eventImageUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>
+                Abrir imagen en nueva pestaña
+              </a>
+            </p>
+          ) : (
+            <p style={{ margin: '8px 0 0', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+              Sin portada asignada — se muestra imagen por categoría.
+            </p>
+          )}
+        </div>
+      </div>
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Datos del ticket</h3>
