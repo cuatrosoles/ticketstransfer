@@ -543,7 +543,7 @@ export function PublishTicketScreen() {
       <Text style={styles.label}>Lugar (nombre del recinto) *</Text>
       <TextInput
         style={styles.input}
-        placeholder="Ej. Auditorio de Belgrano"
+        placeholder="Ej. Auditorio de Belgrano (como en Ticketek)"
         placeholderTextColor={colors.textMuted}
         value={eventPlace}
         onChangeText={setEventPlace}

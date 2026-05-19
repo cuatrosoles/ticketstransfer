@@ -359,7 +359,7 @@ export function Publicar() {
         <label className="block-label">Lugar (nombre del recinto) *</label>
         <input className="input-field" value={eventPlace} onChange={(e) => setEventPlace(e.target.value)} placeholder="Ej. Auditorio de Belgrano" required />
         <p className="text-muted" style={{ fontSize: 12, marginTop: -6, marginBottom: 12 }}>
-          Debe coincidir con el nombre del venue en Ticketek (ej. para buscar la imagen oficial).
+          Tal como figura en Ticketek (con o sin &quot;de&quot;: ej. Auditorio Belgrano → auditorio-de-belgrano).
         </p>
 
         <div className="form-row-inline">

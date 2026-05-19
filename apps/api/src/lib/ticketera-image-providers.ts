@@ -10,6 +10,7 @@ import {
 } from './event-location-match.js';
 import {
   buildTicketekEventUrlCandidates,
+  eventToTicketekSlugs,
   extractCmsSlugFromImageUrl,
   extractShowHeaderImagesFromHtml,
   fetchTicketekSsrHtml,
@@ -17,6 +18,7 @@ import {
   normalizeTicketekCmsUrl,
   scoreTicketekPage,
   ticketekPageMatchesEvent,
+  venueToTicketekSlugs,
 } from './ticketek-ssr.js';
 
 export type EventImageSearchInput = {
@@ -269,53 +271,47 @@ export const TICKETEK_PROVIDER: TicketeraImageProvider = {
   async findImageUrl(input, { download, log }) {
     const canonicalUrls = buildTicketekEventUrlCandidates(input);
     log('ticketek URLs canónicas (show/venue)', {
-      count: canonicalUrls.length,
-      sample: canonicalUrls.slice(0, 4),
+      urls: canonicalUrls,
+      eventSlugs: eventToTicketekSlugs(input.eventName),
+      venueSlugs: venueToTicketekSlugs(input.eventPlace || ''),
       eventPlace: input.eventPlace,
     });
 
     const verifiedSlugs = new Set<string>();
-    const imageCandidates: { url: string; score: number }[] = [];
 
     for (const pageUrl of canonicalUrls) {
-      const html = await fetchTicketekSsrHtml(pageUrl);
-      if (!html) {
-        log('ticketek SSR sin HTML', { pageUrl });
+      const fetched = await fetchTicketekSsrHtml(pageUrl);
+      if (!fetched?.html) {
+        log('ticketek SSR sin HTML', { pageUrl, status: fetched?.status ?? 'timeout/error' });
         continue;
       }
-      const pageScore = scoreTicketekPage(html, pageUrl, input);
-      if (!ticketekPageMatchesEvent(html, pageUrl, input)) {
-        log('ticketek página descartada', { pageUrl, pageScore });
+      const pageScore = scoreTicketekPage(fetched.html, pageUrl, input);
+      if (!ticketekPageMatchesEvent(fetched.html, pageUrl, input)) {
+        log('ticketek página descartada', { pageUrl, pageScore, status: fetched.status });
         continue;
       }
-      log('ticketek página válida (SSR)', { pageUrl, pageScore });
-      for (const imgUrl of extractShowHeaderImagesFromHtml(html)) {
+      log('ticketek página válida (SSR)', { pageUrl, pageScore, status: fetched.status });
+
+      for (const imgUrl of extractShowHeaderImagesFromHtml(fetched.html)) {
         const slug = extractCmsSlugFromImageUrl(imgUrl);
         if (slug) verifiedSlugs.add(slug);
-        imageCandidates.push({ url: imgUrl, score: pageScore + 60 });
+        const normalized = normalizeTicketekCmsUrl(imgUrl);
+        const dl = await download(normalized, 7_000);
+        if (dl.ok) {
+          log('ticketek imagen desde SSR', {
+            pageUrl,
+            url: normalized.slice(0, 110),
+            slug,
+          });
+          return normalized;
+        }
       }
     }
 
-    imageCandidates.sort((a, b) => b.score - a.score);
-    for (const { url } of imageCandidates) {
-      const normalized = normalizeTicketekCmsUrl(url);
-      const dl = await download(normalized, 8000);
-      if (dl.ok) {
-        log('ticketek imagen desde SSR', { url: normalized.slice(0, 110), slug: extractCmsSlugFromImageUrl(normalized) });
-        return normalized;
-      }
-    }
-
-    const slugList: string[] = [...verifiedSlugs];
-    for (const s of buildEventSlugCandidates(input.eventName, input.eventDate)) {
-      if (!isUnsafeBareCmsSlug(s, input.eventName) && (s.includes('-') || s.length >= 10)) {
-        slugList.push(s);
-      }
-    }
-
+    const slugList = [...verifiedSlugs].filter((s) => !isUnsafeBareCmsSlug(s, input.eventName));
     const fromCms = await probeCmsSlugs(
       TICKETEK_CMS,
-      [...new Set(slugList)],
+      slugList,
       download,
       log,
       'ticketek',
@@ -326,6 +322,7 @@ export const TICKETEK_PROVIDER: TicketeraImageProvider = {
     log('ticketek sin imagen para show/venue', {
       eventPlace: input.eventPlace,
       eventCity: input.eventCity,
+      triedUrls: canonicalUrls,
       verifiedSlugs: [...verifiedSlugs],
     });
     return null;

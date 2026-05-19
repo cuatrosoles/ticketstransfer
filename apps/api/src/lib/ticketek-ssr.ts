@@ -1,10 +1,11 @@
 /**
- * Ticketek Argentina: la web es Angular; el HTML con imágenes/meta solo llega con UA de crawler.
- * URLs de evento: https://www.ticketek.com.ar/{show-slug}/{venue-slug}
+ * Ticketek Argentina: HTML útil solo con UA de crawler.
+ * URL: https://www.ticketek.com.ar/{show-slug}/{venue-slug}
+ * Ej.: /experiencia-queen/auditorio-de-belgrano
  */
 
 import type { EventImageSearchInput } from './ticketera-image-providers.js';
-import { buildEventSlugCandidates, normalizeAscii, titleMatchesEvent } from './ticketera-image-providers.js';
+import { normalizeAscii, titleMatchesEvent } from './ticketera-image-providers.js';
 import { scoreEventPageContext } from './event-location-match.js';
 
 export const TICKETEK_BOT_UA =
@@ -12,56 +13,138 @@ export const TICKETEK_BOT_UA =
 
 const TICKETEK_HOST = 'https://www.ticketek.com.ar';
 
+const SHOW_PREFIX_RE =
+  /^(experiencia|tributo|tributo a|homenaje|homenaje a|show|show de|festival|recital)\s+(.+)$/i;
+
+/** Prefijos de venue donde Ticketek suele insertar "de" en el slug. */
+const VENUE_DE_PREFIXES = new Set([
+  'auditorio',
+  'teatro',
+  'estadio',
+  'hipodromo',
+  'centro',
+  'sala',
+  'club',
+  'cine',
+  'polideportivo',
+]);
+
 export function textToSlug(text: string): string {
   return normalizeAscii(text)
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
 
-/** URLs canónicas tipo /experiencia-queen/auditorio-de-belgrano */
-export function buildTicketekEventUrlCandidates(input: EventImageSearchInput): string[] {
-  const urls = new Set<string>();
-  const eventSlugs = new Set<string>();
+/** Slugs de show para URLs Ticketek (sin sufijos de año ni palabras sueltas). */
+export function eventToTicketekSlugs(eventName: string): string[] {
+  const slugs = new Set<string>();
+  const full = textToSlug(eventName);
+  if (full.includes('-')) slugs.add(full);
 
-  const full = textToSlug(input.eventName);
-  if (full.length >= 4) eventSlugs.add(full);
-
-  for (const s of buildEventSlugCandidates(input.eventName, input.eventDate)) {
-    if (s.includes('-') || s.length >= 8) eventSlugs.add(s);
+  const prefixMatch = eventName.match(SHOW_PREFIX_RE);
+  if (prefixMatch?.[2]) {
+    const prefix = normalizeAscii(prefixMatch[1]).replace(/[^a-z0-9]+/g, '-');
+    const core = normalizeAscii(prefixMatch[2]).replace(/[^a-z0-9]+/g, '-');
+    if (prefix && core) slugs.add(`${prefix}-${core}`);
   }
 
-  const venueSlugs = new Set<string>();
-  const place = (input.eventPlace || '').trim();
-  if (place.length >= 3) {
-    venueSlugs.add(textToSlug(place));
-    const parts = normalizeAscii(place).split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
-    if (parts.length >= 2) {
-      venueSlugs.add(parts.slice(-2).join('-'));
-    }
-  }
-
-  for (const es of eventSlugs) {
-    for (const vs of venueSlugs) {
-      urls.add(`${TICKETEK_HOST}/${es}/${vs}`);
-    }
-  }
-
-  return [...urls].slice(0, 12);
+  return [...slugs];
 }
 
-export async function fetchTicketekSsrHtml(pageUrl: string): Promise<string | null> {
+/**
+ * Slugs de venue: "Auditorio Belgrano" → auditorio-belgrano y auditorio-de-belgrano.
+ * "Auditorio de Belgrano" → auditorio-de-belgrano.
+ */
+export function venueToTicketekSlugs(place: string): string[] {
+  const slugs = new Set<string>();
+  const trimmed = place.trim();
+  if (!trimmed) return [];
+
+  const full = textToSlug(trimmed);
+  if (full) slugs.add(full);
+
+  const words = normalizeAscii(trimmed)
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+
+  if (words.length >= 2) {
+    const hasDe = words.includes('de');
+    const withoutDe = words.filter((w) => w !== 'de');
+    if (withoutDe.length >= 2) {
+      slugs.add(withoutDe.join('-'));
+      const first = withoutDe[0];
+      const rest = withoutDe.slice(1);
+      if (VENUE_DE_PREFIXES.has(first) && !hasDe && rest.length) {
+        slugs.add(`${first}-de-${rest.join('-')}`);
+      }
+    }
+  }
+
+  return [...slugs];
+}
+
+function rankTicketekPair(eventSlug: string, venueSlug: string, input: EventImageSearchInput): number {
+  let rank = 0;
+  if (eventSlug.includes('-')) rank += 40;
+  if (venueSlug.includes('-de-')) rank += 35;
+  if (venueSlug.split('-').length >= 3) rank += 15;
+  if (eventSlug === textToSlug(input.eventName)) rank += 20;
+  const primaryVenue = venueToTicketekSlugs(input.eventPlace || '')[0];
+  if (primaryVenue && venueSlug === primaryVenue) rank += 10;
+  return rank;
+}
+
+/** Hasta 5 URLs, la más probable primero (experiencia-queen/auditorio-de-belgrano). */
+export function buildTicketekEventUrlCandidates(input: EventImageSearchInput): string[] {
+  const eventSlugs = eventToTicketekSlugs(input.eventName);
+  const venueSlugs = venueToTicketekSlugs(input.eventPlace || '');
+  if (!eventSlugs.length || !venueSlugs.length) return [];
+
+  const pairs: { url: string; rank: number }[] = [];
+  for (const es of eventSlugs) {
+    for (const vs of venueSlugs) {
+      pairs.push({
+        url: `${TICKETEK_HOST}/${es}/${vs}`,
+        rank: rankTicketekPair(es, vs, input),
+      });
+    }
+  }
+
+  pairs.sort((a, b) => b.rank - a.rank);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of pairs) {
+    if (seen.has(p.url)) continue;
+    seen.add(p.url);
+    out.push(p.url);
+    if (out.length >= 5) break;
+  }
+  return out;
+}
+
+export type TicketekFetchResult = { html: string; status: number } | null;
+
+export async function fetchTicketekSsrHtml(pageUrl: string): Promise<TicketekFetchResult> {
   try {
     const res = await fetch(pageUrl, {
       headers: {
         'User-Agent': TICKETEK_BOT_UA,
         Accept: 'text/html,application/xhtml+xml',
         'Accept-Language': 'es-AR,es;q=0.9',
+        Referer: `${TICKETEK_HOST}/`,
       },
-      signal: AbortSignal.timeout(12_000),
+      signal: AbortSignal.timeout(9_000),
       redirect: 'follow',
     });
-    if (!res.ok) return null;
-    return await res.text();
+    const status = res.status;
+    if (!res.ok) {
+      return { html: '', status };
+    }
+    const html = await res.text();
+    if (html.length < 2000 || !/show-header|og:image|tkt-show-header/i.test(html)) {
+      return { html: '', status };
+    }
+    return { html, status };
   } catch {
     return null;
   }
@@ -74,7 +157,6 @@ export function normalizeTicketekCmsUrl(raw: string): string {
   return u;
 }
 
-/** og:image y data-image del show-header en HTML SSR. */
 export function extractShowHeaderImagesFromHtml(html: string): string[] {
   const found = new Set<string>();
   const patterns = [
@@ -99,7 +181,6 @@ export function extractCmsSlugFromImageUrl(url: string): string | null {
   return m?.[1] ?? null;
 }
 
-/** Slug corto tipo "queen" sin sufijo: suele ser otro evento en búsqueda "queen". */
 export function isUnsafeBareCmsSlug(slug: string, eventName: string): boolean {
   if (/[0-9]/.test(slug)) return false;
   if (slug.includes('-')) return false;
@@ -111,36 +192,50 @@ export function isUnsafeBareCmsSlug(slug: string, eventName: string): boolean {
   return slug === last || slug === words.join('');
 }
 
-export function scoreTicketekPage(html: string, pageUrl: string, input: EventImageSearchInput): number {
-  let score = scoreEventPageContext(html, input);
-
-  const path = pageUrl.replace(TICKETEK_HOST, '').toLowerCase();
-  const eventSlug = textToSlug(input.eventName);
-  if (eventSlug.length >= 4 && path.includes(eventSlug)) score += 25;
-
-  const venueSlug = input.eventPlace ? textToSlug(input.eventPlace) : '';
-  if (venueSlug.length >= 4 && path.includes(venueSlug)) score += 30;
-
-  const titleM = html.match(/<title[^>]*>([^<]+)</i);
-  if (titleM && titleMatchesEvent(input.eventName, titleM[1])) score += 15;
-
-  const venueAttr = html.match(/data-venue="([^"]+)"/i);
-  if (venueAttr && input.eventPlace) {
-    const v = normalizeAscii(venueAttr[1]);
-    const p = normalizeAscii(input.eventPlace);
-    if (v.includes(p) || p.includes(v)) score += 20;
-  }
-
-  return score;
+function pathIncludesSlug(pathname: string, slug: string): boolean {
+  const p = pathname.toLowerCase();
+  const s = slug.toLowerCase();
+  return p.includes(`/${s}/`) || p.endsWith(`/${s}`) || p === `/${s}`;
 }
 
 export function ticketekPageMatchesEvent(html: string, pageUrl: string, input: EventImageSearchInput): boolean {
-  const score = scoreTicketekPage(html, pageUrl, input);
-  const path = pageUrl.toLowerCase();
-  const needsVenue = Boolean((input.eventPlace || '').trim());
-  if (needsVenue) {
-    const venueSlug = textToSlug(input.eventPlace!);
-    if (venueSlug.length >= 4 && path.includes(venueSlug)) return score >= 20;
+  let pathname: string;
+  try {
+    pathname = new URL(pageUrl).pathname;
+  } catch {
+    return false;
   }
-  return score >= 18;
+
+  const eventSlugs = eventToTicketekSlugs(input.eventName);
+  if (!eventSlugs.some((es) => pathIncludesSlug(pathname, es))) return false;
+
+  const place = (input.eventPlace || '').trim();
+  if (place) {
+    const venueSlugs = venueToTicketekSlugs(place);
+    if (!venueSlugs.some((vs) => pathIncludesSlug(pathname, vs))) return false;
+  }
+
+  if (!extractShowHeaderImagesFromHtml(html).length) return false;
+
+  const titleM = html.match(/<title[^>]*>([^<]+)</i);
+  if (titleM && !titleMatchesEvent(input.eventName, titleM[1])) return false;
+
+  return scoreEventPageContext(html, input) >= 8;
+}
+
+export function scoreTicketekPage(html: string, pageUrl: string, input: EventImageSearchInput): number {
+  let score = scoreEventPageContext(html, input);
+  let pathname: string;
+  try {
+    pathname = new URL(pageUrl).pathname;
+  } catch {
+    return score;
+  }
+  for (const es of eventToTicketekSlugs(input.eventName)) {
+    if (pathIncludesSlug(pathname, es)) score += 25;
+  }
+  for (const vs of venueToTicketekSlugs(input.eventPlace || '')) {
+    if (pathIncludesSlug(pathname, vs)) score += vs.includes('-de-') ? 35 : 15;
+  }
+  return score;
 }

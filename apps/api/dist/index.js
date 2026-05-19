@@ -19515,32 +19515,87 @@ import sharp from "sharp";
 // src/lib/ticketek-ssr.ts
 var TICKETEK_BOT_UA = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
 var TICKETEK_HOST = "https://www.ticketek.com.ar";
+var SHOW_PREFIX_RE = /^(experiencia|tributo|tributo a|homenaje|homenaje a|show|show de|festival|recital)\s+(.+)$/i;
+var VENUE_DE_PREFIXES = /* @__PURE__ */ new Set([
+  "auditorio",
+  "teatro",
+  "estadio",
+  "hipodromo",
+  "centro",
+  "sala",
+  "club",
+  "cine",
+  "polideportivo"
+]);
 function textToSlug(text) {
   return normalizeAscii(text).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
-function buildTicketekEventUrlCandidates(input) {
-  const urls = /* @__PURE__ */ new Set();
-  const eventSlugs = /* @__PURE__ */ new Set();
-  const full = textToSlug(input.eventName);
-  if (full.length >= 4) eventSlugs.add(full);
-  for (const s of buildEventSlugCandidates(input.eventName, input.eventDate)) {
-    if (s.includes("-") || s.length >= 8) eventSlugs.add(s);
+function eventToTicketekSlugs(eventName) {
+  const slugs = /* @__PURE__ */ new Set();
+  const full = textToSlug(eventName);
+  if (full.includes("-")) slugs.add(full);
+  const prefixMatch = eventName.match(SHOW_PREFIX_RE);
+  if (prefixMatch?.[2]) {
+    const prefix = normalizeAscii(prefixMatch[1]).replace(/[^a-z0-9]+/g, "-");
+    const core = normalizeAscii(prefixMatch[2]).replace(/[^a-z0-9]+/g, "-");
+    if (prefix && core) slugs.add(`${prefix}-${core}`);
   }
-  const venueSlugs = /* @__PURE__ */ new Set();
-  const place = (input.eventPlace || "").trim();
-  if (place.length >= 3) {
-    venueSlugs.add(textToSlug(place));
-    const parts = normalizeAscii(place).split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
-    if (parts.length >= 2) {
-      venueSlugs.add(parts.slice(-2).join("-"));
+  return [...slugs];
+}
+function venueToTicketekSlugs(place) {
+  const slugs = /* @__PURE__ */ new Set();
+  const trimmed = place.trim();
+  if (!trimmed) return [];
+  const full = textToSlug(trimmed);
+  if (full) slugs.add(full);
+  const words = normalizeAscii(trimmed).split(/[^a-z0-9]+/).filter(Boolean);
+  if (words.length >= 2) {
+    const hasDe = words.includes("de");
+    const withoutDe = words.filter((w) => w !== "de");
+    if (withoutDe.length >= 2) {
+      slugs.add(withoutDe.join("-"));
+      const first = withoutDe[0];
+      const rest = withoutDe.slice(1);
+      if (VENUE_DE_PREFIXES.has(first) && !hasDe && rest.length) {
+        slugs.add(`${first}-de-${rest.join("-")}`);
+      }
     }
   }
+  return [...slugs];
+}
+function rankTicketekPair(eventSlug, venueSlug, input) {
+  let rank = 0;
+  if (eventSlug.includes("-")) rank += 40;
+  if (venueSlug.includes("-de-")) rank += 35;
+  if (venueSlug.split("-").length >= 3) rank += 15;
+  if (eventSlug === textToSlug(input.eventName)) rank += 20;
+  const primaryVenue = venueToTicketekSlugs(input.eventPlace || "")[0];
+  if (primaryVenue && venueSlug === primaryVenue) rank += 10;
+  return rank;
+}
+function buildTicketekEventUrlCandidates(input) {
+  const eventSlugs = eventToTicketekSlugs(input.eventName);
+  const venueSlugs = venueToTicketekSlugs(input.eventPlace || "");
+  if (!eventSlugs.length || !venueSlugs.length) return [];
+  const pairs = [];
   for (const es of eventSlugs) {
     for (const vs of venueSlugs) {
-      urls.add(`${TICKETEK_HOST}/${es}/${vs}`);
+      pairs.push({
+        url: `${TICKETEK_HOST}/${es}/${vs}`,
+        rank: rankTicketekPair(es, vs, input)
+      });
     }
   }
-  return [...urls].slice(0, 12);
+  pairs.sort((a, b) => b.rank - a.rank);
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const p of pairs) {
+    if (seen.has(p.url)) continue;
+    seen.add(p.url);
+    out.push(p.url);
+    if (out.length >= 5) break;
+  }
+  return out;
 }
 async function fetchTicketekSsrHtml(pageUrl) {
   try {
@@ -19548,13 +19603,21 @@ async function fetchTicketekSsrHtml(pageUrl) {
       headers: {
         "User-Agent": TICKETEK_BOT_UA,
         Accept: "text/html,application/xhtml+xml",
-        "Accept-Language": "es-AR,es;q=0.9"
+        "Accept-Language": "es-AR,es;q=0.9",
+        Referer: `${TICKETEK_HOST}/`
       },
-      signal: AbortSignal.timeout(12e3),
+      signal: AbortSignal.timeout(9e3),
       redirect: "follow"
     });
-    if (!res.ok) return null;
-    return await res.text();
+    const status = res.status;
+    if (!res.ok) {
+      return { html: "", status };
+    }
+    const html = await res.text();
+    if (html.length < 2e3 || !/show-header|og:image|tkt-show-header/i.test(html)) {
+      return { html: "", status };
+    }
+    return { html, status };
   } catch {
     return null;
   }
@@ -19595,36 +19658,49 @@ function isUnsafeBareCmsSlug(slug, eventName) {
   const last = words[words.length - 1];
   return slug === last || slug === words.join("");
 }
+function pathIncludesSlug(pathname, slug) {
+  const p = pathname.toLowerCase();
+  const s = slug.toLowerCase();
+  return p.includes(`/${s}/`) || p.endsWith(`/${s}`) || p === `/${s}`;
+}
+function ticketekPageMatchesEvent(html, pageUrl, input) {
+  let pathname;
+  try {
+    pathname = new URL(pageUrl).pathname;
+  } catch {
+    return false;
+  }
+  const eventSlugs = eventToTicketekSlugs(input.eventName);
+  if (!eventSlugs.some((es) => pathIncludesSlug(pathname, es))) return false;
+  const place = (input.eventPlace || "").trim();
+  if (place) {
+    const venueSlugs = venueToTicketekSlugs(place);
+    if (!venueSlugs.some((vs) => pathIncludesSlug(pathname, vs))) return false;
+  }
+  if (!extractShowHeaderImagesFromHtml(html).length) return false;
+  const titleM = html.match(/<title[^>]*>([^<]+)</i);
+  if (titleM && !titleMatchesEvent(input.eventName, titleM[1])) return false;
+  return scoreEventPageContext(html, input) >= 8;
+}
 function scoreTicketekPage(html, pageUrl, input) {
   let score = scoreEventPageContext(html, input);
-  const path5 = pageUrl.replace(TICKETEK_HOST, "").toLowerCase();
-  const eventSlug = textToSlug(input.eventName);
-  if (eventSlug.length >= 4 && path5.includes(eventSlug)) score += 25;
-  const venueSlug = input.eventPlace ? textToSlug(input.eventPlace) : "";
-  if (venueSlug.length >= 4 && path5.includes(venueSlug)) score += 30;
-  const titleM = html.match(/<title[^>]*>([^<]+)</i);
-  if (titleM && titleMatchesEvent(input.eventName, titleM[1])) score += 15;
-  const venueAttr = html.match(/data-venue="([^"]+)"/i);
-  if (venueAttr && input.eventPlace) {
-    const v = normalizeAscii(venueAttr[1]);
-    const p = normalizeAscii(input.eventPlace);
-    if (v.includes(p) || p.includes(v)) score += 20;
+  let pathname;
+  try {
+    pathname = new URL(pageUrl).pathname;
+  } catch {
+    return score;
+  }
+  for (const es of eventToTicketekSlugs(input.eventName)) {
+    if (pathIncludesSlug(pathname, es)) score += 25;
+  }
+  for (const vs of venueToTicketekSlugs(input.eventPlace || "")) {
+    if (pathIncludesSlug(pathname, vs)) score += vs.includes("-de-") ? 35 : 15;
   }
   return score;
 }
-function ticketekPageMatchesEvent(html, pageUrl, input) {
-  const score = scoreTicketekPage(html, pageUrl, input);
-  const path5 = pageUrl.toLowerCase();
-  const needsVenue = Boolean((input.eventPlace || "").trim());
-  if (needsVenue) {
-    const venueSlug = textToSlug(input.eventPlace);
-    if (venueSlug.length >= 4 && path5.includes(venueSlug)) return score >= 20;
-  }
-  return score >= 18;
-}
 
 // src/lib/ticketera-image-providers.ts
-var SHOW_PREFIX_RE = /^(experiencia|tributo|tributo a|homenaje|homenaje a|show|show de|festival|recital)\s+(.+)$/i;
+var SHOW_PREFIX_RE2 = /^(experiencia|tributo|tributo a|homenaje|homenaje a|show|show de|festival|recital)\s+(.+)$/i;
 var FETCH_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   Accept: "text/html,application/xhtml+xml",
@@ -19632,56 +19708,6 @@ var FETCH_HEADERS = {
 };
 function normalizeAscii(text) {
   return text.normalize("NFD").replace(new RegExp("\\p{Diacritic}", "gu"), "").toLowerCase().trim();
-}
-function buildEventSlugCandidates(eventName, eventDate) {
-  const slugs = /* @__PURE__ */ new Set();
-  const norm = normalizeAscii(eventName);
-  const words = norm.split(/[^a-z0-9]+/).filter((w) => w.length >= 2);
-  if (words.length) {
-    slugs.add(words.join("-"));
-    slugs.add(words.join(""));
-  }
-  const prefixMatch = eventName.match(SHOW_PREFIX_RE);
-  if (prefixMatch?.[2]) {
-    const core = normalizeAscii(prefixMatch[2]).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    if (core) {
-      slugs.add(core);
-      slugs.add(core.replace(/-/g, ""));
-      const prefixSlug = normalizeAscii(prefixMatch[1]).replace(/[^a-z0-9]+/g, "-");
-      if (prefixSlug) slugs.add(`${prefixSlug}-${core}`);
-    }
-  }
-  for (const w of words) {
-    if (w.length >= 3) slugs.add(w);
-  }
-  const numericSuffixes = dateAndHashSuffixes(eventName, eventDate);
-  const bases = [...slugs].filter((s) => s.length >= 3 && s.length <= 28);
-  for (const base of bases) {
-    for (const num of numericSuffixes) {
-      slugs.add(`${base}${num}`);
-    }
-  }
-  return [...slugs].slice(0, 36);
-}
-function dateAndHashSuffixes(eventName, eventDate) {
-  const nums = /* @__PURE__ */ new Set();
-  const iso = eventDate.match(/(20\d{2})-(\d{2})-(\d{2})/);
-  if (iso) {
-    nums.add(iso[1]);
-    nums.add(iso[2] + iso[3]);
-    nums.add(iso[3] + iso[2]);
-    nums.add(iso[2]);
-    nums.add(iso[3]);
-  }
-  const year = eventDate.match(/(20\d{2})/);
-  if (year) nums.add(year[1]);
-  for (const p of eventDate.match(/\d+/g) || []) {
-    if (p.length >= 2 && p.length <= 4) nums.add(p);
-  }
-  const h = [...normalizeAscii(eventName)].reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-  nums.add(String(h % 900 + 100));
-  nums.add(String(h % 1e3).padStart(3, "0"));
-  return [...nums].slice(0, 10);
 }
 function scoreImageUrlForEvent(url, eventName) {
   const file = url.split("/").pop()?.replace(/\.[a-z]+$/i, "") || "";
@@ -19772,48 +19798,43 @@ var TICKETEK_PROVIDER = {
   async findImageUrl(input, { download, log: log2 }) {
     const canonicalUrls = buildTicketekEventUrlCandidates(input);
     log2("ticketek URLs can\xF3nicas (show/venue)", {
-      count: canonicalUrls.length,
-      sample: canonicalUrls.slice(0, 4),
+      urls: canonicalUrls,
+      eventSlugs: eventToTicketekSlugs(input.eventName),
+      venueSlugs: venueToTicketekSlugs(input.eventPlace || ""),
       eventPlace: input.eventPlace
     });
     const verifiedSlugs = /* @__PURE__ */ new Set();
-    const imageCandidates = [];
     for (const pageUrl of canonicalUrls) {
-      const html = await fetchTicketekSsrHtml(pageUrl);
-      if (!html) {
-        log2("ticketek SSR sin HTML", { pageUrl });
+      const fetched = await fetchTicketekSsrHtml(pageUrl);
+      if (!fetched?.html) {
+        log2("ticketek SSR sin HTML", { pageUrl, status: fetched?.status ?? "timeout/error" });
         continue;
       }
-      const pageScore = scoreTicketekPage(html, pageUrl, input);
-      if (!ticketekPageMatchesEvent(html, pageUrl, input)) {
-        log2("ticketek p\xE1gina descartada", { pageUrl, pageScore });
+      const pageScore = scoreTicketekPage(fetched.html, pageUrl, input);
+      if (!ticketekPageMatchesEvent(fetched.html, pageUrl, input)) {
+        log2("ticketek p\xE1gina descartada", { pageUrl, pageScore, status: fetched.status });
         continue;
       }
-      log2("ticketek p\xE1gina v\xE1lida (SSR)", { pageUrl, pageScore });
-      for (const imgUrl of extractShowHeaderImagesFromHtml(html)) {
+      log2("ticketek p\xE1gina v\xE1lida (SSR)", { pageUrl, pageScore, status: fetched.status });
+      for (const imgUrl of extractShowHeaderImagesFromHtml(fetched.html)) {
         const slug = extractCmsSlugFromImageUrl(imgUrl);
         if (slug) verifiedSlugs.add(slug);
-        imageCandidates.push({ url: imgUrl, score: pageScore + 60 });
+        const normalized = normalizeTicketekCmsUrl(imgUrl);
+        const dl = await download(normalized, 7e3);
+        if (dl.ok) {
+          log2("ticketek imagen desde SSR", {
+            pageUrl,
+            url: normalized.slice(0, 110),
+            slug
+          });
+          return normalized;
+        }
       }
     }
-    imageCandidates.sort((a, b) => b.score - a.score);
-    for (const { url } of imageCandidates) {
-      const normalized = normalizeTicketekCmsUrl(url);
-      const dl = await download(normalized, 8e3);
-      if (dl.ok) {
-        log2("ticketek imagen desde SSR", { url: normalized.slice(0, 110), slug: extractCmsSlugFromImageUrl(normalized) });
-        return normalized;
-      }
-    }
-    const slugList = [...verifiedSlugs];
-    for (const s of buildEventSlugCandidates(input.eventName, input.eventDate)) {
-      if (!isUnsafeBareCmsSlug(s, input.eventName) && (s.includes("-") || s.length >= 10)) {
-        slugList.push(s);
-      }
-    }
+    const slugList = [...verifiedSlugs].filter((s) => !isUnsafeBareCmsSlug(s, input.eventName));
     const fromCms = await probeCmsSlugs(
       TICKETEK_CMS,
-      [...new Set(slugList)],
+      slugList,
       download,
       log2,
       "ticketek",
@@ -19823,6 +19844,7 @@ var TICKETEK_PROVIDER = {
     log2("ticketek sin imagen para show/venue", {
       eventPlace: input.eventPlace,
       eventCity: input.eventCity,
+      triedUrls: canonicalUrls,
       verifiedSlugs: [...verifiedSlugs]
     });
     return null;
@@ -19889,7 +19911,7 @@ var TITLE_STOPWORDS = /* @__PURE__ */ new Set([
 ]);
 function titleMatchesEvent(eventName, title) {
   const titleNorm = normalizeAscii(title);
-  const prefixMatch = eventName.match(SHOW_PREFIX_RE);
+  const prefixMatch = eventName.match(SHOW_PREFIX_RE2);
   if (prefixMatch?.[2]) {
     const artist = normalizeAscii(prefixMatch[2]).replace(/[^a-z0-9]+/g, "");
     const titleCompact = titleNorm.replace(/[^a-z0-9]+/g, "");
