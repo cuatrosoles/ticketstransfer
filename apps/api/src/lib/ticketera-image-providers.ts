@@ -9,6 +9,14 @@ import {
   scoreEventPageContext,
 } from './event-location-match.js';
 import {
+  allAccessEventPageMatches,
+  buildAllAccessEventUrlCandidates,
+  extractAllAccessEventLinks,
+  fetchAllAccessHtml,
+  pickBestAllAccessImageFromHtml,
+  ALLACCESS_IMAGE_RE,
+} from './allaccess-event.js';
+import {
   buildTicketekEventUrlCandidates,
   eventToTicketekSlugs,
   extractCmsSlugFromImageUrl,
@@ -329,45 +337,88 @@ export const TICKETEK_PROVIDER: TicketeraImageProvider = {
   },
 };
 
-const ALLACCESS_IMAGE_RE =
-  /https:\/\/[^"'\s]*(?:allaccess|cloudfront|amazonaws)[^"'\s]*\/[^"'\s]+\.(?:png|jpe?g|webp)(?:\?[^"'\s]*)?/gi;
-
-function extractAllAccessEventLinks(html: string): string[] {
-  const links = new Set<string>();
-  for (const m of html.matchAll(/href="(https?:\/\/[^"]*allaccess[^"]+)"/gi)) {
-    links.add(m[1].split('#')[0]);
-  }
-  for (const m of html.matchAll(/href="(\/evento\/[^"]+)"/gi)) {
-    links.add(`https://www.allaccess.com.ar${m[1].split('#')[0]}`);
-  }
-  return [...links].slice(0, 10);
-}
-
 export const ALLACCESS_PROVIDER: TicketeraImageProvider = {
   id: 'allaccess',
   ticketeraIds: ['ALLACCESS'],
-  async findImageUrl(input, { log }) {
+  async findImageUrl(input, { download, log }) {
+    const canonicalUrls = buildAllAccessEventUrlCandidates(input);
+    log('allaccess URLs canónicas (/event/{slug})', { urls: canonicalUrls });
+
+    for (const pageUrl of canonicalUrls) {
+      const html = await fetchAllAccessHtml(pageUrl);
+      if (!html) {
+        log('allaccess sin HTML', { pageUrl });
+        continue;
+      }
+      if (!allAccessEventPageMatches(html, pageUrl, input)) {
+        log('allaccess página descartada (evento/lugar)', {
+          pageUrl: pageUrl.slice(0, 90),
+          pageScore: scoreEventPageContext(html, input),
+        });
+        continue;
+      }
+      const imageUrl = pickBestAllAccessImageFromHtml(html, input);
+      if (!imageUrl) {
+        log('allaccess evento sin imagen en HTML', { pageUrl: pageUrl.slice(0, 90) });
+        continue;
+      }
+      const dl = await download(imageUrl, 8_000);
+      if (dl.ok) {
+        log('allaccess imagen desde evento', {
+          pageUrl: pageUrl.slice(0, 90),
+          url: imageUrl.slice(0, 110),
+          bytes: dl.buffer.length,
+        });
+        return imageUrl;
+      }
+      log('allaccess imagen no descargable', { url: imageUrl.slice(0, 90), reason: dl.reason });
+    }
+
     const query = buildEventSearchQuery(input);
-    const slug = normalizeAscii(input.eventName).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     const searchUrls = [
       `https://www.allaccess.com.ar/search?query=${encodeURIComponent(query)}`,
-      `https://www.allaccess.com.ar/evento/${encodeURIComponent(slug)}`,
     ];
 
     const detailPages: string[] = [];
     for (const url of searchUrls) {
-      const html = await fetchHtml(url);
+      const html = await fetchAllAccessHtml(url);
       if (html) detailPages.push(...extractAllAccessEventLinks(html), url);
     }
 
-    const candidates = await scrapeMatchedEventPages(
+    const eventOnlyPages = [...new Set(detailPages)].filter(
+      (u) => /\/event(?:\/|$)/i.test(u) || /\/evento\//i.test(u)
+    );
+
+    for (const pageUrl of eventOnlyPages.slice(0, 8)) {
+      const html = await fetchAllAccessHtml(pageUrl);
+      if (!html || !allAccessEventPageMatches(html, pageUrl, input)) continue;
+      const imageUrl = pickBestAllAccessImageFromHtml(html, input);
+      if (!imageUrl) continue;
+      const dl = await download(imageUrl, 8_000);
+      if (dl.ok) {
+        log('allaccess imagen desde búsqueda', { pageUrl: pageUrl.slice(0, 90), url: imageUrl.slice(0, 110) });
+        return imageUrl;
+      }
+    }
+
+    const venueFallback = await scrapeMatchedEventPages(
       [...new Set(detailPages)],
       ALLACCESS_IMAGE_RE,
       input,
       log,
       'allaccess'
     );
-    return candidates[0]?.url ?? null;
+    if (venueFallback[0]?.url) {
+      const dl = await download(venueFallback[0].url, 8_000);
+      if (dl.ok) return venueFallback[0].url;
+    }
+
+    log('allaccess sin imagen', {
+      eventPlace: input.eventPlace,
+      eventCity: input.eventCity,
+      triedUrls: canonicalUrls,
+    });
+    return null;
   },
 };
 

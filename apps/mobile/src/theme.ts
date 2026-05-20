@@ -19,6 +19,28 @@ export const colors = {
 export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };
 export const radius = 12;
 
+/** Padding mínimo del header respecto al borde de pantalla (izquierda/derecha) */
+export const headerEdgePadding = 6;
+
+/**
+ * Padding superior del header (debajo del status bar / safe area).
+ * Valor anterior ~4px en pantallas internas; duplicado = 8.
+ * Modificá solo este número para cambiar todas las cabeceras.
+ */
+export const headerTopPadding = 8;
+
+/**
+ * Padding inferior del header (encima del footer / safe area).
+ * Valor anterior ~6px en pantallas internas; duplicado = 12.
+ * Modificá solo este número para cambiar todas las cabeceras.
+ */
+export const headerBottomPadding = 4;
+
+/** Margen negativo para compensar padding del scroll y dejar solo headerEdgePadding al borde */
+export function headerBleedMargin(parentHorizontalPadding: number = spacing.lg): number {
+  return parentHorizontalPadding > headerEdgePadding ? -(parentHorizontalPadding - headerEdgePadding) : 0;
+}
+
 /** Estilo glass unificado (igual que auth) para cards en toda la app */
 export const glassCard = {
   backgroundColor: 'rgba(30, 58, 138, 0.4)' as const,

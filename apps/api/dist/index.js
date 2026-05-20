@@ -19512,6 +19512,129 @@ async function storeListingCaptureWithRedaction(listingId, kind, file) {
 // src/lib/event-image-resolver.ts
 import sharp from "sharp";
 
+// src/lib/allaccess-event.ts
+var FETCH_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  Accept: "text/html,application/xhtml+xml",
+  "Accept-Language": "es-AR,es;q=0.9"
+};
+var ALLACCESS_IMAGE_RE = /https:\/\/[^"'\s]*(?:getcrowder\.com|boletius\.com|allaccess|cloudfront|amazonaws)[^"'\s]*\/[^"'\s]+\.(?:png|jpe?g|webp)(?:\?[^"'\s]*)?/gi;
+async function fetchAllAccessHtml(pageUrl) {
+  try {
+    const res = await fetch(pageUrl, {
+      headers: FETCH_HEADERS,
+      signal: AbortSignal.timeout(1e4)
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+function buildAllAccessEventUrlCandidates(input) {
+  const urls = /* @__PURE__ */ new Set();
+  const primary = normalizeAscii(input.eventName).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  if (primary.length >= 3) {
+    urls.add(`https://www.allaccess.com.ar/event/${encodeURIComponent(primary)}`);
+  }
+  for (const slug of buildEventSlugCandidates(input.eventName, input.eventDate)) {
+    if (slug.length >= 3 && slug.length <= 80) {
+      urls.add(`https://www.allaccess.com.ar/event/${encodeURIComponent(slug)}`);
+    }
+  }
+  return [...urls].slice(0, 14);
+}
+function extractAllAccessEventLinks(html) {
+  const links = /* @__PURE__ */ new Set();
+  for (const m of html.matchAll(/href="(https?:\/\/[^"]*allaccess[^"]+)"/gi)) {
+    const href = m[1].split("#")[0];
+    if (/\/(?:event|evento|venue)\//i.test(href)) links.add(href);
+  }
+  for (const m of html.matchAll(/href="(\/(?:event|evento)\/[^"?#]+)"/gi)) {
+    links.add(`https://www.allaccess.com.ar${m[1].split("#")[0]}`);
+  }
+  return [...links].slice(0, 14);
+}
+function extractOgImage(html) {
+  const m = html.match(/property=["']og:image["'][^>]+content=["']([^"']+)["']/i) || html.match(/content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+  return m?.[1]?.trim() || null;
+}
+function extractCrowderContentImagesOrdered(html) {
+  const urls = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const m of html.matchAll(
+    /<img[^>]+src=['"](https:\/\/cdn\.getcrowder\.com\/images\/[^'"]+)['"]/gi
+  )) {
+    if (!seen.has(m[1])) {
+      seen.add(m[1]);
+      urls.push(m[1]);
+    }
+  }
+  return urls;
+}
+function pickPrimaryCrowderPoster(ordered) {
+  const clean = ordered.filter((u) => !isAllAccessNoiseImage(u));
+  const square = clean.filter((u) => /pdr640x640/i.test(u));
+  if (square.length) return square[square.length - 1];
+  const wide = clean.filter((u) => /pdr1920x720/i.test(u));
+  if (wide.length) return wide[0];
+  return clean[clean.length - 1] ?? null;
+}
+function isAllAccessNoiseImage(url) {
+  const u = url.toLowerCase();
+  if (u.includes("favicon")) return true;
+  if (u.includes("allaccess-black") || u.includes("allaccess-clear") || u.includes("allaccess_logo")) {
+    return true;
+  }
+  if (u.includes("null-ns") || u.includes("null-gradient")) return true;
+  if (u.includes("logo_web") || u.includes("logoflow")) return true;
+  if (u.includes("-arhiv-b.png")) return true;
+  if (u.includes("/shop/allaccess/")) return true;
+  return false;
+}
+function scoreAllAccessImageUrl(url, eventName) {
+  if (isAllAccessNoiseImage(url)) return -100;
+  let score = scoreImageUrlForEvent(url, eventName);
+  const u = url.toLowerCase();
+  if (u.includes("getcrowder.com/images/")) score += 22;
+  if (u.includes("pdr640x640")) score += 18;
+  if (u.includes("pdr1280x960")) score += 14;
+  if (u.includes("pdr1920x720")) score += 10;
+  return score;
+}
+function pickBestAllAccessImageFromHtml(html, input) {
+  const contentOrdered = extractCrowderContentImagesOrdered(html);
+  const primary = pickPrimaryCrowderPoster(contentOrdered);
+  if (primary) return primary;
+  const ranked = [];
+  const contentSet = new Set(contentOrdered);
+  for (const m of html.matchAll(ALLACCESS_IMAGE_RE)) {
+    const url = m[0];
+    if (contentSet.has(url)) continue;
+    const score = scoreAllAccessImageUrl(url, input.eventName);
+    if (score > 0) ranked.push({ url, score });
+  }
+  const og = extractOgImage(html);
+  if (og && !isAllAccessNoiseImage(og) && !contentSet.has(og)) {
+    ranked.push({ url: og, score: scoreAllAccessImageUrl(og, input.eventName) + 12 });
+  }
+  ranked.sort((a, b) => b.score - a.score);
+  return ranked[0]?.url ?? null;
+}
+function allAccessEventPageMatches(html, pageUrl, input) {
+  const isVenue = /\/venue\//i.test(pageUrl);
+  const isEvent = /\/event(?:\/|$)/i.test(pageUrl) || /\/evento\//i.test(pageUrl);
+  if (isVenue) {
+    return titleMatchesEvent(input.eventName, html.slice(0, 14e3)) && passesLocationGate(scoreEventPageContext(html, input), input);
+  }
+  if (isEvent) {
+    const score = scoreEventPageContext(html, input);
+    if (titleMatchesEvent(input.eventName, html.slice(0, 1e4))) return true;
+    return score >= 18 && normalizeAscii(html).includes(normalizeAscii(input.eventName).slice(0, 12));
+  }
+  return passesLocationGate(scoreEventPageContext(html, input), input);
+}
+
 // src/lib/ticketek-ssr.ts
 var TICKETEK_BOT_UA = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
 var TICKETEK_HOST = "https://www.ticketek.com.ar";
@@ -19701,13 +19824,63 @@ function scoreTicketekPage(html, pageUrl, input) {
 
 // src/lib/ticketera-image-providers.ts
 var SHOW_PREFIX_RE2 = /^(experiencia|tributo|tributo a|homenaje|homenaje a|show|show de|festival|recital)\s+(.+)$/i;
-var FETCH_HEADERS = {
+var FETCH_HEADERS2 = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   Accept: "text/html,application/xhtml+xml",
   "Accept-Language": "es-AR,es;q=0.9"
 };
 function normalizeAscii(text) {
   return text.normalize("NFD").replace(new RegExp("\\p{Diacritic}", "gu"), "").toLowerCase().trim();
+}
+function buildEventSlugCandidates(eventName, eventDate) {
+  const slugs = /* @__PURE__ */ new Set();
+  const norm = normalizeAscii(eventName);
+  const words = norm.split(/[^a-z0-9]+/).filter((w) => w.length >= 2);
+  if (words.length) {
+    slugs.add(words.join("-"));
+    slugs.add(words.join(""));
+  }
+  const prefixMatch = eventName.match(SHOW_PREFIX_RE2);
+  if (prefixMatch?.[2]) {
+    const core = normalizeAscii(prefixMatch[2]).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    if (core) {
+      slugs.add(core);
+      slugs.add(core.replace(/-/g, ""));
+      const prefixSlug = normalizeAscii(prefixMatch[1]).replace(/[^a-z0-9]+/g, "-");
+      if (prefixSlug) slugs.add(`${prefixSlug}-${core}`);
+    }
+  }
+  for (const w of words) {
+    if (w.length >= 3) slugs.add(w);
+  }
+  const numericSuffixes = dateAndHashSuffixes(eventName, eventDate);
+  const bases = [...slugs].filter((s) => s.length >= 3 && s.length <= 28);
+  for (const base of bases) {
+    for (const num of numericSuffixes) {
+      slugs.add(`${base}${num}`);
+    }
+  }
+  return [...slugs].slice(0, 36);
+}
+function dateAndHashSuffixes(eventName, eventDate) {
+  const nums = /* @__PURE__ */ new Set();
+  const iso = eventDate.match(/(20\d{2})-(\d{2})-(\d{2})/);
+  if (iso) {
+    nums.add(iso[1]);
+    nums.add(iso[2] + iso[3]);
+    nums.add(iso[3] + iso[2]);
+    nums.add(iso[2]);
+    nums.add(iso[3]);
+  }
+  const year = eventDate.match(/(20\d{2})/);
+  if (year) nums.add(year[1]);
+  for (const p of eventDate.match(/\d+/g) || []) {
+    if (p.length >= 2 && p.length <= 4) nums.add(p);
+  }
+  const h = [...normalizeAscii(eventName)].reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  nums.add(String(h % 900 + 100));
+  nums.add(String(h % 1e3).padStart(3, "0"));
+  return [...nums].slice(0, 10);
 }
 function scoreImageUrlForEvent(url, eventName) {
   const file = url.split("/").pop()?.replace(/\.[a-z]+$/i, "") || "";
@@ -19722,7 +19895,7 @@ function scoreImageUrlForEvent(url, eventName) {
 async function fetchHtml(pageUrl) {
   try {
     const res = await fetch(pageUrl, {
-      headers: FETCH_HEADERS,
+      headers: FETCH_HEADERS2,
       signal: AbortSignal.timeout(9e3)
     });
     if (!res.ok) return null;
@@ -19850,40 +20023,81 @@ var TICKETEK_PROVIDER = {
     return null;
   }
 };
-var ALLACCESS_IMAGE_RE = /https:\/\/[^"'\s]*(?:allaccess|cloudfront|amazonaws)[^"'\s]*\/[^"'\s]+\.(?:png|jpe?g|webp)(?:\?[^"'\s]*)?/gi;
-function extractAllAccessEventLinks(html) {
-  const links = /* @__PURE__ */ new Set();
-  for (const m of html.matchAll(/href="(https?:\/\/[^"]*allaccess[^"]+)"/gi)) {
-    links.add(m[1].split("#")[0]);
-  }
-  for (const m of html.matchAll(/href="(\/evento\/[^"]+)"/gi)) {
-    links.add(`https://www.allaccess.com.ar${m[1].split("#")[0]}`);
-  }
-  return [...links].slice(0, 10);
-}
 var ALLACCESS_PROVIDER = {
   id: "allaccess",
   ticketeraIds: ["ALLACCESS"],
-  async findImageUrl(input, { log: log2 }) {
+  async findImageUrl(input, { download, log: log2 }) {
+    const canonicalUrls = buildAllAccessEventUrlCandidates(input);
+    log2("allaccess URLs can\xF3nicas (/event/{slug})", { urls: canonicalUrls });
+    for (const pageUrl of canonicalUrls) {
+      const html = await fetchAllAccessHtml(pageUrl);
+      if (!html) {
+        log2("allaccess sin HTML", { pageUrl });
+        continue;
+      }
+      if (!allAccessEventPageMatches(html, pageUrl, input)) {
+        log2("allaccess p\xE1gina descartada (evento/lugar)", {
+          pageUrl: pageUrl.slice(0, 90),
+          pageScore: scoreEventPageContext(html, input)
+        });
+        continue;
+      }
+      const imageUrl = pickBestAllAccessImageFromHtml(html, input);
+      if (!imageUrl) {
+        log2("allaccess evento sin imagen en HTML", { pageUrl: pageUrl.slice(0, 90) });
+        continue;
+      }
+      const dl = await download(imageUrl, 8e3);
+      if (dl.ok) {
+        log2("allaccess imagen desde evento", {
+          pageUrl: pageUrl.slice(0, 90),
+          url: imageUrl.slice(0, 110),
+          bytes: dl.buffer.length
+        });
+        return imageUrl;
+      }
+      log2("allaccess imagen no descargable", { url: imageUrl.slice(0, 90), reason: dl.reason });
+    }
     const query = buildEventSearchQuery(input);
-    const slug = normalizeAscii(input.eventName).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const searchUrls = [
-      `https://www.allaccess.com.ar/search?query=${encodeURIComponent(query)}`,
-      `https://www.allaccess.com.ar/evento/${encodeURIComponent(slug)}`
+      `https://www.allaccess.com.ar/search?query=${encodeURIComponent(query)}`
     ];
     const detailPages = [];
     for (const url of searchUrls) {
-      const html = await fetchHtml(url);
+      const html = await fetchAllAccessHtml(url);
       if (html) detailPages.push(...extractAllAccessEventLinks(html), url);
     }
-    const candidates = await scrapeMatchedEventPages(
+    const eventOnlyPages = [...new Set(detailPages)].filter(
+      (u) => /\/event(?:\/|$)/i.test(u) || /\/evento\//i.test(u)
+    );
+    for (const pageUrl of eventOnlyPages.slice(0, 8)) {
+      const html = await fetchAllAccessHtml(pageUrl);
+      if (!html || !allAccessEventPageMatches(html, pageUrl, input)) continue;
+      const imageUrl = pickBestAllAccessImageFromHtml(html, input);
+      if (!imageUrl) continue;
+      const dl = await download(imageUrl, 8e3);
+      if (dl.ok) {
+        log2("allaccess imagen desde b\xFAsqueda", { pageUrl: pageUrl.slice(0, 90), url: imageUrl.slice(0, 110) });
+        return imageUrl;
+      }
+    }
+    const venueFallback = await scrapeMatchedEventPages(
       [...new Set(detailPages)],
       ALLACCESS_IMAGE_RE,
       input,
       log2,
       "allaccess"
     );
-    return candidates[0]?.url ?? null;
+    if (venueFallback[0]?.url) {
+      const dl = await download(venueFallback[0].url, 8e3);
+      if (dl.ok) return venueFallback[0].url;
+    }
+    log2("allaccess sin imagen", {
+      eventPlace: input.eventPlace,
+      eventCity: input.eventCity,
+      triedUrls: canonicalUrls
+    });
+    return null;
   }
 };
 var TICKETERA_PROVIDERS = [TICKETEK_PROVIDER, ALLACCESS_PROVIDER];
@@ -20069,6 +20283,8 @@ var BLOCKED_HOSTS = [
 var TRUSTED_HOST_HINTS = [
   "ticketek",
   "allaccess",
+  "getcrowder.com",
+  "boletius.com",
   "ticketmaster",
   "movistararena",
   "luna",

@@ -118,13 +118,16 @@ export function HomeScreen() {
     <AuthBackground>
       <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <HomeHeroHeader
-            profileImageUri={profileImageUrl}
-            onOpenMenu={openMenu}
-            onBell={() => navigation.navigate('Mensajes')}
-            onAvatar={() => navigation.navigate('Profile')}
-          />
+          <View style={styles.headerShell}>
+            <HomeHeroHeader
+              profileImageUri={profileImageUrl}
+              onOpenMenu={openMenu}
+              onBell={() => navigation.navigate('Mensajes')}
+              onAvatar={() => navigation.navigate('Profile')}
+            />
+          </View>
 
+          <View style={styles.body}>
           <View style={{ marginLeft: '-18%', marginBottom: '6%'}}>
             <TouchableOpacity onPress={goTienda} activeOpacity={0.2}>
               <Image source={require('../assets/images/home-hero-ref.png')} />
@@ -198,6 +201,7 @@ export function HomeScreen() {
               ))}
             </ScrollView>
           ) : null}
+          </View>
         </ScrollView>
       </SafeAreaView>
 
@@ -215,7 +219,9 @@ export function HomeScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  content: { paddingBottom: 100 },
+  headerShell: { width: '100%', marginBottom: spacing.sm },
+  body: { paddingHorizontal: spacing.lg },
   promoOuter: {
     marginBottom: spacing.lg,
     borderRadius: 20,

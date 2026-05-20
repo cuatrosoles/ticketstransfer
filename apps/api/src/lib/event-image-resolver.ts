@@ -56,6 +56,8 @@ const BLOCKED_HOSTS = [
 const TRUSTED_HOST_HINTS = [
   'ticketek',
   'allaccess',
+  'getcrowder.com',
+  'boletius.com',
   'ticketmaster',
   'movistararena',
   'luna',

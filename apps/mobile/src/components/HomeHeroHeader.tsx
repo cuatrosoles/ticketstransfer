@@ -1,15 +1,13 @@
 /**
- * Header Home según mockup: menú hamburguesa, logo centrado, campana y avatar.
+ * Header Home: menú, logo ancho, campana y avatar.
  */
 
 import * as React from 'react';
-import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Image, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
-import { BrandLogo } from './BrandLogo';
+import { BrandLogo, BRAND_LOGO_HEIGHT_COMPACT } from './BrandLogo';
 import { ensureImageUrl } from '../lib/api';
-
-const LOGO_ASPECT = 200 / 56;
-const SIDE_PAD = 16;
+import { headerEdgePadding, headerTopPadding } from '../theme';
 
 type Props = {
   profileImageUri: string | null;
@@ -20,6 +18,9 @@ type Props = {
 
 export function HomeHeroHeader({ profileImageUri, onOpenMenu, onBell, onAvatar }: Props) {
   const uriDisplay = ensureImageUrl(profileImageUri);
+  const { width: screenW } = useWindowDimensions();
+  const sideControlsW = 44 + 40 + 44 + 10 + 8;
+  const logoMaxWidth = Math.max(120, screenW - headerEdgePadding * 2 - sideControlsW);
 
   return (
     <View style={styles.row}>
@@ -28,9 +29,7 @@ export function HomeHeroHeader({ profileImageUri, onOpenMenu, onBell, onAvatar }
       </TouchableOpacity>
 
       <View style={styles.logoWrap}>
-        <View style={styles.logoGlow}>
-          <BrandLogo style={styles.logo} />
-        </View>
+        <BrandLogo height={BRAND_LOGO_HEIGHT_COMPACT} style={[styles.logo, { maxWidth: logoMaxWidth }]} />
       </View>
 
       <View style={styles.right}>
@@ -53,10 +52,12 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SIDE_PAD,
-    paddingBottom: 12,
-    gap: 8,
+    width: '100%',
+    paddingHorizontal: headerEdgePadding,
+    paddingTop: headerTopPadding,
+    paddingBottom: 8,
+    gap: 6,
+    minHeight: 48,
   },
   menuBtn: {
     width: 44,
@@ -67,32 +68,18 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(148, 163, 184, 0.35)',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   logoWrap: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 52,
     minWidth: 0,
-    paddingHorizontal: 4,
-  },
-  logoGlow: {
-    maxWidth: 280,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#38bdf8',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.85,
-    shadowRadius: 18,
-    elevation: 12,
   },
   logo: {
     width: '100%',
-    aspectRatio: LOGO_ASPECT,
-    maxHeight: 52,
   },
-  right: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  right: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
   iconGhost: {
     width: 40,
     height: 40,
