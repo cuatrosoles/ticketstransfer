@@ -36,7 +36,7 @@ export function Configuracion() {
   const [form, setForm] = useState<PlatformSettings>({
     commissionPercentage: 6.5,
     marketplaceHomePublicListingsLimit: 6,
-    mercadopago: { enabled: false, accessToken: '', publicKey: '', webhookSecret: '', sandboxMode: true },
+    mercadopago: { enabled: false, accessToken: '', publicKey: '', webhookSecret: '', sandboxMode: false },
     users: {},
     visual: {},
     notifications: {},
@@ -60,9 +60,19 @@ export function Configuracion() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const mp = form.mercadopago || {};
+      const payload: PlatformSettings = {
+        ...form,
+        mercadopago: {
+          ...mp,
+          sandboxMode: mp.sandboxMode === true,
+          sandboxUsePayerTestCom: mp.sandboxUsePayerTestCom === true,
+          sandboxUseRealEmail: mp.sandboxUseRealEmail === true,
+        },
+      };
       const updated = await api<PlatformSettings>('/api/admin/settings', {
         method: 'PUT',
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       setSettings(updated);
       setForm(updated);
@@ -240,7 +250,7 @@ export function Configuracion() {
               <label>
                 <input
                   type="checkbox"
-                  checked={form.mercadopago?.sandboxMode ?? true}
+                  checked={form.mercadopago?.sandboxMode === true}
                   onChange={(e) =>
                     setForm((f) => ({
                       ...f,
@@ -251,7 +261,8 @@ export function Configuracion() {
                 {' '}Modo Sandbox (pruebas)
               </label>
               <small className="text-muted">
-                Usar credenciales de prueba. Desactivar para producción.
+                Solo para pruebas con credenciales TEST de Mercado Pago. Desactivá y guardá para cobros reales
+                (credenciales de producción en Access Token y Public Key).
               </small>
             </div>
             <div className="form-group">

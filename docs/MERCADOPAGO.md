@@ -31,7 +31,8 @@ Checkout Pro para pagos seguros con escrow (reténción hasta confirmar transfer
 1. Admin → Configuración → Pasarelas de pago.
 2. Activar Mercado Pago.
 3. Ingresar Access Token y Webhook Secret.
-4. Guardar.
+4. **Desactivar "Modo Sandbox"** y guardar (obligatorio para cobros reales).
+5. Usar **credenciales de producción** (Access Token y Public Key de producción en el panel de MP).
 
 **Opción B – Variables de entorno**
 

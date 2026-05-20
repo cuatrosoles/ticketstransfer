@@ -33,7 +33,7 @@ export async function getMercadoPagoClient(): Promise<{
 
   if (settings.mercadopago.sandboxMode && !fromFirestore) {
     throw new Error(
-      'Modo prueba activo: usá las credenciales desde Admin/Firestore (platformSettings/main). No uses variables de entorno con credenciales de producción.'
+      'Modo sandbox activo: configurá Access Token y Public Key en Admin → Pasarelas de pago (Firestore). No uses variables de entorno en producción.'
     );
   }
 

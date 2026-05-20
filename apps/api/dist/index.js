@@ -18351,7 +18351,7 @@ var DEFAULTS = {
     accessToken: "",
     publicKey: "",
     webhookSecret: "",
-    sandboxMode: true,
+    sandboxMode: false,
     backUrlBase: "",
     sandboxUsePayerTestCom: false,
     sandboxUseRealEmail: false
@@ -18361,6 +18361,12 @@ var DEFAULTS = {
   notifications: {}
 };
 var SETTINGS_DOC_ID = "main";
+function parseBooleanSetting(value, fallback) {
+  if (value === true || value === false) return value;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return fallback;
+}
 var cachedSettings = null;
 var cacheExpiry = 0;
 var CACHE_TTL_MS = 3e4;
@@ -18385,10 +18391,16 @@ async function getPlatformSettings() {
       accessToken: d.mercadopago?.accessToken ?? "",
       publicKey: d.mercadopago?.publicKey ?? "",
       webhookSecret: d.mercadopago?.webhookSecret ?? "",
-      sandboxMode: d.mercadopago?.sandboxMode ?? true,
+      sandboxMode: parseBooleanSetting(d.mercadopago?.sandboxMode, DEFAULTS.mercadopago.sandboxMode),
       backUrlBase: d.mercadopago?.backUrlBase ?? "",
-      sandboxUsePayerTestCom: d.mercadopago?.sandboxUsePayerTestCom ?? false,
-      sandboxUseRealEmail: d.mercadopago?.sandboxUseRealEmail ?? false
+      sandboxUsePayerTestCom: parseBooleanSetting(
+        d.mercadopago?.sandboxUsePayerTestCom,
+        DEFAULTS.mercadopago.sandboxUsePayerTestCom ?? false
+      ),
+      sandboxUseRealEmail: parseBooleanSetting(
+        d.mercadopago?.sandboxUseRealEmail,
+        DEFAULTS.mercadopago.sandboxUseRealEmail ?? false
+      )
     },
     users: d.users ?? {},
     visual: d.visual ?? {},
@@ -18429,7 +18441,7 @@ async function getMercadoPagoClient() {
   }
   if (settings.mercadopago.sandboxMode && !fromFirestore) {
     throw new Error(
-      "Modo prueba activo: us\xE1 las credenciales desde Admin/Firestore (platformSettings/main). No uses variables de entorno con credenciales de producci\xF3n."
+      "Modo sandbox activo: configur\xE1 Access Token y Public Key en Admin \u2192 Pasarelas de pago (Firestore). No uses variables de entorno en producci\xF3n."
     );
   }
   if (!client || lastToken !== token) {
@@ -22416,10 +22428,10 @@ router7.put("/settings", async (req, res) => {
       accessToken: useNew(mp.accessToken, "accessToken"),
       publicKey: useNew(mp.publicKey, "publicKey"),
       webhookSecret: useNew(mp.webhookSecret, "webhookSecret"),
-      sandboxMode: typeof mp.sandboxMode === "boolean" ? mp.sandboxMode : current.mercadopago.sandboxMode,
+      sandboxMode: "sandboxMode" in mp ? parseBooleanSetting(mp.sandboxMode, false) : current.mercadopago.sandboxMode,
       backUrlBase: typeof mp.backUrlBase === "string" ? mp.backUrlBase : current.mercadopago.backUrlBase ?? "",
-      sandboxUsePayerTestCom: typeof mp.sandboxUsePayerTestCom === "boolean" ? mp.sandboxUsePayerTestCom : current.mercadopago.sandboxUsePayerTestCom ?? false,
-      sandboxUseRealEmail: typeof mp.sandboxUseRealEmail === "boolean" ? mp.sandboxUseRealEmail : current.mercadopago.sandboxUseRealEmail ?? false
+      sandboxUsePayerTestCom: "sandboxUsePayerTestCom" in mp ? parseBooleanSetting(mp.sandboxUsePayerTestCom, false) : current.mercadopago.sandboxUsePayerTestCom ?? false,
+      sandboxUseRealEmail: "sandboxUseRealEmail" in mp ? parseBooleanSetting(mp.sandboxUseRealEmail, false) : current.mercadopago.sandboxUseRealEmail ?? false
     };
   }
   if (body.users && typeof body.users === "object") {
@@ -23891,12 +23903,14 @@ router9.get("/public-key", async (_req, res) => {
 });
 router9.get("/payer-email", requireAuth, async (req, res) => {
   const settings = await getPlatformSettings();
-  if (settings.mercadopago.sandboxUseRealEmail) {
-    const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
-    const email = userDoc.data()?.email;
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
+  const email = userDoc.data()?.email;
+  const useRealEmail = !settings.mercadopago.sandboxMode || settings.mercadopago.sandboxUseRealEmail;
+  if (useRealEmail) {
     if (email && typeof email === "string") {
       return res.json({ payerEmail: email });
     }
+    return res.status(400).json({ error: "Usuario sin email" });
   }
   res.json({ payerEmail: "test_payer_1@testuser.com" });
 });

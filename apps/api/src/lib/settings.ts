@@ -45,7 +45,7 @@ const DEFAULTS: PlatformSettings = {
     accessToken: '',
     publicKey: '',
     webhookSecret: '',
-    sandboxMode: true,
+    sandboxMode: false,
     backUrlBase: '',
     sandboxUsePayerTestCom: false,
     sandboxUseRealEmail: false,
@@ -56,6 +56,14 @@ const DEFAULTS: PlatformSettings = {
 };
 
 const SETTINGS_DOC_ID = 'main';
+
+/** Firestore a veces guarda booleanos como string; normaliza para settings de MP. */
+export function parseBooleanSetting(value: unknown, fallback: boolean): boolean {
+  if (value === true || value === false) return value;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return fallback;
+}
 
 let cachedSettings: PlatformSettings | null = null;
 let cacheExpiry = 0;
@@ -82,10 +90,16 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
       accessToken: d.mercadopago?.accessToken ?? '',
       publicKey: d.mercadopago?.publicKey ?? '',
       webhookSecret: d.mercadopago?.webhookSecret ?? '',
-      sandboxMode: d.mercadopago?.sandboxMode ?? true,
+      sandboxMode: parseBooleanSetting(d.mercadopago?.sandboxMode, DEFAULTS.mercadopago.sandboxMode),
       backUrlBase: d.mercadopago?.backUrlBase ?? '',
-      sandboxUsePayerTestCom: d.mercadopago?.sandboxUsePayerTestCom ?? false,
-      sandboxUseRealEmail: d.mercadopago?.sandboxUseRealEmail ?? false,
+      sandboxUsePayerTestCom: parseBooleanSetting(
+        d.mercadopago?.sandboxUsePayerTestCom,
+        DEFAULTS.mercadopago.sandboxUsePayerTestCom ?? false
+      ),
+      sandboxUseRealEmail: parseBooleanSetting(
+        d.mercadopago?.sandboxUseRealEmail,
+        DEFAULTS.mercadopago.sandboxUseRealEmail ?? false
+      ),
     },
     users: d.users ?? {},
     visual: d.visual ?? {},

@@ -7,7 +7,7 @@ import multer from 'multer';
 import { storeEventCoverFromBuffer } from '../lib/event-image-resolver.js';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { requireAuth, requireAdmin, type AuthRequest } from '../middleware/auth.js';
-import { getPlatformSettings, invalidateSettingsCache } from '../lib/settings.js';
+import { getPlatformSettings, invalidateSettingsCache, parseBooleanSetting } from '../lib/settings.js';
 import { getOrCreateCustomer, listCustomerCards } from '../lib/mercadopago.js';
 import { getDiditSessionDecision, updateDiditSessionStatus } from '../lib/didit.js';
 import { ORDER_STATUS, TICKET_LISTING_STATUS, DISPUTE_STATUS } from '@tickets-transfer/shared';
@@ -77,10 +77,19 @@ router.put('/settings', async (req: AuthRequest, res) => {
       accessToken: useNew(mp.accessToken, 'accessToken'),
       publicKey: useNew(mp.publicKey, 'publicKey'),
       webhookSecret: useNew(mp.webhookSecret, 'webhookSecret'),
-      sandboxMode: typeof mp.sandboxMode === 'boolean' ? mp.sandboxMode : current.mercadopago.sandboxMode,
+      sandboxMode:
+        'sandboxMode' in mp
+          ? parseBooleanSetting(mp.sandboxMode, false)
+          : current.mercadopago.sandboxMode,
       backUrlBase: typeof mp.backUrlBase === 'string' ? mp.backUrlBase : (current.mercadopago.backUrlBase ?? ''),
-      sandboxUsePayerTestCom: typeof mp.sandboxUsePayerTestCom === 'boolean' ? mp.sandboxUsePayerTestCom : (current.mercadopago.sandboxUsePayerTestCom ?? false),
-      sandboxUseRealEmail: typeof mp.sandboxUseRealEmail === 'boolean' ? mp.sandboxUseRealEmail : (current.mercadopago.sandboxUseRealEmail ?? false),
+      sandboxUsePayerTestCom:
+        'sandboxUsePayerTestCom' in mp
+          ? parseBooleanSetting(mp.sandboxUsePayerTestCom, false)
+          : (current.mercadopago.sandboxUsePayerTestCom ?? false),
+      sandboxUseRealEmail:
+        'sandboxUseRealEmail' in mp
+          ? parseBooleanSetting(mp.sandboxUseRealEmail, false)
+          : (current.mercadopago.sandboxUseRealEmail ?? false),
     };
   }
 

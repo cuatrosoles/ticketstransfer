@@ -24,16 +24,21 @@ router.get('/public-key', async (_req, res) => {
   }
 });
 
-/** Email del payer para el Brick (cuando sandboxUseRealEmail: usa email real) */
+/** Email del payer para el Brick (producción: email real; sandbox: test o real según flags) */
 router.get('/payer-email', requireAuth, async (req: AuthRequest, res) => {
   const settings = await getPlatformSettings();
-  if (settings.mercadopago.sandboxUseRealEmail) {
-    const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
-    const email = userDoc.data()?.email;
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
+  const email = userDoc.data()?.email;
+  const useRealEmail =
+    !settings.mercadopago.sandboxMode || settings.mercadopago.sandboxUseRealEmail;
+
+  if (useRealEmail) {
     if (email && typeof email === 'string') {
       return res.json({ payerEmail: email });
     }
+    return res.status(400).json({ error: 'Usuario sin email' });
   }
+
   res.json({ payerEmail: 'test_payer_1@testuser.com' });
 });
 
