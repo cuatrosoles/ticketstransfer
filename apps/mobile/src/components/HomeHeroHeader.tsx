@@ -3,9 +3,9 @@
  */
 
 import * as React from 'react';
-import { View, Image, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
-import { useBranding } from '../context/BrandingContext';
+import { BrandLogo } from './BrandLogo';
 import { ensureImageUrl } from '../lib/api';
 
 const LOGO_ASPECT = 200 / 56;
@@ -19,7 +19,6 @@ type Props = {
 };
 
 export function HomeHeroHeader({ profileImageUri, onOpenMenu, onBell, onAvatar }: Props) {
-  const brand = useBranding();
   const uriDisplay = ensureImageUrl(profileImageUri);
 
   return (
@@ -30,13 +29,7 @@ export function HomeHeroHeader({ profileImageUri, onOpenMenu, onBell, onAvatar }
 
       <View style={styles.logoWrap}>
         <View style={styles.logoGlow}>
-          {brand.logoUrl ? (
-            <Image source={{ uri: brand.logoUrl }} style={styles.logo} resizeMode="contain" />
-          ) : (
-            <Text style={styles.logoFallback} numberOfLines={1}>
-              Tickets Transfer
-            </Text>
-          )}
+          <BrandLogo style={styles.logo} />
         </View>
       </View>
 
@@ -98,13 +91,6 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: LOGO_ASPECT,
     maxHeight: 52,
-  },
-  logoFallback: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#f8fafc',
-    letterSpacing: 0.5,
-    textAlign: 'center',
   },
   right: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconGhost: {

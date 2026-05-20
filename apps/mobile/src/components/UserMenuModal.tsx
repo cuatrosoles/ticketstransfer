@@ -17,7 +17,9 @@ type MenuEntry =
 
 const MENU_ITEMS: MenuEntry[] = [
   { id: 'inicio', label: 'Inicio', kind: 'tab', tab: 'Home' },
-  { id: 'perfil', label: 'Información de tu perfil', kind: 'tab', tab: 'Profile' },
+  
+  ///{ id: 'perfil', label: 'Información de tu perfil', kind: 'tab', tab: 'Profile' },
+  
   { id: 'tarjetas', label: 'Tarjetas adheridas', kind: 'stack', route: 'TarjetasAdheridas' },
   { id: 'soporte', label: 'Chat Soporte', kind: 'stack', route: 'ChatSoporte' },
   { id: 'mensajes', label: 'Mensajes', kind: 'stack', route: 'Mensajes' },
