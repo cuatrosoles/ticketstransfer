@@ -65,7 +65,8 @@ export function TiendaScreen() {
   const gap = spacing.sm;
   const horizontalPad = spacing.lg;
   const cardWidth = (width - horizontalPad * 2 - gap) / 2;
-  const storeCardMinHeight = Math.round(Math.max(260, cardWidth * 1.38));
+  /** Altura del ticket en Tienda (cubre portada + título 2 líneas + metadatos + zona código de barras). */
+  const storeCardHeight = Math.round(Math.max(320, cardWidth * 1.55));
 
   const goDetail = (id: string) => {
     navigation.navigate('ComprarTicketDetalle', { listingId: id, password: '' });
@@ -100,11 +101,15 @@ export function TiendaScreen() {
           ) : null}
           <View style={styles.grid}>
             {items.map((item) => (
-              <View key={item.id} style={{ width: cardWidth, marginBottom: spacing.md }}>
+              <View
+                key={item.id}
+                style={[styles.gridCell, { width: cardWidth, height: storeCardHeight }]}
+              >
                 <MarketplaceTicketCard
                   item={item}
                   compact={false}
-                  minFrameHeight={storeCardMinHeight}
+                  frameHeight={storeCardHeight}
+                  fixedTitleLines={2}
                   formatEventDateTime={formatDateTime}
                   onPress={() => goDetail(item.id)}
                   favoriteActive={isFavorite(item.id)}
@@ -136,6 +141,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 0,
+    columnGap: spacing.sm,
+    rowGap: spacing.md,
+  },
+  gridCell: {
+    overflow: 'hidden',
   },
 });

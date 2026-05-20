@@ -14,6 +14,8 @@ import { formatEventLocationDisplay } from '@tickets-transfer/shared';
 /** Espacio reservado sobre la franja decorativa del PNG (código de barras) para que el texto no se solape. */
 const BARCODE_SAFE_INSET = 52;
 
+const TITLE_LINE_HEIGHT = 20;
+
 type Props = {
   item: MarketplacePublicItem;
   onPress: () => void;
@@ -21,6 +23,10 @@ type Props = {
   compact?: boolean;
   /** Altura mínima del stub (inicio: más alto que ancho ⇒ orientación vertical leg) */
   minFrameHeight?: number;
+  /** Altura fija del stub (Tienda). */
+  frameHeight?: number;
+  /** Reserva exactamente N líneas para el título (min y max). Usado en Tienda. */
+  fixedTitleLines?: number;
   formatEventDateTime: (iso: string | Date) => string;
   /** Favoritos: corazón flotante; no dispara la tarjeta */
   favoriteActive?: boolean;
@@ -32,11 +38,15 @@ export function MarketplaceTicketCard({
   onPress,
   compact,
   minFrameHeight,
+  frameHeight,
+  fixedTitleLines,
   formatEventDateTime,
   favoriteActive,
   onFavoritePress,
 }: Props) {
-  const isPortraitStub = minFrameHeight != null && minFrameHeight > 0;
+  const isPortraitStub =
+    (frameHeight != null && frameHeight > 0) || (minFrameHeight != null && minFrameHeight > 0);
+  const fillCell = frameHeight != null && frameHeight > 0;
   const padH = compact ? spacing.lg : spacing.xl;
   const padTop = compact ? spacing.lg : spacing.lg;
   const padBottom = isPortraitStub
@@ -45,17 +55,19 @@ export function MarketplaceTicketCard({
       ? spacing.lg
       : spacing.lg;
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, fillCell && styles.wrapFill]}>
       <TouchableOpacity
         onPress={onPress}
         activeOpacity={0.9}
+        style={fillCell ? styles.pressableFill : undefined}
         accessibilityRole="button"
         accessibilityLabel={`${item.eventName}, comprar ticket`}
       >
         <TicketStubBackground
           backgroundOrientation="portrait"
           style={styles.stub}
-          minFrameHeight={minFrameHeight}
+          minFrameHeight={fillCell ? undefined : minFrameHeight}
+          frameHeight={frameHeight}
           contentStyle={{
             paddingHorizontal: padH,
             paddingTop: padTop,
@@ -69,9 +81,30 @@ export function MarketplaceTicketCard({
             showGlyph={false}
             style={styles.cover}
           />
-          <Text style={[styles.event, compact && styles.eventCompact]} numberOfLines={2}>
-            {item.eventName}
-          </Text>
+          {fixedTitleLines != null && fixedTitleLines > 0 ? (
+            <View
+              style={[
+                styles.eventTitleBox,
+                { height: TITLE_LINE_HEIGHT * fixedTitleLines },
+                compact && styles.eventTitleBoxCompact,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.event,
+                  compact && styles.eventCompact,
+                  { lineHeight: TITLE_LINE_HEIGHT },
+                ]}
+                numberOfLines={fixedTitleLines}
+              >
+                {item.eventName}
+              </Text>
+            </View>
+          ) : (
+            <Text style={[styles.event, compact && styles.eventCompact]} numberOfLines={2}>
+              {item.eventName}
+            </Text>
+          )}
           <View style={[styles.perforation, compact && styles.perforationCompact]} />
           <Text style={[styles.meta, compact && styles.metaCompact]} numberOfLines={2}>
             {formatEventDateTime(item.eventDate)}
@@ -102,7 +135,9 @@ export function MarketplaceTicketCard({
 
 const styles = StyleSheet.create({
   wrap: { width: '100%', position: 'relative' },
-  stub: { width: '100%' },
+  wrapFill: { flex: 1, height: '100%', overflow: 'hidden' },
+  pressableFill: { flex: 1, height: '100%' },
+  stub: { width: '100%', flex: 1 },
   cover: { borderRadius: 10, marginBottom: spacing.sm },
   fabFav: {
     position: 'absolute',
@@ -123,9 +158,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: spacing.xs,
+    lineHeight: TITLE_LINE_HEIGHT,
   },
-  eventCompact: { fontSize: 12, marginBottom: spacing.sm },
+  eventTitleBox: {
+    width: '100%',
+    marginBottom: spacing.xs,
+    justifyContent: 'flex-start',
+    overflow: 'hidden',
+  },
+  eventTitleBoxCompact: { marginBottom: spacing.sm },
+  eventCompact: { fontSize: 12 },
   perforation: {
     borderStyle: 'dashed',
     borderBottomWidth: 1,

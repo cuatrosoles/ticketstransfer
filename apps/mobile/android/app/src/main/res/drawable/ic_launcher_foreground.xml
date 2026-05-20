@@ -6,7 +6,7 @@
 -->
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@mipmap/ic_launcher_art"
-    android:insetLeft="24%"
-    android:insetTop="24%"
-    android:insetRight="24%"
-    android:insetBottom="24%" />
+    android:insetLeft="16%"
+    android:insetTop="16%"
+    android:insetRight="16%"
+    android:insetBottom="16%" />
