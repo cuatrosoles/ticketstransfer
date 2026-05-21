@@ -188,11 +188,9 @@ export async function searchPaymentsByExternalReference(orderId: string): Promis
     const { payment } = await getMercadoPagoClient();
     const result = await payment.search({
       options: {
-        qs: {
-          external_reference: orderId,
-          sort: 'date_created',
-          criteria: 'desc',
-        },
+        external_reference: orderId,
+        sort: 'date_created',
+        criteria: 'desc',
       },
     });
     const rows = (result as { results?: unknown[] })?.results ?? [];

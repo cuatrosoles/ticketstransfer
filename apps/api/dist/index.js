@@ -13780,11 +13780,9 @@ async function searchPaymentsByExternalReference(orderId) {
     const { payment } = await getMercadoPagoClient();
     const result = await payment.search({
       options: {
-        qs: {
-          external_reference: orderId,
-          sort: "date_created",
-          criteria: "desc"
-        }
+        external_reference: orderId,
+        sort: "date_created",
+        criteria: "desc"
       }
     });
     const rows = result?.results ?? [];
@@ -14148,8 +14146,8 @@ async function applyMercadoPagoPaymentToOrder(orderId, payment, options) {
   const orderCurrency = String(ord.currency || "ARS").toUpperCase();
   const listingId = String(ord.ticketListingId || "");
   const notify = options?.notify !== false;
-  let listingDoc = listingId ? await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(listingId).get() : null;
-  const eventName = listingDoc?.exists && String(listingDoc.data()?.eventName || "") || "Ticket";
+  const listingDoc = listingId ? await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(listingId).get() : null;
+  const eventName = listingDoc?.exists ? String(listingDoc.data()?.eventName || "Ticket") : "Ticket";
   if (payment.status === "approved") {
     if (!paymentMatchesOrder(payment, expectedTotal, orderCurrency)) {
       console.warn("MP pago aprobado no coincide con orden", { orderId, payment });
@@ -22255,6 +22253,7 @@ router5.post("/", async (req, res) => {
       console.error("Error creando preferencia MercadoPago:", e);
       try {
         await db().collection(COLLECTIONS.ORDERS).doc(orderId).delete();
+        await releaseListingReservation(ticketListingId, orderId);
       } catch (delErr) {
         console.error("No se pudo revertir orden tras fallo de MP:", delErr);
       }
