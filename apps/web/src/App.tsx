@@ -11,6 +11,7 @@ import { Register } from './pages/Register';
 import { Kyc } from './pages/Kyc';
 import { KycCallback } from './pages/KycCallback';
 import { Home } from './pages/Home';
+import { PreferencesOnboarding } from './pages/PreferencesOnboarding';
 import { ComprarTicket } from './pages/ComprarTicket';
 import { ComprarTicketDetalle } from './pages/ComprarTicketDetalle';
 import { MiPublicacion } from './pages/MiPublicacion';
@@ -48,6 +49,7 @@ export function App() {
       <Route path="/kyc" element={<ProtectedRoute><Layout><Kyc /></Layout></ProtectedRoute>} />
       <Route path="/kyc/callback" element={<ProtectedRoute><Layout><KycCallback /></Layout></ProtectedRoute>} />
       <Route path="/home" element={<ProtectedRoute><Layout><Home /></Layout></ProtectedRoute>} />
+      <Route path="/onboarding/preferencias" element={<ProtectedRoute><Layout><PreferencesOnboarding /></Layout></ProtectedRoute>} />
       <Route path="/publicar" element={<ProtectedRoute><Layout><Publicar /></Layout></ProtectedRoute>} />
       <Route path="/comprar-ticket" element={<ProtectedRoute><Layout><ComprarTicket /></Layout></ProtectedRoute>} />
       <Route path="/comprar-ticket/detalle" element={<ProtectedRoute><Layout><ComprarTicketDetalle /></Layout></ProtectedRoute>} />

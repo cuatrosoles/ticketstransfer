@@ -21,6 +21,7 @@ export type RootStackParamList = {
   Welcome: undefined;
   Login: undefined;
   Register: undefined;
+  PreferencesOnboarding: undefined;
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   Kyc: undefined;
   KycWebView: { sessionUrl: string };

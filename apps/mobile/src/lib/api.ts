@@ -206,6 +206,57 @@ export async function getMarketplacePublicListings(): Promise<{ limit: number; i
   return api<{ limit: number; items: MarketplacePublicItem[] }>('/api/tickets/marketplace/public');
 }
 
+export type UserPreferences = {
+  eventPreferences: string[];
+  tasteOnboardingCompleted: boolean;
+  tasteOnboardingCompletedAt: string | null;
+  categoryScores: Record<string, number>;
+  topCategories: { category: string; score: number; label: string }[];
+};
+
+export type MarketplaceRecommendedResponse = {
+  limit: number;
+  featured: MarketplacePublicItem[];
+  recommended: MarketplacePublicItem[];
+  preferences: UserPreferences;
+  personalized: boolean;
+};
+
+export async function getMarketplaceRecommended(): Promise<MarketplaceRecommendedResponse> {
+  return api<MarketplaceRecommendedResponse>('/api/tickets/marketplace/recommended');
+}
+
+export async function getUserPreferences(): Promise<UserPreferences> {
+  return api<UserPreferences>('/api/users/preferences');
+}
+
+export async function completeTasteOnboarding(eventPreferences: string[]): Promise<{ ok: boolean; preferences: UserPreferences }> {
+  return api<{ ok: boolean; preferences: UserPreferences }>('/api/users/preferences/onboarding', {
+    method: 'POST',
+    body: JSON.stringify({ eventPreferences }),
+  });
+}
+
+export async function updateUserPreferences(eventPreferences: string[]): Promise<UserPreferences> {
+  return api<UserPreferences>('/api/users/preferences', {
+    method: 'PATCH',
+    body: JSON.stringify({ eventPreferences }),
+  });
+}
+
+export type ListingInteractionType = 'VIEW' | 'CLICK' | 'FAVORITE_ADD' | 'FAVORITE_REMOVE';
+
+export async function recordListingInteraction(
+  listingId: string,
+  type: ListingInteractionType,
+  category?: string | null
+): Promise<void> {
+  await api('/api/users/preferences/interaction', {
+    method: 'POST',
+    body: JSON.stringify({ listingId, type, category: category ?? undefined }),
+  });
+}
+
 /** Todos los tickets públicos disponibles en la Tienda (hasta 100). */
 export async function getMarketplaceStoreListings(): Promise<{ limit: number; items: MarketplacePublicItem[] }> {
   return api<{ limit: number; items: MarketplacePublicItem[] }>(
@@ -236,6 +287,7 @@ export type Profile = {
   cbuCvu: string | null;
   bankName: string | null;
   kyc: { status: string; rejectionReason: string | null } | null;
+  preferences?: UserPreferences;
 };
 
 export type ProfileUpdate = {

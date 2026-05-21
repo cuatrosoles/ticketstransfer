@@ -38,6 +38,21 @@ export const onboardingSchema = z.object({
     ticketeras: z.array(z.string()).min(1, 'Elige al menos una ticketera'),
     appsBoletos: z.array(z.string()).min(1, 'Elige al menos una app de boletos'),
 });
+const preferenciaEventoEnum = z.enum(['MUSICA', 'DEPORTES', 'TEATRO', 'STAND_UP', 'FESTIVALES', 'OTRO']);
+/** Onboarding de gustos: tipos de eventos que le interesan al usuario */
+export const tasteOnboardingSchema = z.object({
+    eventPreferences: z.array(preferenciaEventoEnum).min(1, 'Elegí al menos un tipo de evento'),
+});
+/** Actualización parcial de preferencias desde el perfil */
+export const userPreferencesPatchSchema = z.object({
+    eventPreferences: z.array(preferenciaEventoEnum).min(1).optional(),
+});
+/** Registro de interacción con un listing (vista, click, favorito) */
+export const listingInteractionSchema = z.object({
+    listingId: z.string().min(1),
+    type: z.enum(['VIEW', 'CLICK', 'FAVORITE_ADD', 'FAVORITE_REMOVE']),
+    category: z.enum(['MUSICA', 'DEPORTES', 'TEATRO', 'FESTIVALES', 'OTRO']).optional(),
+});
 const ticketeraEnum = z.enum(['TICKETEK', 'ALLACCESS', 'TICKET_PLUS', 'OTRA']);
 const appBoletosEnum = z.enum(['QUENTRO', 'ENIGMA', 'OTRA']);
 const tipoEntradaEnum = z.enum(['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO']);

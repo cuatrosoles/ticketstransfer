@@ -12,6 +12,8 @@ export const COLLECTIONS = {
   USERS: 'users',
   EMAIL_VERIFICATION_CODES: 'emailVerificationCodes',
   USER_ONBOARDING: 'userOnboarding',
+  USER_PREFERENCES: 'userPreferences',
+  USER_LISTING_INTERACTIONS: 'userListingInteractions',
   KYC_VERIFICATIONS: 'kycVerifications',
   TICKET_LISTINGS: 'ticketListings',
   ORDERS: 'orders',

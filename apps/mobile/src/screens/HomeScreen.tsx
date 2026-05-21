@@ -28,7 +28,7 @@ import { useBranding } from '../context/BrandingContext';
 import { useUserMenu } from '../context/UserMenuContext';
 import { useProfileImage } from '../context/ProfileImageContext';
 import { useFavorites } from '../context/FavoritesContext';
-import { getMarketplacePublicListings, type MarketplacePublicItem } from '../lib/api';
+import { getMarketplaceRecommended, recordListingInteraction, type MarketplacePublicItem } from '../lib/api';
 import { formatDateTime } from '../lib/datetime';
 import { colors, spacing } from '../theme';
 
@@ -36,13 +36,17 @@ type Nav = TabCompositeNavigationProp<'Home'>;
 
 export function HomeScreen() {
   const [showBiometricModal, setShowBiometricModal] = useState(false);
-  const [marketplaceItems, setMarketplaceItems] = useState<MarketplacePublicItem[]>([]);
+  const [featured, setFeatured] = useState<MarketplacePublicItem[]>([]);
+  const [recommended, setRecommended] = useState<MarketplacePublicItem[]>([]);
+  const [personalized, setPersonalized] = useState(false);
   const [marketplaceLoading, setMarketplaceLoading] = useState(true);
   const [marketplaceError, setMarketplaceError] = useState('');
   const route = useRoute<RouteProp<MainTabParamList, 'Home'>>();
   const {
     getPostRegisterRedirectToKyc,
     clearPostRegisterRedirectToKyc,
+    getPostRegisterRedirectToPreferences,
+    clearPostRegisterRedirectToPreferences,
     getPendingBiometricPrompt,
     clearPendingBiometricPrompt,
     enableBiometrics,
@@ -58,11 +62,22 @@ export function HomeScreen() {
   const { isFavorite, toggleFavorite } = useFavorites();
 
   useEffect(() => {
+    if (getPostRegisterRedirectToPreferences()) {
+      clearPostRegisterRedirectToPreferences();
+      navigation.navigate('PreferencesOnboarding');
+      return;
+    }
     if (getPostRegisterRedirectToKyc()) {
       clearPostRegisterRedirectToKyc();
       navigation.navigate('Kyc');
     }
-  }, [getPostRegisterRedirectToKyc, clearPostRegisterRedirectToKyc, navigation]);
+  }, [
+    getPostRegisterRedirectToPreferences,
+    clearPostRegisterRedirectToPreferences,
+    getPostRegisterRedirectToKyc,
+    clearPostRegisterRedirectToKyc,
+    navigation,
+  ]);
 
   useEffect(() => {
     if (!getPendingBiometricPrompt() || !biometricAvailability) return;
@@ -76,9 +91,13 @@ export function HomeScreen() {
     let cancelled = false;
     setMarketplaceLoading(true);
     setMarketplaceError('');
-    getMarketplacePublicListings()
+    getMarketplaceRecommended()
       .then((res) => {
-        if (!cancelled) setMarketplaceItems(res.items ?? []);
+        if (!cancelled) {
+          setFeatured(res.featured ?? []);
+          setRecommended(res.recommended ?? []);
+          setPersonalized(Boolean(res.personalized));
+        }
       })
       .catch(() => {
         if (!cancelled) setMarketplaceError('No se pudieron cargar los eventos.');
@@ -105,11 +124,9 @@ export function HomeScreen() {
     }, [route.params?.refreshListings, loadMarketplace, navigation])
   );
 
-  const featured = marketplaceItems.slice(0, 2);
-  const recommended = marketplaceItems.slice(2, 14);
-
-  const goDetail = (id: string) => {
-    navigation.navigate('ComprarTicketDetalle', { listingId: id, password: '' });
+  const goDetail = (item: MarketplacePublicItem) => {
+    void recordListingInteraction(item.id, 'CLICK', item.category).catch(() => {});
+    navigation.navigate('ComprarTicketDetalle', { listingId: item.id, password: '' });
   };
 
   const goTienda = () => navigation.navigate('Tienda');
@@ -167,7 +184,7 @@ export function HomeScreen() {
                   item={item}
                   variant="featured"
                   formatEventDateTime={formatDateTime}
-                  onPress={() => goDetail(item.id)}
+                  onPress={() => goDetail(item)}
                   showFavoriteToggle
                   favoriteActive={isFavorite(item.id)}
                   onFavoritePress={() => toggleFavorite(item)}
@@ -177,7 +194,12 @@ export function HomeScreen() {
           )}
 
           <View style={[styles.sectionHead, { marginTop: spacing.lg }]}>
-            <Text style={styles.sectionTitle}>Recomendados para vos</Text>
+            <View>
+              <Text style={styles.sectionTitle}>Recomendados para vos</Text>
+              {personalized ? (
+                <Text style={styles.sectionHint}>Según tus gustos e interacciones</Text>
+              ) : null}
+            </View>
             <TouchableOpacity onPress={goTienda} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.sectionLink}>Ver todos</Text>
             </TouchableOpacity>
@@ -192,7 +214,7 @@ export function HomeScreen() {
                     variant="carousel"
                     carouselWidth={carouselCardWidth}
                     formatEventDateTime={formatDateTime}
-                    onPress={() => goDetail(item.id)}
+                    onPress={() => goDetail(item)}
                     showFavoriteToggle
                     favoriteActive={isFavorite(item.id)}
                     onFavoritePress={() => toggleFavorite(item)}
@@ -304,6 +326,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#93c5fd',
+  },
+  sectionHint: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 2,
   },
   featuredRow: {
     flexDirection: 'row',

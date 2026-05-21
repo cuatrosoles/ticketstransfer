@@ -12,6 +12,7 @@ import type { RootStackParamList } from './types';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { RegisterScreen } from '../screens/RegisterScreen';
+import { PreferencesOnboardingScreen } from '../screens/PreferencesOnboardingScreen';
 import { MainTabNavigator } from './MainTabNavigator';
 import { KycScreen } from '../screens/KycScreen';
 import { KycWebViewScreen } from '../screens/KycWebViewScreen';
@@ -90,6 +91,7 @@ export function RootNavigator() {
       ) : (
         <>
           <Stack.Screen name="Main" component={MainTabNavigator} options={NO_HEADER} />
+          <Stack.Screen name="PreferencesOnboarding" component={PreferencesOnboardingScreen} options={NO_HEADER} />
           <Stack.Screen name="Kyc" component={KycScreen} options={NO_HEADER} />
           <Stack.Screen name="KycWebView" component={KycWebViewScreen} options={NO_HEADER} />
           <Stack.Screen name="Publish" component={PublishTicketScreen} options={NO_HEADER} />

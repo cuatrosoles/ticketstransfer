@@ -193,6 +193,36 @@ export declare const onboardingSchema: z.ZodObject<{
     ticketeras: string[];
     appsBoletos: string[];
 }>;
+/** Onboarding de gustos: tipos de eventos que le interesan al usuario */
+export declare const tasteOnboardingSchema: z.ZodObject<{
+    eventPreferences: z.ZodArray<z.ZodEnum<["MUSICA", "DEPORTES", "TEATRO", "STAND_UP", "FESTIVALES", "OTRO"]>, "many">;
+}, "strip", z.ZodTypeAny, {
+    eventPreferences: ("MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | "STAND_UP")[];
+}, {
+    eventPreferences: ("MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | "STAND_UP")[];
+}>;
+/** Actualización parcial de preferencias desde el perfil */
+export declare const userPreferencesPatchSchema: z.ZodObject<{
+    eventPreferences: z.ZodOptional<z.ZodArray<z.ZodEnum<["MUSICA", "DEPORTES", "TEATRO", "STAND_UP", "FESTIVALES", "OTRO"]>, "many">>;
+}, "strip", z.ZodTypeAny, {
+    eventPreferences?: ("MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | "STAND_UP")[] | undefined;
+}, {
+    eventPreferences?: ("MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | "STAND_UP")[] | undefined;
+}>;
+/** Registro de interacción con un listing (vista, click, favorito) */
+export declare const listingInteractionSchema: z.ZodObject<{
+    listingId: z.ZodString;
+    type: z.ZodEnum<["VIEW", "CLICK", "FAVORITE_ADD", "FAVORITE_REMOVE"]>;
+    category: z.ZodOptional<z.ZodEnum<["MUSICA", "DEPORTES", "TEATRO", "FESTIVALES", "OTRO"]>>;
+}, "strip", z.ZodTypeAny, {
+    type: "VIEW" | "CLICK" | "FAVORITE_ADD" | "FAVORITE_REMOVE";
+    listingId: string;
+    category?: "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
+}, {
+    type: "VIEW" | "CLICK" | "FAVORITE_ADD" | "FAVORITE_REMOVE";
+    listingId: string;
+    category?: "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
+}>;
 /** Visibilidad en el marketplace: público aparece en inicio; privado solo con ID + contraseña compartida por el vendedor */
 export declare const listingVisibilitySchema: z.ZodEnum<["PUBLIC", "PRIVATE"]>;
 export type ListingVisibility = z.infer<typeof listingVisibilitySchema>;
@@ -226,12 +256,12 @@ export declare const createTicketListingSchema: z.ZodObject<{
     price: number;
     currency: string;
     appBoletos: "OTRA" | "QUENTRO" | "ENIGMA";
+    category?: "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
     sector?: string | undefined;
     row?: string | undefined;
     seat?: string | undefined;
     quantityEntries?: string | number | undefined;
     orderRef?: string | undefined;
-    category?: "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
     visibility?: "PUBLIC" | "PRIVATE" | undefined;
 }, {
     ticketera: "TICKETEK" | "ALLACCESS" | "TICKET_PLUS" | "OTRA";
@@ -242,6 +272,7 @@ export declare const createTicketListingSchema: z.ZodObject<{
     tipoEntrada: "OTRO" | "GENERAL" | "CAMPO" | "PLATEA" | "VIP";
     price: number;
     appBoletos: "OTRA" | "QUENTRO" | "ENIGMA";
+    category?: "" | "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
     eventDate?: unknown;
     sector?: string | undefined;
     row?: string | undefined;
@@ -249,7 +280,6 @@ export declare const createTicketListingSchema: z.ZodObject<{
     quantityEntries?: string | number | undefined;
     currency?: string | undefined;
     orderRef?: string | undefined;
-    category?: "" | "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
     visibility?: "PUBLIC" | "PRIVATE" | undefined;
 }>;
 /** Actualización parcial de publicación (vendedor); imágenes no se modifican por esta vía */
@@ -278,6 +308,7 @@ export declare const updateTicketListingSchema: z.ZodObject<{
     tipoEntradaOtro: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
 }, "strip", z.ZodTypeAny, {
     ticketera?: "TICKETEK" | "ALLACCESS" | "TICKET_PLUS" | "OTRA" | undefined;
+    category?: "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
     eventName?: string | undefined;
     eventDate?: string | undefined;
     eventAddress?: string | undefined;
@@ -292,7 +323,6 @@ export declare const updateTicketListingSchema: z.ZodObject<{
     currency?: string | undefined;
     appBoletos?: "OTRA" | "QUENTRO" | "ENIGMA" | undefined;
     orderRef?: string | undefined;
-    category?: "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
     visibility?: "PUBLIC" | "PRIVATE" | undefined;
     publicationPassword?: string | null | undefined;
     ticketeraOtra?: string | undefined;
@@ -300,6 +330,7 @@ export declare const updateTicketListingSchema: z.ZodObject<{
     tipoEntradaOtro?: string | undefined;
 }, {
     ticketera?: "TICKETEK" | "ALLACCESS" | "TICKET_PLUS" | "OTRA" | undefined;
+    category?: "" | "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
     eventName?: string | undefined;
     eventDate?: unknown;
     eventAddress?: string | undefined;
@@ -314,7 +345,6 @@ export declare const updateTicketListingSchema: z.ZodObject<{
     currency?: string | undefined;
     appBoletos?: "OTRA" | "QUENTRO" | "ENIGMA" | undefined;
     orderRef?: string | undefined;
-    category?: "" | "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined;
     visibility?: "PUBLIC" | "PRIVATE" | undefined;
     publicationPassword?: string | null | undefined;
     ticketeraOtra?: string | undefined;

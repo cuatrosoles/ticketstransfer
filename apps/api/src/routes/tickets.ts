@@ -17,6 +17,7 @@ import {
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { createTicketListingSchema } from '@tickets-transfer/shared';
 import { getMarketplaceHomePublicListingsLimit } from '../lib/settings.js';
+import { getRecommendedMarketplace } from './user-preferences.js';
 
 /** PATCH /mine/:id — mismo criterio que en shared/schemas (evita import roto si no se pushea packages/shared). */
 const updateTicketListingSchema = createTicketListingSchema.partial().extend({
@@ -114,6 +115,9 @@ router.get('/eventos', async (req, res) => {
 
   res.json(eventos.slice(0, 100));
 });
+
+/** Marketplace personalizado: destacados + recomendados según preferencias del usuario autenticado. */
+router.get('/marketplace/recommended', requireAuth, getRecommendedMarketplace);
 
 /** Marketplace: tickets públicos. `?scope=store` lista hasta 100 para la Tienda; sin query usa límite de inicio (Admin). */
 router.get('/marketplace/public', async (req, res) => {

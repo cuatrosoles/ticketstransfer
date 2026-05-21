@@ -27,7 +27,19 @@ import { useNavigation } from '@react-navigation/native';
 import type { TabCompositeNavigationProp } from '../navigation/types';
 import { useAuth } from '../context/AuthContext';
 import { useProfileImage } from '../context/ProfileImageContext';
-import { getProfile, updateProfile, uploadProfileImage, requestPhoneVerification, confirmPhoneVerification, ensureImageUrl, type Profile, type ProfileUpdate } from '../lib/api';
+import {
+  getProfile,
+  updateProfile,
+  uploadProfileImage,
+  requestPhoneVerification,
+  confirmPhoneVerification,
+  ensureImageUrl,
+  getUserPreferences,
+  type Profile,
+  type ProfileUpdate,
+  type UserPreferences,
+} from '../lib/api';
+import { EventPreferencesEditor } from '../components/EventPreferencesEditor';
 import { PROVINCIAS_ARGENTINA, CIUDADES_POR_PROVINCIA } from '../data/provinciasArgentina';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -79,6 +91,7 @@ export function ProfileScreen() {
   const { fetchUser, enableBiometrics, disableBiometrics, biometricAvailability, biometricEnabled } = useAuth();
   const { refreshProfileImage } = useProfileImage();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -108,8 +121,12 @@ export function ProfileScreen() {
     setLoading(true);
     setError('');
     try {
-      const data = await getProfile();
+      const [data, prefs] = await Promise.all([
+        getProfile(),
+        getUserPreferences().catch(() => null),
+      ]);
       setProfile(data);
+      setPreferences(prefs ?? data.preferences ?? null);
       setForm({
         username: data.username ?? '',
         firstName: data.firstName ?? '',
@@ -315,6 +332,15 @@ export function ProfileScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {preferences ? (
+          <View style={[styles.prefsCard, glassCard]}>
+            <EventPreferencesEditor
+              preferences={preferences}
+              onUpdated={(p) => setPreferences(p)}
+            />
+          </View>
+        ) : null}
 
         <TouchableOpacity
           style={[styles.kycQuickCard, glassCard]}
@@ -702,6 +728,11 @@ const styles = StyleSheet.create({
   phoneVerifyModal: { backgroundColor: 'rgba(30, 58, 138, 0.98)', margin: 24, padding: 24, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.3)' },
   phoneVerifyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: spacing.lg },
   phoneVerifyActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
+  prefsCard: {
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    borderRadius: 20,
+  },
   kycQuickCard: {
     padding: spacing.lg,
     marginBottom: spacing.lg,

@@ -18,6 +18,7 @@ import {
   removeCustomerCard,
 } from '../lib/mercadopago.js';
 import { getPlatformSettings, invalidateSettingsCache } from '../lib/settings.js';
+import { getUserPreferences, preferencesToApi } from '../lib/user-preferences.js';
 
 const MSG_CREDENTIALES_TEST =
   'Usá credenciales de PRUEBA (Test) en Mercado Pago. Las credenciales de producción no funcionan con tarjetas de test. Verificá: 1) platformSettings/main en Firestore tiene accessToken y publicKey de prueba. 2) En Railway, eliminá MERCADOPAGO_ACCESS_TOKEN y MERCADOPAGO_PUBLIC_KEY si existen (la API usa Firestore cuando están en Admin).';
@@ -167,6 +168,7 @@ router.get('/profile', async (req: AuthRequest, res) => {
   const phone = data.phone?.replace(/\+549\s*\+549/, '+549') ?? data.phone;
   const emailVerified = data.emailVerified ?? firebaseUser?.emailVerified ?? false;
   const raw = data as Record<string, unknown>;
+  const userPrefs = await getUserPreferences(userId);
 
   res.json({
     id: req.user!.id,
@@ -190,6 +192,7 @@ router.get('/profile', async (req: AuthRequest, res) => {
     cbuCvu: data.cbuCvu ?? null,
     bankName: data.bankName ?? null,
     kyc: kyc ? { status: kyc.status, rejectionReason: kyc.rejectionReason ?? null } : { status: 'PENDIENTE', rejectionReason: null },
+    preferences: preferencesToApi(userPrefs),
   });
 });
 

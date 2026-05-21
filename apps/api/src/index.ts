@@ -15,6 +15,7 @@ import rateLimit from 'express-rate-limit';
 
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
+import { userPreferencesRouter } from './routes/user-preferences.js';
 import { ticketsRouter } from './routes/tickets.js';
 import { ordersRouter } from './routes/orders.js';
 import { disputesRouter } from './routes/disputes.js';
@@ -119,6 +120,7 @@ app.use('/api/mercadopago', mercadopagoRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/cron', cronRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/users/preferences', userPreferencesRouter);
 app.use('/api/tickets', ticketsRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/disputes', disputesRouter);

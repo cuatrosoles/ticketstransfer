@@ -30,6 +30,8 @@ type AuthContextType = {
   logout: () => void;
   getPostRegisterRedirectToKyc: () => boolean;
   clearPostRegisterRedirectToKyc: () => void;
+  getPostRegisterRedirectToPreferences: () => boolean;
+  clearPostRegisterRedirectToPreferences: () => void;
   enableBiometrics: () => Promise<boolean>;
   disableBiometrics: () => Promise<boolean>;
   biometricEnabled: boolean;
@@ -54,6 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [isAppUnlocked, setIsAppUnlocked] = useState(true);
   const postRegisterRedirectToKycRef = useRef(false);
+  const postRegisterRedirectToPreferencesRef = useRef(false);
   const pendingBiometricPromptRef = useRef(false);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
@@ -188,6 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await auth().signInWithCustomToken(res.customToken);
     const userData = auth().currentUser!;
     setFirebaseTokenGetter();
+    postRegisterRedirectToPreferencesRef.current = true;
     postRegisterRedirectToKycRef.current = true;
     pendingBiometricPromptRef.current = true;
     const token = await userData.getIdToken();
@@ -253,6 +257,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const clearPostRegisterRedirectToKyc = () => {
     postRegisterRedirectToKycRef.current = false;
   };
+  const getPostRegisterRedirectToPreferences = () => postRegisterRedirectToPreferencesRef.current;
+  const clearPostRegisterRedirectToPreferences = () => {
+    postRegisterRedirectToPreferencesRef.current = false;
+  };
   const getPendingBiometricPrompt = () => pendingBiometricPromptRef.current;
   const clearPendingBiometricPrompt = () => {
     pendingBiometricPromptRef.current = false;
@@ -315,6 +323,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         getPostRegisterRedirectToKyc,
         clearPostRegisterRedirectToKyc,
+        getPostRegisterRedirectToPreferences,
+        clearPostRegisterRedirectToPreferences,
         enableBiometrics,
         disableBiometrics,
         biometricEnabled,

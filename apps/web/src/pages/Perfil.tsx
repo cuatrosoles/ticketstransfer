@@ -5,7 +5,8 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getProfile, updateProfile, type Profile, type ProfileUpdate } from '../lib/api';
+import { getProfile, updateProfile, getUserPreferences, type Profile, type ProfileUpdate, type UserPreferences } from '../lib/api';
+import { EventPreferencesEditor } from '../components/EventPreferencesEditor';
 import { PROVINCIAS_ARGENTINA, CIUDADES_POR_PROVINCIA } from '../data/provinciasArgentina';
 import { User, Mail, Phone, MapPin, Shield, Pencil, X, Check, CreditCard } from 'lucide-react';
 
@@ -49,6 +50,7 @@ function KycBadge({ status }: { status: string }) {
 export function Perfil() {
   const { fetchUser } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -71,8 +73,12 @@ export function Perfil() {
     setLoading(true);
     setError('');
     try {
-      const data = await getProfile();
+      const [data, prefs] = await Promise.all([
+        getProfile(),
+        getUserPreferences().catch(() => null),
+      ]);
       setProfile(data);
+      setPreferences(prefs ?? data.preferences ?? null);
       setForm({
         username: data.username ?? '',
         firstName: data.firstName ?? '',
@@ -183,6 +189,10 @@ export function Perfil() {
         </div>
 
         {error && <p className="form-error">{error}</p>}
+
+        {preferences ? (
+          <EventPreferencesEditor preferences={preferences} onUpdated={setPreferences} />
+        ) : null}
 
         {!editing ? (
           <div className="perfil-view">

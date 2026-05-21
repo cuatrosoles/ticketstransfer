@@ -6,7 +6,7 @@ import * as React from 'react';
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './AuthContext';
 import type { MarketplacePublicItem } from '../lib/api';
-import { getMarketplaceStoreListings } from '../lib/api';
+import { getMarketplaceStoreListings, recordListingInteraction } from '../lib/api';
 import {
   readFavoriteListings,
   writeFavoriteListings,
@@ -75,11 +75,13 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
         let next: FavoriteListingEntry[];
         if (exists) {
           next = prev.filter((e) => e.listingId !== item.id);
+          void recordListingInteraction(item.id, 'FAVORITE_REMOVE', item.category).catch(() => {});
         } else {
           next = [
             { listingId: item.id, savedAt: Date.now(), cached: item },
             ...prev.filter((e) => e.listingId !== item.id),
           ];
+          void recordListingInteraction(item.id, 'FAVORITE_ADD', item.category).catch(() => {});
         }
         void writeFavoriteListings(user.id, next);
         return next;

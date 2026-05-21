@@ -20,7 +20,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../navigation/types';
-import { ensureImageUrl, api } from '../lib/api';
+import { ensureImageUrl, api, recordListingInteraction } from '../lib/api';
 import { ticketPreviewToMarketplaceItem } from '../lib/ticketPreviewToMarketplaceItem';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -102,6 +102,7 @@ export function ComprarTicketDetalleScreen() {
     api<TicketPreview>(`/api/tickets/${encodeURIComponent(listingId)}${q}`)
       .then((res) => {
         setPreview(res);
+        void recordListingInteraction(listingId, 'VIEW', res.category).catch(() => {});
         if (!res.showFull) setError('Necesitás la contraseña correcta para ver el ticket completo.');
       })
       .catch(() => setError('No se pudo cargar la publicación.'))
@@ -110,6 +111,7 @@ export function ComprarTicketDetalleScreen() {
 
   const handleContinue = () => {
     if (!preview?.showFull) return;
+    void recordListingInteraction(preview.id, 'CLICK', preview.category).catch(() => {});
     navigation.navigate('OrderPurchaseDetails', { listingId: preview.id, password: password || '' });
   };
 

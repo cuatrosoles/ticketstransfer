@@ -55,7 +55,7 @@ export function Register() {
         province: data.province,
         postalCode: data.postalCode,
       });
-      navigate('/home');
+      navigate('/onboarding/preferencias');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al crear la cuenta');
     }

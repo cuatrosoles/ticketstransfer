@@ -26,6 +26,24 @@ export interface OnboardingPayload {
   appsBoletos: string[];
 }
 
+export type PreferenciaEventoId =
+  | 'MUSICA'
+  | 'DEPORTES'
+  | 'TEATRO'
+  | 'STAND_UP'
+  | 'FESTIVALES'
+  | 'OTRO';
+
+export type ListingInteractionType = 'VIEW' | 'CLICK' | 'FAVORITE_ADD' | 'FAVORITE_REMOVE';
+
+export interface UserPreferencesPublic {
+  eventPreferences: PreferenciaEventoId[];
+  tasteOnboardingCompleted: boolean;
+  tasteOnboardingCompletedAt: string | null;
+  categoryScores: Record<string, number>;
+  topCategories: { category: string; score: number; label: string }[];
+}
+
 /** Región normalizada (0-1) para pixelar en imágenes de tickets. Fase 2: enviada por el cliente. */
 export interface PixelateRegion {
   x: number;

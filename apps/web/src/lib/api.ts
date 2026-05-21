@@ -94,7 +94,72 @@ export type Profile = {
   bankName: string | null;
   reputationScore: number | null;
   kyc: { status: string; rejectionReason: string | null } | null;
+  preferences?: UserPreferences;
 };
+
+export type UserPreferences = {
+  eventPreferences: string[];
+  tasteOnboardingCompleted: boolean;
+  tasteOnboardingCompletedAt: string | null;
+  categoryScores: Record<string, number>;
+  topCategories: { category: string; score: number; label: string }[];
+};
+
+export type MarketplacePublicItem = {
+  id: string;
+  eventName: string;
+  eventDate: string;
+  eventPlace?: string | null;
+  eventCity?: string | null;
+  eventImageUrl?: string | null;
+  category?: string | null;
+  quantityEntries?: string | null;
+  price?: number | null;
+  seller: { id: string; displayName: string; reputationScore: number };
+};
+
+export type MarketplaceRecommendedResponse = {
+  limit: number;
+  featured: MarketplacePublicItem[];
+  recommended: MarketplacePublicItem[];
+  preferences: UserPreferences;
+  personalized: boolean;
+};
+
+export async function getMarketplaceRecommended(): Promise<MarketplaceRecommendedResponse> {
+  return api<MarketplaceRecommendedResponse>('/api/tickets/marketplace/recommended');
+}
+
+export async function getUserPreferences(): Promise<UserPreferences> {
+  return api<UserPreferences>('/api/users/preferences');
+}
+
+export async function completeTasteOnboarding(eventPreferences: string[]): Promise<{ ok: boolean; preferences: UserPreferences }> {
+  return api('/api/users/preferences/onboarding', {
+    method: 'POST',
+    body: JSON.stringify({ eventPreferences }),
+  });
+}
+
+export async function updateUserPreferences(eventPreferences: string[]): Promise<UserPreferences> {
+  return api<UserPreferences>('/api/users/preferences', {
+    method: 'PATCH',
+    body: JSON.stringify({ eventPreferences }),
+  });
+}
+
+export type ListingInteractionType = 'VIEW' | 'CLICK' | 'FAVORITE_ADD' | 'FAVORITE_REMOVE';
+
+export async function recordListingInteraction(
+  listingId: string,
+  type: ListingInteractionType,
+  category?: string | null
+): Promise<void> {
+  await api('/api/users/preferences/interaction', {
+    method: 'POST',
+    body: JSON.stringify({ listingId, type, category: category ?? undefined }),
+  });
+}
 
 export async function getProfile(): Promise<Profile> {
   return api<Profile>('/api/users/profile');

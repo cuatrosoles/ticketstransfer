@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { api, ensureImageUrl } from '../lib/api';
+import { api, ensureImageUrl, recordListingInteraction } from '../lib/api';
 import { getEventImageCategoryFallback } from '@tickets-transfer/shared';
 
 type Seller = {
@@ -126,6 +126,7 @@ export function ComprarTicketDetalle() {
     api<TicketPreview>(`/api/tickets/${encodeURIComponent(state.listingId)}${q}`)
       .then((res) => {
         setPreview(res);
+        void recordListingInteraction(state.listingId, 'VIEW', res.category).catch(() => {});
         if (!res.showFull) setError('Necesitás la contraseña correcta para ver el ticket completo.');
       })
       .catch(() => setError('No se pudo cargar la publicación.'))
@@ -150,6 +151,7 @@ export function ComprarTicketDetalle() {
 
   const handleContinue = async () => {
     if (!preview?.showFull) return;
+    void recordListingInteraction(preview.id, 'CLICK', preview.category).catch(() => {});
     if (!deliveryOk) {
       setError('Completá al menos uno de los datos o el campo «Otro» si lo activaste.');
       return;
