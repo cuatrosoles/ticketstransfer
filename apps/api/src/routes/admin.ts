@@ -1123,6 +1123,11 @@ router.delete('/orders/:orderId', async (req: AuthRequest, res) => {
     status: 'CANCELADA',
     updatedAt: new Date(),
   });
+  const listingId = data.ticketListingId ? String(data.ticketListingId) : '';
+  if (listingId) {
+    const { releaseListingReservation } = await import('../lib/order-payments.js');
+    await releaseListingReservation(listingId, orderId);
+  }
   res.json({ ok: true });
 });
 

@@ -17,6 +17,7 @@ import { ComprarTicketDetalle } from './pages/ComprarTicketDetalle';
 import { MiPublicacion } from './pages/MiPublicacion';
 import { Tarjetas } from './pages/Tarjetas';
 import { Pago } from './pages/Pago';
+import { PagoResultado } from './pages/PagoResultado';
 import { Acerca } from './pages/Acerca';
 import { PoliticaPrivacidad } from './pages/PoliticaPrivacidad';
 import { TerminosYCondiciones } from './pages/TerminosYCondiciones';
@@ -54,6 +55,7 @@ export function App() {
       <Route path="/comprar-ticket" element={<ProtectedRoute><Layout><ComprarTicket /></Layout></ProtectedRoute>} />
       <Route path="/comprar-ticket/detalle" element={<ProtectedRoute><Layout><ComprarTicketDetalle /></Layout></ProtectedRoute>} />
       <Route path="/orden/:id/pago" element={<ProtectedRoute><Layout><Pago /></Layout></ProtectedRoute>} />
+      <Route path="/orden/:id/pago/resultado" element={<ProtectedRoute><Layout><PagoResultado /></Layout></ProtectedRoute>} />
       <Route path="/mis-compras" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Mis compras</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />
       <Route path="/mis-ventas" element={<ProtectedRoute><Layout><MisVentas /></Layout></ProtectedRoute>} />
       <Route path="/mis-ventas/publicacion/:id" element={<ProtectedRoute><Layout><MiPublicacion /></Layout></ProtectedRoute>} />

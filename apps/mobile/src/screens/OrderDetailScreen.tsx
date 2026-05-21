@@ -137,11 +137,12 @@ export function OrderDetailScreen() {
     launchImageLibrarySafe({ mediaType: 'photo', quality: 0.8, selectionLimit: 1 }, (res) => {
       if (res.didCancel || res.errorCode) return;
       const asset = res.assets?.[0];
-      if (!asset?.uri) return;
+      const uri = asset?.uri;
+      if (!uri) return;
       setBusy(true);
       void (async () => {
         try {
-          await uploadOrderEvidence(orderId, { uri: asset.uri, name: asset.fileName, type: asset.type });
+          await uploadOrderEvidence(orderId, { uri, name: asset.fileName, type: asset.type });
           await load();
           Alert.alert('Listo', 'La captura se adjuntó correctamente.');
         } catch (e) {

@@ -237,7 +237,16 @@ export function Pago() {
         )}
 
         {isWaitingTransfer && (
-          <p className="text-success">Pago recibido. Esperando la transferencia del vendedor.</p>
+          <>
+            <p className="text-success">Pago recibido. Esperando la transferencia del vendedor.</p>
+            <button
+              type="button"
+              className="btn-secondary mt-2"
+              onClick={() => navigate(`/orden/${id}/pago/resultado?status=success`)}
+            >
+              Ver resumen del pago
+            </button>
+          </>
         )}
         {order.status === 'COMPLETADA' && (
           <p className="text-success">¡Orden completada!</p>

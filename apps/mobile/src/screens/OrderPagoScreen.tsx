@@ -53,14 +53,16 @@ export function OrderPagoScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
-  const loadOrder = useCallback(async () => {
-    if (!params?.orderId) return;
+  const loadOrder = useCallback(async (): Promise<Order | null> => {
+    if (!params?.orderId) return null;
     try {
       const o = await api<Order>(`/api/orders/${params.orderId}`);
       setOrder(o);
       setCheckoutUrl((prev) => prev || o.checkoutUrl || null);
+      return o;
     } catch {
       setOrder(null);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -95,17 +97,46 @@ export function OrderPagoScreen() {
     };
   }, [params?.orderId]);
 
-  /** Al volver del navegador (pago MP), actualizar estado de la orden. */
+  /** Deep link legacy: orden/:id/pago?status= → pantalla de resultado. */
+  useEffect(() => {
+    const handleUrl = (url: string | null) => {
+      if (!url || !params?.orderId) return;
+      const qIndex = url.indexOf('?');
+      const query = qIndex >= 0 ? url.slice(qIndex + 1) : '';
+      const qs = new URLSearchParams(query);
+      const status = qs.get('status');
+      if (!status) return;
+      const normalized =
+        status === 'failure' ? 'failure' : status === 'pending' ? 'pending' : 'success';
+      if (/orden\/[^/]+\/pago\/?$/i.test(url.split('?')[0]) || /orden\/[^/]+\/pago$/i.test(url.replace(/\?.*$/, ''))) {
+        navigation.replace('OrderPaymentResult', {
+          orderId: params.orderId,
+          status: normalized,
+        });
+      }
+    };
+    void Linking.getInitialURL().then(handleUrl);
+    const sub = Linking.addEventListener('url', (ev) => handleUrl(ev.url));
+    return () => sub.remove();
+  }, [params?.orderId, navigation]);
+
+  /** Al volver del navegador (pago MP), ir a resultado si el pago ya impactó. */
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       const prev = appStateRef.current;
       appStateRef.current = next;
-      if (next === 'active' && /inactive|background/.test(prev) && order?.status === 'PENDIENTE_PAGO' && params?.orderId) {
-        void loadOrder();
-      }
+      if (next !== 'active' || !/inactive|background/.test(prev) || !params?.orderId) return;
+      void loadOrder().then((o) => {
+        if (o?.status && o.status !== 'PENDIENTE_PAGO') {
+          navigation.replace('OrderPaymentResult', {
+            orderId: params.orderId,
+            status: 'success',
+          });
+        }
+      });
     });
     return () => sub.remove();
-  }, [order?.status, params?.orderId, loadOrder]);
+  }, [order?.status, params?.orderId, loadOrder, navigation]);
 
   const openCheckoutInBrowser = async () => {
     if (!checkoutUrl) return;
@@ -251,11 +282,16 @@ export function OrderPagoScreen() {
                   el estado del pago se actualiza solo al regresar.
                 </Text>
               )}
+
+              {/*
               {checkoutUrl && (
                 <TouchableOpacity style={styles.copyLinkBtn} onPress={copyCheckoutLink}>
                   <Text style={styles.copyLinkBtnText}>Copiar enlace de pago</Text>
                 </TouchableOpacity>
               )}
+              */}
+
+              {/*
               {checkoutUrl && (
                 <Text style={styles.miuiHint}>
                   Si el teléfono se apaga o reinicia al pagar: suele ser falta de RAM o el ahorro de batería de Xiaomi (MIUI).
@@ -263,6 +299,8 @@ export function OrderPagoScreen() {
                   copiado.
                 </Text>
               )}
+              */}
+
               <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={addCard}>
                 <Text style={styles.btnText}>+ Agregar tarjeta</Text>
               </TouchableOpacity>
@@ -270,9 +308,13 @@ export function OrderPagoScreen() {
               <TouchableOpacity style={styles.refreshBtn} onPress={() => void loadOrder()}>
                 <Text style={styles.refreshBtnText}>Actualizar estado del pago</Text>
               </TouchableOpacity>
+
+              {/*
               <Text style={styles.hintError}>
                 Si falla el pago con tarjeta adherida, usá Mercado Pago en el navegador y elegí allí el medio guardado.
               </Text>
+              */}
+              
             </>
           )}
 

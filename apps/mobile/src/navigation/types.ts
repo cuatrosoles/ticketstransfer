@@ -32,6 +32,7 @@ export type RootStackParamList = {
   OrderDetail: { orderId: string; source: 'buyer' | 'seller' };
   OrderPurchaseDetails: { listingId: string; password: string };
   OrderPago: { orderId: string; checkoutUrl?: string };
+  OrderPaymentResult: { orderId: string; status?: 'success' | 'failure' | 'pending' };
   MyPurchases: undefined;
   MySales: undefined;
   TarjetasAdheridas: undefined;

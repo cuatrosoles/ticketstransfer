@@ -23,8 +23,10 @@ type OrderDetailType = {
   currency: string;
   paymentMethod: string;
   transferDeadline?: string | Date | null;
-  mpPreferenceId?: string | null;
-  mpPaymentId?: string | null;
+  mercadopagoPreferenceId?: string | null;
+  mercadopagoPaymentId?: string | null;
+  mercadopagoPaymentStatus?: string | null;
+  paidAt?: string | Date | null;
   createdAt: string | Date;
   updatedAt: string | Date;
   ticketListing: {
@@ -173,8 +175,25 @@ export function OrderDetail() {
             <dt>Fecha creación</dt><dd>{formatDate(order.createdAt)}</dd>
             <dt>Última actualización</dt><dd>{formatDate(order.updatedAt)}</dd>
             {order.transferDeadline && <><dt>Límite transferencia</dt><dd>{formatDate(order.transferDeadline)}</dd></>}
-            {order.mpPreferenceId && <><dt>MP Preference ID</dt><dd><code>{order.mpPreferenceId}</code></dd></>}
-            {order.mpPaymentId && <><dt>MP Payment ID</dt><dd><code>{order.mpPaymentId}</code></dd></>}
+            {order.mercadopagoPreferenceId && (
+              <>
+                <dt>MP Preference ID</dt>
+                <dd><code>{order.mercadopagoPreferenceId}</code></dd>
+              </>
+            )}
+            {order.mercadopagoPaymentId && (
+              <>
+                <dt>MP Payment ID</dt>
+                <dd><code>{order.mercadopagoPaymentId}</code></dd>
+              </>
+            )}
+            {order.mercadopagoPaymentStatus && (
+              <>
+                <dt>Estado pago MP</dt>
+                <dd><code>{order.mercadopagoPaymentStatus}</code></dd>
+              </>
+            )}
+            {order.paidAt && <><dt>Pagado el</dt><dd>{formatDate(order.paidAt)}</dd></>}
           </dl>
         </div>
 

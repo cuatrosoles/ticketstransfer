@@ -97,6 +97,35 @@ var init_firebase_admin = __esm({
   }
 });
 
+// src/lib/firestore.ts
+var db, COLLECTIONS;
+var init_firestore = __esm({
+  "src/lib/firestore.ts"() {
+    "use strict";
+    init_firebase_admin();
+    db = () => getFirestore();
+    COLLECTIONS = {
+      USERS: "users",
+      EMAIL_VERIFICATION_CODES: "emailVerificationCodes",
+      USER_ONBOARDING: "userOnboarding",
+      USER_PREFERENCES: "userPreferences",
+      USER_LISTING_INTERACTIONS: "userListingInteractions",
+      KYC_VERIFICATIONS: "kycVerifications",
+      TICKET_LISTINGS: "ticketListings",
+      ORDERS: "orders",
+      ORDER_RATINGS: "orderRatings",
+      DISPUTES: "disputes",
+      DISPUTE_MESSAGES: "disputeMessages",
+      CONVERSATIONS: "conversations",
+      MESSAGES: "messages",
+      PLATFORM_SETTINGS: "platformSettings",
+      SELLER_TRANSFERS: "sellerTransfers",
+      /** Solicitudes de factura por transacción (usuarios → revisión admin). */
+      TRANSACTION_INVOICE_REQUESTS: "transactionInvoiceRequests"
+    };
+  }
+});
+
 // ../../node_modules/.pnpm/postal-mime@2.7.3/node_modules/postal-mime/src/decode-strings.js
 function decodeBase64(base64) {
   let bufferLength = Math.ceil(base64.length / 4) * 3;
@@ -13395,6 +13424,11 @@ var init_dist = __esm({
 // src/lib/email.ts
 var email_exports = {};
 __export(email_exports, {
+  sendNewSaleAdminEmail: () => sendNewSaleAdminEmail,
+  sendPaymentApprovedBuyerEmail: () => sendPaymentApprovedBuyerEmail,
+  sendPaymentApprovedSellerEmail: () => sendPaymentApprovedSellerEmail,
+  sendPaymentFailedBuyerEmail: () => sendPaymentFailedBuyerEmail,
+  sendPaymentPendingBuyerEmail: () => sendPaymentPendingBuyerEmail,
   sendTransferCompleteEmail: () => sendTransferCompleteEmail,
   sendVerificationCodeEmail: () => sendVerificationCodeEmail
 });
@@ -13452,6 +13486,85 @@ async function sendTransferCompleteEmail(to, params) {
   }
   return { ok: true };
 }
+async function sendPaymentApprovedBuyerEmail(to, params) {
+  const subject = "Pago confirmado - Tickets Transfer";
+  const html = `
+    <div style="font-family: sans-serif; max-width: 420px; margin: 0 auto;">
+      <h2 style="color: #1e293b;">\xA1Pago confirmado!</h2>
+      <p>Tu compra de <strong>${params.eventName}</strong> fue acreditada correctamente.</p>
+      ${params.amountLabel ? `<p style="font-size: 18px; font-weight: bold; color: #22c55e;">${params.amountLabel}</p>` : ""}
+      <p style="color: #64748b; font-size: 14px;">El vendedor debe transferirte el ticket en las pr\xF3ximas horas. Pod\xE9s seguir el estado desde <strong>Mis compras</strong> en la app.</p>
+      <p style="color: #64748b; font-size: 12px;">Orden: ${params.orderId}</p>
+      <p style="color: #64748b; font-size: 12px;">\u2014 Tickets Transfer</p>
+    </div>
+  `;
+  return sendHtmlEmail(to, subject, html);
+}
+async function sendPaymentApprovedSellerEmail(to, params) {
+  const subject = "\xA1Nueva venta! Pago recibido - Tickets Transfer";
+  const html = `
+    <div style="font-family: sans-serif; max-width: 420px; margin: 0 auto;">
+      <h2 style="color: #1e293b;">\xA1Vendiste un ticket!</h2>
+      <p>El comprador pag\xF3 <strong>${params.eventName}</strong>. El dinero queda retenido hasta que transfieras el ticket y se valide la entrega.</p>
+      ${params.amountLabel ? `<p style="font-size: 18px; font-weight: bold; color: #22c55e;">${params.amountLabel}</p>` : ""}
+      <p style="color: #64748b; font-size: 14px;">Ingres\xE1 a la app \u2192 <strong>Mis ventas</strong> y marc\xE1 la transferencia cuando env\xEDes el ticket al comprador.</p>
+      <p style="color: #64748b; font-size: 12px;">Orden: ${params.orderId}</p>
+      <p style="color: #64748b; font-size: 12px;">\u2014 Tickets Transfer</p>
+    </div>
+  `;
+  return sendHtmlEmail(to, subject, html);
+}
+async function sendPaymentFailedBuyerEmail(to, params) {
+  const subject = "Pago no completado - Tickets Transfer";
+  const html = `
+    <div style="font-family: sans-serif; max-width: 420px; margin: 0 auto;">
+      <h2 style="color: #1e293b;">Pago no completado</h2>
+      <p>No se acredit\xF3 el pago de <strong>${params.eventName}</strong>. Pod\xE9s reintentar desde la app.</p>
+      <p style="color: #64748b; font-size: 12px;">Orden: ${params.orderId}</p>
+      <p style="color: #64748b; font-size: 12px;">\u2014 Tickets Transfer</p>
+    </div>
+  `;
+  return sendHtmlEmail(to, subject, html);
+}
+async function sendPaymentPendingBuyerEmail(to, params) {
+  const subject = "Pago pendiente - Tickets Transfer";
+  const html = `
+    <div style="font-family: sans-serif; max-width: 420px; margin: 0 auto;">
+      <h2 style="color: #1e293b;">Pago en proceso</h2>
+      <p>Tu pago de <strong>${params.eventName}</strong> est\xE1 pendiente de acreditaci\xF3n. Te avisaremos cuando se confirme.</p>
+      <p style="color: #64748b; font-size: 12px;">Orden: ${params.orderId}</p>
+      <p style="color: #64748b; font-size: 12px;">\u2014 Tickets Transfer</p>
+    </div>
+  `;
+  return sendHtmlEmail(to, subject, html);
+}
+async function sendNewSaleAdminEmail(to, params) {
+  const subject = `[Admin] Nueva venta pagada - ${params.eventName}`;
+  const html = `
+    <div style="font-family: sans-serif; max-width: 420px; margin: 0 auto;">
+      <h2 style="color: #1e293b;">Nueva venta pagada</h2>
+      <p><strong>${params.eventName}</strong></p>
+      ${params.amountLabel ? `<p>${params.amountLabel}</p>` : ""}
+      <p style="color: #64748b; font-size: 14px;">Revis\xE1 la orden en el panel de administraci\xF3n. El pago al vendedor se libera cuando marques la orden como <strong>COMPLETADA</strong> tras validar la entrega del ticket.</p>
+      <p style="color: #64748b; font-size: 12px;">Orden: ${params.orderId}</p>
+    </div>
+  `;
+  return sendHtmlEmail(to, subject, html);
+}
+async function sendHtmlEmail(to, subject, html) {
+  if (!resend) {
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[DEV] Email:", subject, "\u2192", to);
+    }
+    return { ok: true };
+  }
+  const { error } = await resend.emails.send({ from: FROM_EMAIL, to: [to], subject, html });
+  if (error) {
+    console.error("[Email] Error:", error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
 var resend, FROM_EMAIL;
 var init_email = __esm({
   "src/lib/email.ts"() {
@@ -13459,6 +13572,314 @@ var init_email = __esm({
     init_dist();
     resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
     FROM_EMAIL = process.env.EMAIL_FROM_VERIFICATION || "Tickets Transfer <onboarding@resend.dev>";
+  }
+});
+
+// src/lib/settings.ts
+function parseBooleanSetting(value, fallback) {
+  if (value === true || value === false) return value;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return fallback;
+}
+async function getPlatformSettings() {
+  if (cachedSettings && Date.now() < cacheExpiry) {
+    return cachedSettings;
+  }
+  const doc = await db().collection(COLLECTIONS.PLATFORM_SETTINGS).doc(SETTINGS_DOC_ID).get();
+  if (!doc.exists) {
+    cachedSettings = { ...DEFAULTS };
+    return cachedSettings;
+  }
+  const d = doc.data();
+  cachedSettings = {
+    commissionPercentage: d.commissionPercentage ?? DEFAULTS.commissionPercentage,
+    marketplaceHomePublicListingsLimit: Math.min(
+      50,
+      Math.max(1, Number(d.marketplaceHomePublicListingsLimit) || DEFAULTS.marketplaceHomePublicListingsLimit)
+    ),
+    mercadopago: {
+      enabled: d.mercadopago?.enabled ?? DEFAULTS.mercadopago.enabled,
+      accessToken: d.mercadopago?.accessToken ?? "",
+      publicKey: d.mercadopago?.publicKey ?? "",
+      webhookSecret: d.mercadopago?.webhookSecret ?? "",
+      sandboxMode: parseBooleanSetting(d.mercadopago?.sandboxMode, DEFAULTS.mercadopago.sandboxMode),
+      backUrlBase: d.mercadopago?.backUrlBase ?? "",
+      sandboxUsePayerTestCom: parseBooleanSetting(
+        d.mercadopago?.sandboxUsePayerTestCom,
+        DEFAULTS.mercadopago.sandboxUsePayerTestCom ?? false
+      ),
+      sandboxUseRealEmail: parseBooleanSetting(
+        d.mercadopago?.sandboxUseRealEmail,
+        DEFAULTS.mercadopago.sandboxUseRealEmail ?? false
+      )
+    },
+    users: d.users ?? {},
+    visual: d.visual ?? {},
+    notifications: d.notifications ?? {},
+    updatedAt: d.updatedAt?.toDate?.() ?? void 0
+  };
+  cacheExpiry = Date.now() + CACHE_TTL_MS;
+  return cachedSettings;
+}
+function invalidateSettingsCache() {
+  cachedSettings = null;
+  cacheExpiry = 0;
+}
+async function getCommissionPercentage() {
+  const s = await getPlatformSettings();
+  return s.commissionPercentage;
+}
+async function getMarketplaceHomePublicListingsLimit() {
+  const s = await getPlatformSettings();
+  return s.marketplaceHomePublicListingsLimit;
+}
+var DEFAULTS, SETTINGS_DOC_ID, cachedSettings, cacheExpiry, CACHE_TTL_MS;
+var init_settings = __esm({
+  "src/lib/settings.ts"() {
+    "use strict";
+    init_firestore();
+    DEFAULTS = {
+      commissionPercentage: 6.5,
+      marketplaceHomePublicListingsLimit: 6,
+      mercadopago: {
+        enabled: false,
+        accessToken: "",
+        publicKey: "",
+        webhookSecret: "",
+        sandboxMode: false,
+        backUrlBase: "",
+        sandboxUsePayerTestCom: false,
+        sandboxUseRealEmail: false
+      },
+      users: {},
+      visual: {},
+      notifications: {}
+    };
+    SETTINGS_DOC_ID = "main";
+    cachedSettings = null;
+    cacheExpiry = 0;
+    CACHE_TTL_MS = 3e4;
+  }
+});
+
+// src/lib/mercadopago.ts
+import crypto5 from "crypto";
+import { MercadoPagoConfig, Preference, Payment, Customer } from "mercadopago";
+function getAccessToken() {
+  return process.env.MERCADOPAGO_ACCESS_TOKEN || "";
+}
+async function getMercadoPagoClient() {
+  const settings = await getPlatformSettings();
+  const fromFirestore = settings.mercadopago.enabled && settings.mercadopago.accessToken;
+  const token = fromFirestore ? settings.mercadopago.accessToken : getAccessToken();
+  if (!token) {
+    throw new Error("Mercado Pago no configurado. Configur\xE1 el Access Token en Admin \u2192 Configuraci\xF3n \u2192 Pasarelas de Pago.");
+  }
+  if (settings.mercadopago.sandboxMode && !fromFirestore) {
+    throw new Error(
+      "Modo sandbox activo: configur\xE1 Access Token y Public Key en Admin \u2192 Pasarelas de pago (Firestore). No uses variables de entorno en producci\xF3n."
+    );
+  }
+  if (!client || lastToken !== token) {
+    lastToken = token;
+    client = new MercadoPagoConfig({
+      accessToken: token,
+      options: { timeout: 5e3 }
+    });
+    preferenceClient = new Preference(client);
+    paymentClient = new Payment(client);
+    customerClient = new Customer(client);
+  }
+  if (!preferenceClient || !paymentClient || !customerClient) throw new Error("MP clients no inicializados");
+  return { client, preference: preferenceClient, payment: paymentClient, customer: customerClient };
+}
+async function isMercadoPagoConfigured() {
+  const settings = await getPlatformSettings();
+  if (settings.mercadopago.enabled && settings.mercadopago.accessToken) return true;
+  return !!getAccessToken();
+}
+async function getMercadoPagoWebhookSecret() {
+  const settings = await getPlatformSettings();
+  if (settings.mercadopago.webhookSecret) return settings.mercadopago.webhookSecret;
+  return process.env.MERCADOPAGO_WEBHOOK_SECRET || "";
+}
+function mercadoPagoCurrencyIdForListing(currency) {
+  const c = (currency?.trim() || "ARS").toUpperCase();
+  if (!MP_CURRENCY_IDS.has(c)) {
+    throw new Error(`Moneda no soportada para Mercado Pago: ${c}. Us\xE1 ARS, USD o una moneda MP admitida.`);
+  }
+  return c;
+}
+async function createCheckoutPreference(params) {
+  const { preference } = await getMercadoPagoClient();
+  const settings = await getPlatformSettings();
+  const sandboxMode = settings.mercadopago.sandboxMode;
+  const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
+  const payerEmail = params.payerEmail && sandboxMode && usePayerTestCom ? "test_payer_1@testuser.com" : params.payerEmail && params.payerUserId && sandboxMode ? getCustomerEmailForMp(params.payerUserId, params.payerEmail, true) : params.payerEmail;
+  const backBase = settings.mercadopago.backUrlBase || process.env.MOBILE_DEEP_LINK_BASE || process.env.APP_DEEP_LINK_SCHEME || process.env.WEB_URL || "ticketTransfer://";
+  const basePath = backBase.replace(/\/$/, "");
+  const isDeepLink = basePath.includes("://") && !basePath.startsWith("http");
+  const success = isDeepLink ? `${basePath}orden/${params.orderId}/pago/resultado?status=success` : `${basePath}/orden/${params.orderId}/pago/resultado?status=success`;
+  const failure = isDeepLink ? `${basePath}orden/${params.orderId}/pago/resultado?status=failure` : `${basePath}/orden/${params.orderId}/pago/resultado?status=failure`;
+  const pending = isDeepLink ? `${basePath}orden/${params.orderId}/pago/resultado?status=pending` : `${basePath}/orden/${params.orderId}/pago/resultado?status=pending`;
+  const currencyId = mercadoPagoCurrencyIdForListing(params.currency);
+  const notificationUrl = process.env.MERCADOPAGO_NOTIFICATION_URL?.trim();
+  const pref = await preference.create({
+    body: {
+      items: [
+        {
+          id: params.orderId,
+          title: params.title,
+          quantity: params.quantity ?? 1,
+          unit_price: params.unitPrice,
+          currency_id: currencyId
+        }
+      ],
+      external_reference: params.orderId,
+      back_urls: {
+        success,
+        failure,
+        pending
+      },
+      auto_return: "approved",
+      payer: payerEmail ? { email: payerEmail } : void 0,
+      ...notificationUrl ? { notification_url: notificationUrl } : {}
+    }
+  });
+  const initPoint = pref.init_point;
+  const preferenceId = pref.id;
+  if (!initPoint || !preferenceId) {
+    throw new Error("MercadoPago no devolvi\xF3 init_point");
+  }
+  return { initPoint, preferenceId };
+}
+async function getPaymentById(paymentId) {
+  try {
+    const { payment } = await getMercadoPagoClient();
+    const result = await payment.get({ id: paymentId });
+    return normalizePaymentInfo(result);
+  } catch {
+    return null;
+  }
+}
+function normalizePaymentInfo(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw;
+  if (r.id == null) return null;
+  return {
+    id: String(r.id),
+    status: String(r.status || ""),
+    external_reference: r.external_reference,
+    transaction_amount: typeof r.transaction_amount === "number" ? r.transaction_amount : void 0,
+    currency_id: r.currency_id
+  };
+}
+async function searchPaymentsByExternalReference(orderId) {
+  try {
+    const { payment } = await getMercadoPagoClient();
+    const result = await payment.search({
+      options: {
+        qs: {
+          external_reference: orderId,
+          sort: "date_created",
+          criteria: "desc"
+        }
+      }
+    });
+    const rows = result?.results ?? [];
+    return rows.map((row) => normalizePaymentInfo(row)).filter((p) => p != null);
+  } catch (e) {
+    console.error("Error buscando pagos MP por orden:", orderId, e);
+    return [];
+  }
+}
+function verifyMercadoPagoWebhookSignature(dataId, xRequestId, ts, secret, receivedHash) {
+  const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+  const hash = crypto5.createHmac("sha256", secret).update(manifest).digest("hex");
+  return hash === receivedHash;
+}
+async function getMercadoPagoPublicKey() {
+  const settings = await getPlatformSettings();
+  const pk = settings.mercadopago.publicKey || process.env.MERCADOPAGO_PUBLIC_KEY || "";
+  if (!pk) throw new Error("Mercado Pago Public Key no configurado. Configur\xE1 en Admin \u2192 Pasarelas.");
+  return pk;
+}
+function getCustomerEmailForMp(userId, email, sandboxMode) {
+  if (!sandboxMode) return email;
+  const hash = userId.split("").reduce((acc, c) => acc * 31 + c.charCodeAt(0) >>> 0, 0);
+  const num = hash % 9999999999 + 1;
+  return `test_payer_${num}@testuser.com`;
+}
+async function getOrCreateCustomer(userId, email, sandboxMode = false) {
+  const { customer } = await getMercadoPagoClient();
+  const settings = await getPlatformSettings();
+  const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
+  const useRealEmail = settings.mercadopago.sandboxUseRealEmail;
+  const mpEmail = useRealEmail ? email : sandboxMode && usePayerTestCom ? "test_payer_1@testuser.com" : getCustomerEmailForMp(userId, email, sandboxMode);
+  const search = await customer.search({ options: { email: mpEmail } });
+  const results = search.results;
+  if (results && results.length > 0) return results[0].id;
+  const created = await customer.create({ body: { email: mpEmail } });
+  return created.id;
+}
+async function addCardToCustomer(customerId, token) {
+  const { customer } = await getMercadoPagoClient();
+  const card = await customer.createCard({ customerId, body: { token } });
+  const c = card;
+  return {
+    id: c.id,
+    last_four_digits: c.last_four_digits || c.last4 || "****",
+    payment_method: c.payment_method || { id: "credit_card", name: "Tarjeta" }
+  };
+}
+async function listCustomerCards(customerId) {
+  const { customer } = await getMercadoPagoClient();
+  const result = await customer.listCards({ customerId });
+  const rawCards = Array.isArray(result) ? result : result?.data ?? [];
+  const cards = rawCards;
+  return cards.map((c) => ({
+    id: String(c.id),
+    last_four_digits: String(c.last_four_digits || c.last4 || "****"),
+    payment_method: c.payment_method || { id: "credit_card", name: "Tarjeta" }
+  }));
+}
+async function removeCustomerCard(customerId, cardId) {
+  const { customer } = await getMercadoPagoClient();
+  await customer.removeCard({ customerId, cardId });
+}
+async function createPaymentWithToken(params) {
+  const { payment } = await getMercadoPagoClient();
+  const settings = await getPlatformSettings();
+  const sandboxMode = settings.mercadopago.sandboxMode;
+  const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
+  const mpPayerEmail = sandboxMode && usePayerTestCom ? "test_payer_1@testuser.com" : params.payerUserId && sandboxMode ? getCustomerEmailForMp(params.payerUserId, params.payerEmail, true) : params.payerEmail;
+  const currencyId = mercadoPagoCurrencyIdForListing(params.currency);
+  const body = {
+    transaction_amount: params.amount,
+    currency_id: currencyId,
+    token: params.token,
+    payment_method_id: params.paymentMethodId,
+    payer: { email: mpPayerEmail },
+    external_reference: params.orderId,
+    description: params.title,
+    installments: 1
+  };
+  if (params.issuerId) body.issuer_id = params.issuerId;
+  const result = await payment.create({ body });
+  return result;
+}
+var client, preferenceClient, paymentClient, customerClient, lastToken, MP_CURRENCY_IDS;
+var init_mercadopago = __esm({
+  "src/lib/mercadopago.ts"() {
+    "use strict";
+    init_settings();
+    client = null;
+    preferenceClient = null;
+    paymentClient = null;
+    customerClient = null;
+    lastToken = "";
+    MP_CURRENCY_IDS = /* @__PURE__ */ new Set(["ARS", "BRL", "CLP", "COP", "MXN", "PEN", "UYU", "USD"]);
   }
 });
 
@@ -13511,6 +13932,334 @@ var init_sms = __esm({
   }
 });
 
+// src/lib/firebase-messaging.ts
+async function sendPushNotification(fcmToken, title, body, data) {
+  if (!fcmToken || fcmToken.length < 10) return { success: false };
+  try {
+    const messaging = getMessaging();
+    const dataPayload = data && Object.fromEntries(
+      Object.entries(data).map(([k, v]) => [k, v === void 0 || v === null ? "" : String(v)])
+    );
+    const message = {
+      token: fcmToken,
+      notification: { title, body },
+      data: dataPayload || {},
+      android: { priority: "high" },
+      apns: {
+        headers: { "apns-priority": "10" },
+        payload: { aps: { sound: "default", badge: 1 } }
+      }
+    };
+    await messaging.send(message);
+    return { success: true };
+  } catch (e) {
+    const code = e?.errorInfo?.code;
+    if (code && INVALID_TOKEN_CODES.includes(code)) {
+      console.warn("Token FCM inv\xE1lido (se eliminar\xE1 del usuario):", code);
+      return { success: false, tokenInvalid: true };
+    }
+    console.error("Error enviando push:", e);
+    return { success: false };
+  }
+}
+var INVALID_TOKEN_CODES;
+var init_firebase_messaging = __esm({
+  "src/lib/firebase-messaging.ts"() {
+    "use strict";
+    init_firebase_admin();
+    INVALID_TOKEN_CODES = [
+      "messaging/registration-token-not-registered",
+      "messaging/invalid-registration-token"
+    ];
+  }
+});
+
+// src/lib/order-payments.ts
+var order_payments_exports = {};
+__export(order_payments_exports, {
+  applyMercadoPagoPaymentToOrder: () => applyMercadoPagoPaymentToOrder,
+  markListingSold: () => markListingSold,
+  notifyPaymentApproved: () => notifyPaymentApproved,
+  notifyPaymentFailed: () => notifyPaymentFailed,
+  notifyPaymentPending: () => notifyPaymentPending,
+  releaseListingReservation: () => releaseListingReservation,
+  reserveListingForOrder: () => reserveListingForOrder,
+  syncOrderPaymentFromMercadoPago: () => syncOrderPaymentFromMercadoPago
+});
+import { FieldValue } from "firebase-admin/firestore";
+function paymentMatchesOrder(payment, expectedTotal, orderCurrency) {
+  const payCurrency = (payment.currency_id || "ARS").toUpperCase();
+  const amountOk = payment.transaction_amount == null || expectedTotal == null || Math.abs(payment.transaction_amount - expectedTotal) <= 0.02;
+  const currencyOk = orderCurrency === payCurrency;
+  return amountOk && currencyOk;
+}
+async function reserveListingForOrder(listingId, orderId) {
+  const ref = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(listingId);
+  const doc = await ref.get();
+  if (!doc.exists) return;
+  const d = doc.data();
+  if (d.status !== "DISPONIBLE") return;
+  await ref.update({
+    status: "PAUSADO",
+    reservedOrderId: orderId,
+    updatedAt: /* @__PURE__ */ new Date()
+  });
+}
+async function markListingSold(listingId) {
+  await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(listingId).update({
+    status: "VENDIDO",
+    reservedOrderId: FieldValue.delete(),
+    updatedAt: /* @__PURE__ */ new Date()
+  });
+}
+async function releaseListingReservation(listingId, orderId) {
+  const ref = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(listingId);
+  const doc = await ref.get();
+  if (!doc.exists) return;
+  const d = doc.data();
+  if (d.reservedOrderId !== orderId) return;
+  if (d.status === "VENDIDO") return;
+  await ref.update({
+    status: "DISPONIBLE",
+    reservedOrderId: FieldValue.delete(),
+    updatedAt: /* @__PURE__ */ new Date()
+  });
+}
+async function getAdminRecipients() {
+  const fromEnv = process.env.ADMIN_NOTIFICATION_EMAIL?.trim();
+  if (fromEnv) {
+    return [{ id: "env-admin", email: fromEnv }];
+  }
+  const snap = await db().collection(COLLECTIONS.USERS).where("role", "==", "admin").get();
+  return snap.docs.map((doc) => {
+    const d = doc.data();
+    const email = typeof d.email === "string" ? d.email.trim() : "";
+    if (!email) return null;
+    return {
+      id: doc.id,
+      email,
+      fcmToken: typeof d.fcmToken === "string" ? d.fcmToken : void 0
+    };
+  }).filter((x) => x != null);
+}
+async function sendPushSafe(userId, fcmToken, title, body, data) {
+  if (!fcmToken) return;
+  const result = await sendPushNotification(fcmToken, title, body, data);
+  if (result.tokenInvalid) {
+    await db().collection(COLLECTIONS.USERS).doc(userId).update({
+      fcmToken: FieldValue.delete(),
+      updatedAt: /* @__PURE__ */ new Date()
+    });
+  }
+}
+async function notifyPaymentApproved(params) {
+  const [buyerDoc, sellerDoc] = await Promise.all([
+    db().collection(COLLECTIONS.USERS).doc(params.buyerId).get(),
+    db().collection(COLLECTIONS.USERS).doc(params.sellerId).get()
+  ]);
+  const buyerEmail = buyerDoc.data()?.email;
+  const sellerEmail = sellerDoc.data()?.email;
+  const buyerToken = buyerDoc.data()?.fcmToken;
+  const sellerToken = sellerDoc.data()?.fcmToken;
+  const amountLabel = `${params.currency} ${params.totalAmount.toLocaleString("es-AR")}`;
+  if (buyerEmail) {
+    void sendPaymentApprovedBuyerEmail(buyerEmail, {
+      orderId: params.orderId,
+      eventName: params.eventName,
+      amountLabel
+    });
+  }
+  if (sellerEmail) {
+    void sendPaymentApprovedSellerEmail(sellerEmail, {
+      orderId: params.orderId,
+      eventName: params.eventName,
+      amountLabel
+    });
+  }
+  void sendPushSafe(
+    params.buyerId,
+    buyerToken,
+    "Pago confirmado",
+    `Tu compra de "${params.eventName}" fue acreditada. El vendedor debe transferirte el ticket.`,
+    { type: "order_payment", orderId: params.orderId, status: "approved" }
+  );
+  void sendPushSafe(
+    params.sellerId,
+    sellerToken,
+    "\xA1Nueva venta!",
+    `Pagaron tu ticket "${params.eventName}". Transfer\xED el ticket al comprador.`,
+    { type: "order_payment", orderId: params.orderId, status: "approved" }
+  );
+  const admins = await getAdminRecipients();
+  for (const admin2 of admins) {
+    void sendNewSaleAdminEmail(admin2.email, {
+      orderId: params.orderId,
+      eventName: params.eventName,
+      amountLabel
+    });
+    void sendPushSafe(
+      admin2.id,
+      admin2.fcmToken,
+      "Nueva venta pagada",
+      `${params.eventName} \u2014 ${amountLabel}. Revis\xE1 la orden en el panel.`,
+      { type: "order_payment", orderId: params.orderId, status: "approved" }
+    );
+  }
+}
+async function notifyPaymentFailed(params) {
+  const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(params.buyerId).get();
+  const buyerEmail = buyerDoc.data()?.email;
+  const buyerToken = buyerDoc.data()?.fcmToken;
+  if (buyerEmail) {
+    void sendPaymentFailedBuyerEmail(buyerEmail, { orderId: params.orderId, eventName: params.eventName });
+  }
+  void sendPushSafe(
+    params.buyerId,
+    buyerToken,
+    "Pago no completado",
+    `No se acredit\xF3 el pago de "${params.eventName}". Pod\xE9s reintentar desde la app.`,
+    { type: "order_payment", orderId: params.orderId, status: "failure" }
+  );
+}
+async function notifyPaymentPending(params) {
+  const buyerDoc = await db().collection(COLLECTIONS.USERS).doc(params.buyerId).get();
+  const buyerEmail = buyerDoc.data()?.email;
+  const buyerToken = buyerDoc.data()?.fcmToken;
+  if (buyerEmail) {
+    void sendPaymentPendingBuyerEmail(buyerEmail, { orderId: params.orderId, eventName: params.eventName });
+  }
+  void sendPushSafe(
+    params.buyerId,
+    buyerToken,
+    "Pago pendiente",
+    `Tu pago de "${params.eventName}" est\xE1 en proceso. Te avisaremos cuando se acredite.`,
+    { type: "order_payment", orderId: params.orderId, status: "pending" }
+  );
+}
+async function applyMercadoPagoPaymentToOrder(orderId, payment, options) {
+  const orderRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
+  const orderDoc = await orderRef.get();
+  if (!orderDoc.exists) {
+    return { applied: false, orderStatus: "NOT_FOUND" };
+  }
+  const ord = orderDoc.data();
+  const currentStatus = String(ord.status || "");
+  const expectedTotal = typeof ord.totalAmount === "number" ? ord.totalAmount : null;
+  const orderCurrency = String(ord.currency || "ARS").toUpperCase();
+  const listingId = String(ord.ticketListingId || "");
+  const notify = options?.notify !== false;
+  let listingDoc = listingId ? await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(listingId).get() : null;
+  const eventName = listingDoc?.exists && String(listingDoc.data()?.eventName || "") || "Ticket";
+  if (payment.status === "approved") {
+    if (!paymentMatchesOrder(payment, expectedTotal, orderCurrency)) {
+      console.warn("MP pago aprobado no coincide con orden", { orderId, payment });
+      return { applied: false, orderStatus: currentStatus, paymentStatus: payment.status };
+    }
+    if (currentStatus === "PENDIENTE_PAGO") {
+      await orderRef.update({
+        status: "ESPERANDO_TRANSFERENCIA",
+        paymentIntentId: payment.id,
+        mercadopagoPaymentId: payment.id,
+        mercadopagoPaymentStatus: payment.status,
+        paidAt: /* @__PURE__ */ new Date(),
+        updatedAt: /* @__PURE__ */ new Date()
+      });
+      if (listingId) await markListingSold(listingId);
+      if (notify) {
+        await notifyPaymentApproved({
+          orderId,
+          eventName,
+          totalAmount: expectedTotal ?? 0,
+          currency: orderCurrency,
+          buyerId: String(ord.buyerId),
+          sellerId: String(ord.sellerId)
+        });
+      }
+      return { applied: true, orderStatus: "ESPERANDO_TRANSFERENCIA", paymentStatus: payment.status };
+    }
+    return { applied: false, orderStatus: currentStatus, paymentStatus: payment.status };
+  }
+  if (payment.status === "pending" || payment.status === "in_process") {
+    if (currentStatus === "PENDIENTE_PAGO") {
+      const wasPending = ord.mercadopagoPaymentStatus === "pending" || ord.mercadopagoPaymentStatus === "in_process";
+      await orderRef.update({
+        mercadopagoPaymentId: payment.id,
+        mercadopagoPaymentStatus: payment.status,
+        updatedAt: /* @__PURE__ */ new Date()
+      });
+      if (notify && !wasPending) {
+        await notifyPaymentPending({
+          orderId,
+          eventName,
+          buyerId: String(ord.buyerId)
+        });
+      }
+    }
+    return { applied: true, orderStatus: currentStatus, paymentStatus: payment.status };
+  }
+  const rejected = ["rejected", "cancelled", "refunded", "charged_back"].includes(payment.status);
+  if (rejected && currentStatus === "PENDIENTE_PAGO") {
+    await orderRef.update({
+      mercadopagoPaymentId: payment.id,
+      mercadopagoPaymentStatus: payment.status,
+      lastPaymentFailureAt: /* @__PURE__ */ new Date(),
+      updatedAt: /* @__PURE__ */ new Date()
+    });
+    if (notify) {
+      await notifyPaymentFailed({
+        orderId,
+        eventName,
+        buyerId: String(ord.buyerId)
+      });
+    }
+    return { applied: true, orderStatus: currentStatus, paymentStatus: payment.status };
+  }
+  return { applied: false, orderStatus: currentStatus, paymentStatus: payment.status };
+}
+async function syncOrderPaymentFromMercadoPago(orderId) {
+  const orderRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
+  const orderDoc = await orderRef.get();
+  if (!orderDoc.exists) {
+    return { orderStatus: "NOT_FOUND", paymentStatus: null, synced: false };
+  }
+  const ord = orderDoc.data();
+  if (ord.status !== "PENDIENTE_PAGO") {
+    return {
+      orderStatus: String(ord.status),
+      paymentStatus: ord.mercadopagoPaymentStatus ?? null,
+      synced: false
+    };
+  }
+  let payment = null;
+  const storedPaymentId = ord.mercadopagoPaymentId ? String(ord.mercadopagoPaymentId) : "";
+  if (storedPaymentId) {
+    payment = await getPaymentById(storedPaymentId);
+  }
+  if (!payment) {
+    const found = await searchPaymentsByExternalReference(orderId);
+    payment = found[0] ?? null;
+  }
+  if (!payment) {
+    return { orderStatus: String(ord.status), paymentStatus: null, synced: false };
+  }
+  const result = await applyMercadoPagoPaymentToOrder(orderId, payment);
+  const refreshed = await orderRef.get();
+  return {
+    orderStatus: String(refreshed.data()?.status || result.orderStatus),
+    paymentStatus: result.paymentStatus ?? payment.status,
+    synced: result.applied
+  };
+}
+var init_order_payments = __esm({
+  "src/lib/order-payments.ts"() {
+    "use strict";
+    init_firestore();
+    init_mercadopago();
+    init_email();
+    init_firebase_messaging();
+  }
+});
+
 // src/index.ts
 init_firebase_admin();
 import "dotenv/config";
@@ -13523,29 +14272,9 @@ import rateLimit from "express-rate-limit";
 
 // src/routes/auth.ts
 init_firebase_admin();
+init_firestore();
 import { createHash } from "crypto";
 import { Router } from "express";
-
-// src/lib/firestore.ts
-init_firebase_admin();
-var db = () => getFirestore();
-var COLLECTIONS = {
-  USERS: "users",
-  EMAIL_VERIFICATION_CODES: "emailVerificationCodes",
-  USER_ONBOARDING: "userOnboarding",
-  KYC_VERIFICATIONS: "kycVerifications",
-  TICKET_LISTINGS: "ticketListings",
-  ORDERS: "orders",
-  ORDER_RATINGS: "orderRatings",
-  DISPUTES: "disputes",
-  DISPUTE_MESSAGES: "disputeMessages",
-  CONVERSATIONS: "conversations",
-  MESSAGES: "messages",
-  PLATFORM_SETTINGS: "platformSettings",
-  SELLER_TRANSFERS: "sellerTransfers",
-  /** Solicitudes de factura por transacción (usuarios → revisión admin). */
-  TRANSACTION_INVOICE_REQUESTS: "transactionInvoiceRequests"
-};
 
 // ../../packages/shared/src/constants.ts
 var CATEGORIAS_EVENTOS = ["MUSICA", "DEPORTES", "TEATRO", "FESTIVALES", "OTRO"];
@@ -13581,6 +14310,59 @@ var DISPUTE_STATUS = [
   "RESUELTA_FAVOR_VENDEDOR"
 ];
 var HORAS_MAX_TRANSFERENCIA_VENDEDOR = 72;
+
+// ../../packages/shared/src/user-preferences.ts
+var PREFERENCIAS_EVENTO = [
+  { id: "MUSICA", label: "Recitales / M\xFAsica", listingCategories: ["MUSICA"] },
+  { id: "DEPORTES", label: "Deportes", listingCategories: ["DEPORTES"] },
+  { id: "TEATRO", label: "Teatro", listingCategories: ["TEATRO"] },
+  { id: "STAND_UP", label: "Stand-up", listingCategories: ["TEATRO", "OTRO"] },
+  { id: "FESTIVALES", label: "Festivales", listingCategories: ["FESTIVALES"] },
+  { id: "OTRO", label: "Otros", listingCategories: ["OTRO"] }
+];
+var PREFERENCIAS_EVENTO_IDS = PREFERENCIAS_EVENTO.map((p) => p.id);
+var INTERACTION_WEIGHTS = {
+  VIEW: 1,
+  CLICK: 2,
+  FAVORITE_ADD: 5,
+  FAVORITE_REMOVE: -3
+};
+var PREF_TO_LISTING = new Map(
+  PREFERENCIAS_EVENTO.map((p) => [p.id, p.listingCategories])
+);
+function listingMatchesPreferencia(listingCategory, preferenciaId) {
+  const cats = PREF_TO_LISTING.get(preferenciaId);
+  if (!cats) return false;
+  const cat = listingCategory || "OTRO";
+  return cats.includes(cat);
+}
+function scoreListingForUser(listing, prefs) {
+  const category = listing.category || "OTRO";
+  let score = 0;
+  for (const prefId of prefs.explicitCategories ?? []) {
+    if (listingMatchesPreferencia(category, prefId)) score += 10;
+  }
+  score += prefs.categoryScores?.[category] ?? 0;
+  if (listing.createdAt) {
+    const ts = listing.createdAt instanceof Date ? listing.createdAt.getTime() : new Date(listing.createdAt).getTime();
+    if (!Number.isNaN(ts)) {
+      const ageDays = (Date.now() - ts) / (24 * 3600 * 1e3);
+      score += Math.max(0, 2 - ageDays * 0.3);
+    }
+  }
+  return score;
+}
+function labelForCategoriaEvento(cat) {
+  const c = cat || "OTRO";
+  const map = {
+    MUSICA: "M\xFAsica",
+    DEPORTES: "Deportes",
+    TEATRO: "Teatro",
+    FESTIVALES: "Festivales",
+    OTRO: "Otros"
+  };
+  return map[c] ?? c;
+}
 
 // ../../packages/shared/src/event-images.ts
 var EVENT_IMAGE_CATEGORY_FALLBACKS = {
@@ -17703,6 +18485,18 @@ var onboardingSchema = external_exports.object({
   ticketeras: external_exports.array(external_exports.string()).min(1, "Elige al menos una ticketera"),
   appsBoletos: external_exports.array(external_exports.string()).min(1, "Elige al menos una app de boletos")
 });
+var preferenciaEventoEnum = external_exports.enum(["MUSICA", "DEPORTES", "TEATRO", "STAND_UP", "FESTIVALES", "OTRO"]);
+var tasteOnboardingSchema = external_exports.object({
+  eventPreferences: external_exports.array(preferenciaEventoEnum).min(1, "Eleg\xED al menos un tipo de evento")
+});
+var userPreferencesPatchSchema = external_exports.object({
+  eventPreferences: external_exports.array(preferenciaEventoEnum).min(1).optional()
+});
+var listingInteractionSchema = external_exports.object({
+  listingId: external_exports.string().min(1),
+  type: external_exports.enum(["VIEW", "CLICK", "FAVORITE_ADD", "FAVORITE_REMOVE"]),
+  category: external_exports.enum(["MUSICA", "DEPORTES", "TEATRO", "FESTIVALES", "OTRO"]).optional()
+});
 var ticketeraEnum = external_exports.enum(["TICKETEK", "ALLACCESS", "TICKET_PLUS", "OTRA"]);
 var appBoletosEnum = external_exports.enum(["QUENTRO", "ENIGMA", "OTRA"]);
 var tipoEntradaEnum = external_exports.enum(["GENERAL", "CAMPO", "PLATEA", "VIP", "OTRO"]);
@@ -17776,6 +18570,7 @@ var pixelateRegionsSchema = external_exports.array(pixelateRegionSchema).optiona
 
 // src/middleware/auth.ts
 init_firebase_admin();
+init_firestore();
 async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -18086,9 +18881,10 @@ router.get("/me", requireAuth, async (req, res) => {
 var authRouter = router;
 
 // src/routes/users.ts
+init_firestore();
+init_firebase_admin();
 import { Router as Router2 } from "express";
 import multer from "multer";
-init_firebase_admin();
 
 // src/lib/firebase-storage.ts
 init_firebase_admin();
@@ -18338,276 +19134,129 @@ async function verifyDiditWebhookSignatureSimple(jsonBody, signature, timestamp,
   }
 }
 
-// src/lib/mercadopago.ts
-import crypto5 from "crypto";
-import { MercadoPagoConfig, Preference, Payment, Customer } from "mercadopago";
+// src/routes/users.ts
+init_mercadopago();
+init_settings();
 
-// src/lib/settings.ts
-var DEFAULTS = {
-  commissionPercentage: 6.5,
-  marketplaceHomePublicListingsLimit: 6,
-  mercadopago: {
-    enabled: false,
-    accessToken: "",
-    publicKey: "",
-    webhookSecret: "",
-    sandboxMode: false,
-    backUrlBase: "",
-    sandboxUsePayerTestCom: false,
-    sandboxUseRealEmail: false
-  },
-  users: {},
-  visual: {},
-  notifications: {}
-};
-var SETTINGS_DOC_ID = "main";
-function parseBooleanSetting(value, fallback) {
-  if (value === true || value === false) return value;
-  if (value === "true") return true;
-  if (value === "false") return false;
-  return fallback;
+// src/lib/user-preferences.ts
+init_firestore();
+function prefsRef(userId) {
+  return db().collection(COLLECTIONS.USER_PREFERENCES).doc(userId);
 }
-var cachedSettings = null;
-var cacheExpiry = 0;
-var CACHE_TTL_MS = 3e4;
-async function getPlatformSettings() {
-  if (cachedSettings && Date.now() < cacheExpiry) {
-    return cachedSettings;
-  }
-  const doc = await db().collection(COLLECTIONS.PLATFORM_SETTINGS).doc(SETTINGS_DOC_ID).get();
-  if (!doc.exists) {
-    cachedSettings = { ...DEFAULTS };
-    return cachedSettings;
-  }
+async function getUserPreferences(userId) {
+  const doc = await prefsRef(userId).get();
+  if (!doc.exists) return null;
   const d = doc.data();
-  cachedSettings = {
-    commissionPercentage: d.commissionPercentage ?? DEFAULTS.commissionPercentage,
-    marketplaceHomePublicListingsLimit: Math.min(
-      50,
-      Math.max(1, Number(d.marketplaceHomePublicListingsLimit) || DEFAULTS.marketplaceHomePublicListingsLimit)
-    ),
-    mercadopago: {
-      enabled: d.mercadopago?.enabled ?? DEFAULTS.mercadopago.enabled,
-      accessToken: d.mercadopago?.accessToken ?? "",
-      publicKey: d.mercadopago?.publicKey ?? "",
-      webhookSecret: d.mercadopago?.webhookSecret ?? "",
-      sandboxMode: parseBooleanSetting(d.mercadopago?.sandboxMode, DEFAULTS.mercadopago.sandboxMode),
-      backUrlBase: d.mercadopago?.backUrlBase ?? "",
-      sandboxUsePayerTestCom: parseBooleanSetting(
-        d.mercadopago?.sandboxUsePayerTestCom,
-        DEFAULTS.mercadopago.sandboxUsePayerTestCom ?? false
-      ),
-      sandboxUseRealEmail: parseBooleanSetting(
-        d.mercadopago?.sandboxUseRealEmail,
-        DEFAULTS.mercadopago.sandboxUseRealEmail ?? false
-      )
-    },
-    users: d.users ?? {},
-    visual: d.visual ?? {},
-    notifications: d.notifications ?? {},
-    updatedAt: d.updatedAt?.toDate?.() ?? void 0
-  };
-  cacheExpiry = Date.now() + CACHE_TTL_MS;
-  return cachedSettings;
-}
-function invalidateSettingsCache() {
-  cachedSettings = null;
-  cacheExpiry = 0;
-}
-async function getCommissionPercentage() {
-  const s = await getPlatformSettings();
-  return s.commissionPercentage;
-}
-async function getMarketplaceHomePublicListingsLimit() {
-  const s = await getPlatformSettings();
-  return s.marketplaceHomePublicListingsLimit;
-}
-
-// src/lib/mercadopago.ts
-var client = null;
-var preferenceClient = null;
-var paymentClient = null;
-var customerClient = null;
-var lastToken = "";
-function getAccessToken() {
-  return process.env.MERCADOPAGO_ACCESS_TOKEN || "";
-}
-async function getMercadoPagoClient() {
-  const settings = await getPlatformSettings();
-  const fromFirestore = settings.mercadopago.enabled && settings.mercadopago.accessToken;
-  const token = fromFirestore ? settings.mercadopago.accessToken : getAccessToken();
-  if (!token) {
-    throw new Error("Mercado Pago no configurado. Configur\xE1 el Access Token en Admin \u2192 Configuraci\xF3n \u2192 Pasarelas de Pago.");
-  }
-  if (settings.mercadopago.sandboxMode && !fromFirestore) {
-    throw new Error(
-      "Modo sandbox activo: configur\xE1 Access Token y Public Key en Admin \u2192 Pasarelas de pago (Firestore). No uses variables de entorno en producci\xF3n."
-    );
-  }
-  if (!client || lastToken !== token) {
-    lastToken = token;
-    client = new MercadoPagoConfig({
-      accessToken: token,
-      options: { timeout: 5e3 }
-    });
-    preferenceClient = new Preference(client);
-    paymentClient = new Payment(client);
-    customerClient = new Customer(client);
-  }
-  if (!preferenceClient || !paymentClient || !customerClient) throw new Error("MP clients no inicializados");
-  return { client, preference: preferenceClient, payment: paymentClient, customer: customerClient };
-}
-async function isMercadoPagoConfigured() {
-  const settings = await getPlatformSettings();
-  if (settings.mercadopago.enabled && settings.mercadopago.accessToken) return true;
-  return !!getAccessToken();
-}
-async function getMercadoPagoWebhookSecret() {
-  const settings = await getPlatformSettings();
-  if (settings.mercadopago.webhookSecret) return settings.mercadopago.webhookSecret;
-  return process.env.MERCADOPAGO_WEBHOOK_SECRET || "";
-}
-var MP_CURRENCY_IDS = /* @__PURE__ */ new Set(["ARS", "BRL", "CLP", "COP", "MXN", "PEN", "UYU", "USD"]);
-function mercadoPagoCurrencyIdForListing(currency) {
-  const c = (currency?.trim() || "ARS").toUpperCase();
-  if (!MP_CURRENCY_IDS.has(c)) {
-    throw new Error(`Moneda no soportada para Mercado Pago: ${c}. Us\xE1 ARS, USD o una moneda MP admitida.`);
-  }
-  return c;
-}
-async function createCheckoutPreference(params) {
-  const { preference } = await getMercadoPagoClient();
-  const settings = await getPlatformSettings();
-  const sandboxMode = settings.mercadopago.sandboxMode;
-  const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
-  const payerEmail = params.payerEmail && sandboxMode && usePayerTestCom ? "test_payer_1@testuser.com" : params.payerEmail && params.payerUserId && sandboxMode ? getCustomerEmailForMp(params.payerUserId, params.payerEmail, true) : params.payerEmail;
-  const backBase = settings.mercadopago.backUrlBase || process.env.MOBILE_DEEP_LINK_BASE || process.env.APP_DEEP_LINK_SCHEME || process.env.WEB_URL || "ticketTransfer://";
-  const basePath = backBase.replace(/\/$/, "");
-  const isDeepLink = basePath.includes("://") && !basePath.startsWith("http");
-  const success = isDeepLink ? `${basePath}orden/${params.orderId}/pago?status=success` : `${basePath}/orden/${params.orderId}/pago?status=success`;
-  const failure = isDeepLink ? `${basePath}orden/${params.orderId}/pago?status=failure` : `${basePath}/orden/${params.orderId}/pago?status=failure`;
-  const pending = isDeepLink ? `${basePath}orden/${params.orderId}/pago?status=pending` : `${basePath}/orden/${params.orderId}/pago?status=pending`;
-  const currencyId = mercadoPagoCurrencyIdForListing(params.currency);
-  const notificationUrl = process.env.MERCADOPAGO_NOTIFICATION_URL?.trim();
-  const pref = await preference.create({
-    body: {
-      items: [
-        {
-          id: params.orderId,
-          title: params.title,
-          quantity: params.quantity ?? 1,
-          unit_price: params.unitPrice,
-          currency_id: currencyId
-        }
-      ],
-      external_reference: params.orderId,
-      back_urls: {
-        success,
-        failure,
-        pending
-      },
-      auto_return: "approved",
-      payer: payerEmail ? { email: payerEmail } : void 0,
-      ...notificationUrl ? { notification_url: notificationUrl } : {}
-    }
-  });
-  const initPoint = pref.init_point;
-  const preferenceId = pref.id;
-  if (!initPoint || !preferenceId) {
-    throw new Error("MercadoPago no devolvi\xF3 init_point");
-  }
-  return { initPoint, preferenceId };
-}
-async function getPaymentById(paymentId) {
-  try {
-    const { payment } = await getMercadoPagoClient();
-    const result = await payment.get({ id: paymentId });
-    const r = result;
-    return {
-      id: String(r.id),
-      status: r.status,
-      external_reference: r.external_reference,
-      transaction_amount: typeof r.transaction_amount === "number" ? r.transaction_amount : void 0,
-      currency_id: r.currency_id
-    };
-  } catch {
-    return null;
-  }
-}
-function verifyMercadoPagoWebhookSignature(dataId, xRequestId, ts, secret, receivedHash) {
-  const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
-  const hash = crypto5.createHmac("sha256", secret).update(manifest).digest("hex");
-  return hash === receivedHash;
-}
-async function getMercadoPagoPublicKey() {
-  const settings = await getPlatformSettings();
-  const pk = settings.mercadopago.publicKey || process.env.MERCADOPAGO_PUBLIC_KEY || "";
-  if (!pk) throw new Error("Mercado Pago Public Key no configurado. Configur\xE1 en Admin \u2192 Pasarelas.");
-  return pk;
-}
-function getCustomerEmailForMp(userId, email, sandboxMode) {
-  if (!sandboxMode) return email;
-  const hash = userId.split("").reduce((acc, c) => acc * 31 + c.charCodeAt(0) >>> 0, 0);
-  const num = hash % 9999999999 + 1;
-  return `test_payer_${num}@testuser.com`;
-}
-async function getOrCreateCustomer(userId, email, sandboxMode = false) {
-  const { customer } = await getMercadoPagoClient();
-  const settings = await getPlatformSettings();
-  const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
-  const useRealEmail = settings.mercadopago.sandboxUseRealEmail;
-  const mpEmail = useRealEmail ? email : sandboxMode && usePayerTestCom ? "test_payer_1@testuser.com" : getCustomerEmailForMp(userId, email, sandboxMode);
-  const search = await customer.search({ options: { email: mpEmail } });
-  const results = search.results;
-  if (results && results.length > 0) return results[0].id;
-  const created = await customer.create({ body: { email: mpEmail } });
-  return created.id;
-}
-async function addCardToCustomer(customerId, token) {
-  const { customer } = await getMercadoPagoClient();
-  const card = await customer.createCard({ customerId, body: { token } });
-  const c = card;
   return {
-    id: c.id,
-    last_four_digits: c.last_four_digits || c.last4 || "****",
-    payment_method: c.payment_method || { id: "credit_card", name: "Tarjeta" }
+    userId,
+    eventPreferences: Array.isArray(d.eventPreferences) ? d.eventPreferences : [],
+    categoryScores: d.categoryScores && typeof d.categoryScores === "object" ? d.categoryScores : {},
+    tasteOnboardingCompletedAt: d.tasteOnboardingCompletedAt?.toDate?.() ?? d.tasteOnboardingCompletedAt ?? null,
+    createdAt: d.createdAt?.toDate?.() ?? /* @__PURE__ */ new Date(),
+    updatedAt: d.updatedAt?.toDate?.() ?? /* @__PURE__ */ new Date()
   };
 }
-async function listCustomerCards(customerId) {
-  const { customer } = await getMercadoPagoClient();
-  const result = await customer.listCards({ customerId });
-  const rawCards = Array.isArray(result) ? result : result?.data ?? [];
-  const cards = rawCards;
-  return cards.map((c) => ({
-    id: String(c.id),
-    last_four_digits: String(c.last_four_digits || c.last4 || "****"),
-    payment_method: c.payment_method || { id: "credit_card", name: "Tarjeta" }
+async function ensureUserPreferences(userId) {
+  const existing = await getUserPreferences(userId);
+  if (existing) return existing;
+  const now = /* @__PURE__ */ new Date();
+  const initial = {
+    userId,
+    eventPreferences: [],
+    categoryScores: {},
+    tasteOnboardingCompletedAt: null,
+    createdAt: now,
+    updatedAt: now
+  };
+  await prefsRef(userId).set(initial);
+  return initial;
+}
+async function completeTasteOnboarding(userId, eventPreferences) {
+  const now = /* @__PURE__ */ new Date();
+  const ref = prefsRef(userId);
+  const existing = await ref.get();
+  await ref.set(
+    {
+      userId,
+      eventPreferences,
+      tasteOnboardingCompletedAt: now,
+      updatedAt: now,
+      ...existing.exists ? {} : { categoryScores: {}, createdAt: now }
+    },
+    { merge: true }
+  );
+  return await getUserPreferences(userId);
+}
+async function patchEventPreferences(userId, eventPreferences) {
+  const now = /* @__PURE__ */ new Date();
+  await prefsRef(userId).set({ eventPreferences, updatedAt: now }, { merge: true });
+  return await getUserPreferences(userId) ?? await ensureUserPreferences(userId);
+}
+async function recordListingInteraction(userId, listingId, type, category) {
+  const weight = INTERACTION_WEIGHTS[type];
+  const cat = category || "OTRO";
+  const now = /* @__PURE__ */ new Date();
+  await db().collection(COLLECTIONS.USER_LISTING_INTERACTIONS).add({
+    userId,
+    listingId,
+    type,
+    category: cat,
+    weight,
+    createdAt: now
+  });
+  const ref = prefsRef(userId);
+  const doc = await ref.get();
+  const scores = doc.exists && doc.data()?.categoryScores && typeof doc.data().categoryScores === "object" ? { ...doc.data().categoryScores } : {};
+  const next = Math.max(0, (scores[cat] ?? 0) + weight);
+  scores[cat] = next;
+  await ref.set(
+    {
+      userId,
+      categoryScores: scores,
+      updatedAt: now,
+      ...doc.exists ? {} : { eventPreferences: [], createdAt: now }
+    },
+    { merge: true }
+  );
+}
+function preferencesToApi(prefs) {
+  const eventPreferences = prefs?.eventPreferences ?? [];
+  const categoryScores = prefs?.categoryScores ?? {};
+  const topCategories = Object.entries(categoryScores).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([category, score]) => ({
+    category,
+    score,
+    label: labelForCategoriaEvento(category)
   }));
-}
-async function removeCustomerCard(customerId, cardId) {
-  const { customer } = await getMercadoPagoClient();
-  await customer.removeCard({ customerId, cardId });
-}
-async function createPaymentWithToken(params) {
-  const { payment } = await getMercadoPagoClient();
-  const settings = await getPlatformSettings();
-  const sandboxMode = settings.mercadopago.sandboxMode;
-  const usePayerTestCom = settings.mercadopago.sandboxUsePayerTestCom;
-  const mpPayerEmail = sandboxMode && usePayerTestCom ? "test_payer_1@testuser.com" : params.payerUserId && sandboxMode ? getCustomerEmailForMp(params.payerUserId, params.payerEmail, true) : params.payerEmail;
-  const currencyId = mercadoPagoCurrencyIdForListing(params.currency);
-  const body = {
-    transaction_amount: params.amount,
-    currency_id: currencyId,
-    token: params.token,
-    payment_method_id: params.paymentMethodId,
-    payer: { email: mpPayerEmail },
-    external_reference: params.orderId,
-    description: params.title,
-    installments: 1
+  return {
+    eventPreferences,
+    tasteOnboardingCompleted: Boolean(prefs?.tasteOnboardingCompletedAt),
+    tasteOnboardingCompletedAt: prefs?.tasteOnboardingCompletedAt ? prefs.tasteOnboardingCompletedAt.toISOString() : null,
+    categoryScores,
+    topCategories
   };
-  if (params.issuerId) body.issuer_id = params.issuerId;
-  const result = await payment.create({ body });
-  return result;
+}
+function rankListingsByPreferences(items, prefs, limit) {
+  const profile = {
+    explicitCategories: prefs?.eventPreferences ?? [],
+    categoryScores: prefs?.categoryScores ?? {}
+  };
+  const hasSignals = profile.explicitCategories.length > 0 || Object.keys(profile.categoryScores).length > 0;
+  if (!hasSignals) {
+    return items.slice(0, limit);
+  }
+  const scored = items.map((item) => ({
+    item,
+    score: scoreListingForUser(
+      { category: item.category, createdAt: item.createdAt ?? void 0 },
+      profile
+    )
+  }));
+  scored.sort((a, b) => b.score - a.score || 0);
+  const positive = scored.filter((s) => s.score > 0).map((s) => s.item);
+  if (positive.length >= limit) return positive.slice(0, limit);
+  const used = new Set(positive.map((i) => i.id));
+  const filler = items.filter((i) => !used.has(i.id));
+  return [...positive, ...filler].slice(0, limit);
 }
 
 // src/routes/users.ts
@@ -18729,6 +19378,7 @@ router2.get("/profile", async (req, res) => {
   const phone = data.phone?.replace(/\+549\s*\+549/, "+549") ?? data.phone;
   const emailVerified = data.emailVerified ?? firebaseUser?.emailVerified ?? false;
   const raw = data;
+  const userPrefs = await getUserPreferences(userId);
   res.json({
     id: req.user.id,
     email: data.email,
@@ -18750,7 +19400,8 @@ router2.get("/profile", async (req, res) => {
     profileImageUrl: data.profileImageUrl ?? null,
     cbuCvu: data.cbuCvu ?? null,
     bankName: data.bankName ?? null,
-    kyc: kyc ? { status: kyc.status, rejectionReason: kyc.rejectionReason ?? null } : { status: "PENDIENTE", rejectionReason: null }
+    kyc: kyc ? { status: kyc.status, rejectionReason: kyc.rejectionReason ?? null } : { status: "PENDIENTE", rejectionReason: null },
+    preferences: preferencesToApi(userPrefs)
   });
 });
 router2.post("/phone/verify-request", async (req, res) => {
@@ -19063,9 +19714,107 @@ router2.delete("/cards/:cardId", async (req, res) => {
 });
 var usersRouter = router2;
 
-// src/routes/tickets.ts
+// src/routes/user-preferences.ts
 import { Router as Router3 } from "express";
+init_firestore();
+init_settings();
+var router3 = Router3();
+router3.use(requireAuth);
+router3.get("/", async (req, res) => {
+  const prefs = await getUserPreferences(req.user.id);
+  res.json(preferencesToApi(prefs));
+});
+router3.patch("/", async (req, res) => {
+  const parsed = userPreferencesPatchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Datos inv\xE1lidos", details: parsed.error.flatten() });
+    return;
+  }
+  if (!parsed.data.eventPreferences) {
+    res.status(400).json({ error: "No hay campos para actualizar" });
+    return;
+  }
+  await ensureUserPreferences(req.user.id);
+  const prefs = await patchEventPreferences(req.user.id, parsed.data.eventPreferences);
+  res.json(preferencesToApi(prefs));
+});
+router3.post("/onboarding", async (req, res) => {
+  const parsed = tasteOnboardingSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Datos inv\xE1lidos", details: parsed.error.flatten() });
+    return;
+  }
+  const prefs = await completeTasteOnboarding(req.user.id, parsed.data.eventPreferences);
+  res.json({ ok: true, preferences: preferencesToApi(prefs) });
+});
+router3.post("/interaction", async (req, res) => {
+  const parsed = listingInteractionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Datos inv\xE1lidos", details: parsed.error.flatten() });
+    return;
+  }
+  const { listingId, type, category } = parsed.data;
+  let cat = category ?? "OTRO";
+  if (!category) {
+    const listing = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(listingId).get();
+    if (listing.exists) cat = listing.data()?.category || "OTRO";
+  }
+  await recordListingInteraction(req.user.id, listingId, type, cat);
+  res.json({ ok: true });
+});
+async function loadPublicMarketplaceItems(limit) {
+  const snap = await db().collection(COLLECTIONS.TICKET_LISTINGS).where("status", "==", "DISPONIBLE").where("visibility", "==", "PUBLIC").orderBy("createdAt", "desc").limit(Math.min(100, limit)).get();
+  return Promise.all(
+    snap.docs.map(async (doc) => {
+      const d = doc.data();
+      const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
+      const sellerData = sellerDoc.data();
+      const eventDate = d.eventDate?.toDate?.() ?? d.eventDate;
+      const name = sellerData && ([sellerData.firstName, sellerData.lastName].filter(Boolean).join(" ") || sellerData.username || "Vendedor");
+      return {
+        id: doc.id,
+        eventName: d.eventName,
+        eventDate,
+        eventPlace: d.eventPlace ?? null,
+        eventAddress: d.eventAddress ?? null,
+        eventCity: d.eventCity ?? null,
+        eventImageUrl: d.eventImageUrl ?? null,
+        category: d.category ?? null,
+        quantityEntries: d.quantityEntries ?? null,
+        price: d.price != null && d.price !== "" ? Number(d.price) : null,
+        createdAt: d.createdAt?.toDate?.() ?? null,
+        seller: sellerData ? {
+          id: d.sellerId,
+          displayName: name,
+          reputationScore: sellerData.reputationScore ?? 0
+        } : { id: d.sellerId, displayName: "Vendedor", reputationScore: 0 }
+      };
+    })
+  );
+}
+async function getRecommendedMarketplace(req, res) {
+  const homeLimit = await getMarketplaceHomePublicListingsLimit();
+  const limit = Math.min(100, homeLimit);
+  const items = await loadPublicMarketplaceItems(limit);
+  const prefs = await getUserPreferences(req.user.id);
+  const featured = items.slice(0, 2);
+  const pool = items.slice(2);
+  const recommended = rankListingsByPreferences(pool, prefs, 12);
+  res.json({
+    limit,
+    featured,
+    recommended,
+    preferences: preferencesToApi(prefs),
+    personalized: Boolean(
+      prefs && (prefs.eventPreferences.length > 0 || Object.keys(prefs.categoryScores).length > 0)
+    )
+  });
+}
+
+// src/routes/tickets.ts
+import { Router as Router4 } from "express";
 import multer2 from "multer";
+init_firestore();
 init_firebase_admin();
 
 // src/lib/image-redaction.ts
@@ -20818,18 +21567,19 @@ function eventImageInputFromListing(data) {
 }
 
 // src/routes/tickets.ts
+init_settings();
 var updateTicketListingSchema2 = createTicketListingSchema.partial().extend({
   publicationPassword: external_exports.string().nullable().optional().transform((s) => s === "" ? null : s),
   ticketeraOtra: external_exports.string().optional().transform((s) => s === "" ? void 0 : s),
   appBoletosOtra: external_exports.string().optional().transform((s) => s === "" ? void 0 : s),
   tipoEntradaOtro: external_exports.string().optional().transform((s) => s === "" ? void 0 : s)
 });
-var router3 = Router3();
+var router4 = Router4();
 var upload2 = multer2({
   storage: multer2.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }
 });
-router3.get("/", async (_req, res) => {
+router4.get("/", async (_req, res) => {
   const snap = await db().collection(COLLECTIONS.TICKET_LISTINGS).where("status", "==", "DISPONIBLE").where("visibility", "==", "PUBLIC").orderBy("createdAt", "desc").limit(50).get();
   const listings = await Promise.all(
     snap.docs.map(async (doc) => {
@@ -20853,7 +21603,7 @@ router3.get("/", async (_req, res) => {
   );
   res.json(listings);
 });
-router3.get("/eventos", async (req, res) => {
+router4.get("/eventos", async (req, res) => {
   const { q, categoria, fecha } = req.query;
   const snap = await db().collection(COLLECTIONS.TICKET_LISTINGS).where("status", "==", "DISPONIBLE").where("visibility", "==", "PUBLIC").orderBy("eventDate", "asc").limit(200).get();
   let eventos = snap.docs.map((doc) => {
@@ -20886,7 +21636,8 @@ router3.get("/eventos", async (req, res) => {
   }
   res.json(eventos.slice(0, 100));
 });
-router3.get("/marketplace/public", async (req, res) => {
+router4.get("/marketplace/recommended", requireAuth, getRecommendedMarketplace);
+router4.get("/marketplace/public", async (req, res) => {
   const scope = typeof req.query.scope === "string" ? req.query.scope : "";
   const homeLimit = await getMarketplaceHomePublicListingsLimit();
   const limit = scope === "store" ? 100 : Math.min(100, homeLimit);
@@ -20919,7 +21670,7 @@ router3.get("/marketplace/public", async (req, res) => {
   );
   res.json({ limit, items, scope: scope === "store" ? "store" : "home" });
 });
-router3.get("/event-image/preview", requireAuth, async (req, res) => {
+router4.get("/event-image/preview", requireAuth, async (req, res) => {
   const eventName = typeof req.query.eventName === "string" ? req.query.eventName.trim() : "";
   const eventDate = typeof req.query.eventDate === "string" ? req.query.eventDate.trim() : "";
   const eventPlace = typeof req.query.eventPlace === "string" ? req.query.eventPlace.trim() : "";
@@ -20947,7 +21698,7 @@ router3.get("/event-image/preview", requireAuth, async (req, res) => {
   }
   res.json(preview);
 });
-router3.get("/:id", async (req, res) => {
+router4.get("/:id", async (req, res) => {
   const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
   const d = doc.data();
@@ -20987,7 +21738,7 @@ router3.get("/:id", async (req, res) => {
   delete out.publicationPassword;
   res.json(out);
 });
-router3.post(
+router4.post(
   "/",
   requireAuth,
   upload2.fields([
@@ -21151,7 +21902,7 @@ router3.post(
     res.status(201).json(listing);
   }
 );
-router3.get("/my/listings", requireAuth, async (req, res) => {
+router4.get("/my/listings", requireAuth, async (req, res) => {
   const snap = await db().collection(COLLECTIONS.TICKET_LISTINGS).where("sellerId", "==", req.user.id).orderBy("createdAt", "desc").get();
   const listings = snap.docs.map((doc) => {
     const d = doc.data();
@@ -21165,7 +21916,7 @@ router3.get("/my/listings", requireAuth, async (req, res) => {
   });
   res.json(listings);
 });
-router3.get("/mine/:listingId", requireAuth, async (req, res) => {
+router4.get("/mine/:listingId", requireAuth, async (req, res) => {
   const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).get();
   if (!doc.exists || doc.data()?.sellerId !== req.user.id) {
     return res.status(404).json({ error: "No encontrado" });
@@ -21180,7 +21931,7 @@ router3.get("/mine/:listingId", requireAuth, async (req, res) => {
     eventDate: d.eventDate?.toDate?.() ?? d.eventDate
   });
 });
-router3.patch("/mine/:listingId", requireAuth, async (req, res) => {
+router4.patch("/mine/:listingId", requireAuth, async (req, res) => {
   const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).get();
   if (!doc.exists || doc.data()?.sellerId !== req.user.id) {
     return res.status(404).json({ error: "No encontrado" });
@@ -21283,23 +22034,26 @@ router3.patch("/mine/:listingId", requireAuth, async (req, res) => {
     eventDate: refreshedData.eventDate?.toDate?.() ?? refreshedData.eventDate
   });
 });
-router3.patch("/:id/pause", requireAuth, async (req, res) => {
+router4.patch("/:id/pause", requireAuth, async (req, res) => {
   const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).get();
   if (!doc.exists || doc.data()?.sellerId !== req.user.id) return res.status(404).json({ error: "No encontrado" });
   await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).update({ status: "PAUSADO", updatedAt: /* @__PURE__ */ new Date() });
   res.json({ ok: true });
 });
-router3.patch("/:id/activate", requireAuth, async (req, res) => {
+router4.patch("/:id/activate", requireAuth, async (req, res) => {
   const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).get();
   if (!doc.exists || doc.data()?.sellerId !== req.user.id) return res.status(404).json({ error: "No encontrado" });
   await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).update({ status: "DISPONIBLE", updatedAt: /* @__PURE__ */ new Date() });
   res.json({ ok: true });
 });
-var ticketsRouter = router3;
+var ticketsRouter = router4;
 
 // src/routes/orders.ts
-import { Router as Router4 } from "express";
+import { Router as Router5 } from "express";
 import multer3 from "multer";
+init_firestore();
+init_mercadopago();
+init_settings();
 
 // src/lib/listing-image-privacy.ts
 function stripOriginalListingImageUrls(listing) {
@@ -21311,7 +22065,8 @@ function stripOriginalListingImageUrls(listing) {
 }
 
 // src/routes/orders.ts
-var router4 = Router4();
+init_order_payments();
+var router5 = Router5();
 var upload3 = multer3({
   storage: multer3.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }
@@ -21398,8 +22153,8 @@ async function processTransactionInvoiceRequest(req, res, orderIdRaw) {
   });
   res.status(201).json({ ok: true, id: requestId, alreadyExists: false });
 }
-router4.use(requireAuth);
-router4.post("/", async (req, res) => {
+router5.use(requireAuth);
+router5.post("/", async (req, res) => {
   const parsed = createOrderRequestSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Datos inv\xE1lidos", details: parsed.error.flatten() });
@@ -21476,6 +22231,7 @@ router4.post("/", async (req, res) => {
     ...deliveryFields
   };
   await db().collection(COLLECTIONS.ORDERS).doc(orderId).set(orderData);
+  await reserveListingForOrder(ticketListingId, orderId);
   let checkoutUrl;
   if (paymentMethod === "mercadopago") {
     try {
@@ -21523,7 +22279,7 @@ router4.post("/", async (req, res) => {
     checkoutUrl: checkoutUrl ?? void 0
   });
 });
-router4.get("/my/purchases", async (req, res) => {
+router5.get("/my/purchases", async (req, res) => {
   const snap = await db().collection(COLLECTIONS.ORDERS).where("buyerId", "==", req.user.id).orderBy("createdAt", "desc").get();
   const orders = await Promise.all(
     snap.docs.map(async (doc) => {
@@ -21543,7 +22299,7 @@ router4.get("/my/purchases", async (req, res) => {
   );
   res.json(orders);
 });
-router4.get("/my/sales", async (req, res) => {
+router5.get("/my/sales", async (req, res) => {
   const snap = await db().collection(COLLECTIONS.ORDERS).where("sellerId", "==", req.user.id).orderBy("createdAt", "desc").get();
   const orders = await Promise.all(
     snap.docs.map(async (doc) => {
@@ -21563,12 +22319,12 @@ router4.get("/my/sales", async (req, res) => {
   );
   res.json(orders);
 });
-router4.post("/invoice-request", async (req, res) => {
+router5.post("/invoice-request", async (req, res) => {
   const body = req.body;
   const oid = typeof body?.orderId === "string" ? body.orderId : "";
   await processTransactionInvoiceRequest(req, res, oid);
 });
-router4.get("/:id/checkout-url", async (req, res) => {
+router5.get("/:id/checkout-url", async (req, res) => {
   const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
   const d = doc.data();
@@ -21604,10 +22360,10 @@ router4.get("/:id/checkout-url", async (req, res) => {
   if (!checkoutUrl) return res.status(503).json({ error: "Mercado Pago no configurado" });
   res.json({ checkoutUrl });
 });
-router4.post("/:id/invoice-request", async (req, res) => {
+router5.post("/:id/invoice-request", async (req, res) => {
   await processTransactionInvoiceRequest(req, res, req.params.id ?? "");
 });
-router4.get("/:id", async (req, res) => {
+router5.get("/:id", async (req, res) => {
   const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
   const d = doc.data();
@@ -21631,7 +22387,7 @@ router4.get("/:id", async (req, res) => {
     checkoutUrl: d.mercadopagoCheckoutUrl ?? void 0
   });
 });
-router4.post("/:id/pay", async (req, res) => {
+router5.post("/:id/pay", async (req, res) => {
   const orderId = req.params.id;
   const { token, paymentMethodId, issuerId } = req.body || {};
   if (!token || typeof token !== "string" || !paymentMethodId || typeof paymentMethodId !== "string") {
@@ -21667,24 +22423,39 @@ router4.post("/:id/pay", async (req, res) => {
       paymentMethodId,
       issuerId: typeof issuerId === "number" ? issuerId : void 0
     });
-    await db().collection(COLLECTIONS.ORDERS).doc(orderId).update({
-      mercadopagoPaymentId: payment.id,
-      ...payment.status === "approved" ? { paymentIntentId: payment.id } : {},
-      status: payment.status === "approved" ? "ESPERANDO_TRANSFERENCIA" : d.status,
-      updatedAt: /* @__PURE__ */ new Date()
+    const applyResult = await applyMercadoPagoPaymentToOrder(orderId, {
+      id: payment.id,
+      status: payment.status,
+      external_reference: orderId,
+      transaction_amount: d.totalAmount,
+      currency_id: d.currency || "ARS"
     });
     res.json({
       paymentId: payment.id,
       status: payment.status,
       statusDetail: payment.status_detail,
-      orderStatus: payment.status === "approved" ? "ESPERANDO_TRANSFERENCIA" : d.status
+      orderStatus: applyResult.orderStatus
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error al procesar el pago";
     res.status(500).json({ error: msg });
   }
 });
-router4.post("/:id/confirm-payment", async (req, res) => {
+router5.post("/:id/sync-payment", async (req, res) => {
+  const orderId = req.params.id;
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
+  if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
+  const d = doc.data();
+  if (d.buyerId !== req.user.id) return res.status(404).json({ error: "No encontrado" });
+  try {
+    const result = await syncOrderPaymentFromMercadoPago(orderId);
+    res.json(result);
+  } catch (e) {
+    console.error("sync-payment:", e);
+    res.status(500).json({ error: "No se pudo sincronizar el pago" });
+  }
+});
+router5.post("/:id/confirm-payment", async (req, res) => {
   const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
   const d = doc.data();
@@ -21697,7 +22468,7 @@ router4.post("/:id/confirm-payment", async (req, res) => {
   await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({ status: "ESPERANDO_TRANSFERENCIA", updatedAt: /* @__PURE__ */ new Date() });
   res.json({ ok: true, status: "ESPERANDO_TRANSFERENCIA" });
 });
-router4.post("/:id/transfer-done", async (req, res) => {
+router5.post("/:id/transfer-done", async (req, res) => {
   const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
   const d = doc.data();
@@ -21708,7 +22479,7 @@ router4.post("/:id/transfer-done", async (req, res) => {
   await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({ status: "TRANSFERIDO_VENDEDOR", updatedAt: /* @__PURE__ */ new Date() });
   res.json({ ok: true });
 });
-router4.post("/:id/confirm-received", async (req, res) => {
+router5.post("/:id/confirm-received", async (req, res) => {
   if (typeof req.body?.received !== "boolean") {
     res.status(400).json({ error: "Datos inv\xE1lidos" });
     return;
@@ -21724,7 +22495,7 @@ router4.post("/:id/confirm-received", async (req, res) => {
   });
   res.json({ ok: true });
 });
-router4.post("/:id/evidence", upload3.single("evidence"), async (req, res) => {
+router5.post("/:id/evidence", upload3.single("evidence"), async (req, res) => {
   const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
   const d = doc.data();
@@ -21755,7 +22526,7 @@ router4.post("/:id/evidence", upload3.single("evidence"), async (req, res) => {
   res.json({ ok: true, status: String(patch.status ?? d.status) });
 });
 var PUNTOS_POR_RATING_POSITIVO = 5;
-router4.post("/:id/rate", async (req, res) => {
+router5.post("/:id/rate", async (req, res) => {
   const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
   if (!orderDoc.exists) return res.status(404).json({ error: "No encontrado" });
   const order = orderDoc.data();
@@ -21789,13 +22560,14 @@ router4.post("/:id/rate", async (req, res) => {
   }
   res.json({ ok: true, points: positive ? PUNTOS_POR_RATING_POSITIVO : 0 });
 });
-var ordersRouter = router4;
+var ordersRouter = router5;
 
 // src/routes/disputes.ts
-import { Router as Router5 } from "express";
-var router5 = Router5();
-router5.use(requireAuth);
-router5.post("/", async (req, res) => {
+init_firestore();
+import { Router as Router6 } from "express";
+var router6 = Router6();
+router6.use(requireAuth);
+router6.post("/", async (req, res) => {
   const parsed = openDisputeSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Datos inv\xE1lidos", details: parsed.error.flatten() });
@@ -21829,7 +22601,7 @@ router5.post("/", async (req, res) => {
     order: { id: orderId, ...order, ticketListing: ticketListingForViewer }
   });
 });
-router5.get("/my", async (req, res) => {
+router6.get("/my", async (req, res) => {
   const ordersSnap = await db().collection(COLLECTIONS.ORDERS).where("status", "==", "EN_DISPUTA").get();
   const orderIds = ordersSnap.docs.filter((d) => {
     const o = d.data();
@@ -21856,7 +22628,7 @@ router5.get("/my", async (req, res) => {
   );
   res.json(disputes);
 });
-router5.get("/:id", async (req, res) => {
+router6.get("/:id", async (req, res) => {
   const doc = await db().collection(COLLECTIONS.DISPUTES).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
   const d = doc.data();
@@ -21899,7 +22671,7 @@ router5.get("/:id", async (req, res) => {
     updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt
   });
 });
-router5.post("/:id/messages", async (req, res) => {
+router6.post("/:id/messages", async (req, res) => {
   const { content } = req.body;
   const disputeDoc = await db().collection(COLLECTIONS.DISPUTES).doc(req.params.id).get();
   if (!disputeDoc.exists) return res.status(404).json({ error: "No encontrado" });
@@ -21926,52 +22698,16 @@ router5.post("/:id/messages", async (req, res) => {
     user: { id: req.user.id, email: userDoc.data()?.email }
   });
 });
-var disputesRouter = router5;
+var disputesRouter = router6;
 
 // src/routes/messages.ts
-import { Router as Router6 } from "express";
-import { FieldValue } from "firebase-admin/firestore";
-
-// src/lib/firebase-messaging.ts
-init_firebase_admin();
-var INVALID_TOKEN_CODES = [
-  "messaging/registration-token-not-registered",
-  "messaging/invalid-registration-token"
-];
-async function sendPushNotification(fcmToken, title, body, data) {
-  if (!fcmToken || fcmToken.length < 10) return { success: false };
-  try {
-    const messaging = getMessaging();
-    const dataPayload = data && Object.fromEntries(
-      Object.entries(data).map(([k, v]) => [k, v === void 0 || v === null ? "" : String(v)])
-    );
-    const message = {
-      token: fcmToken,
-      notification: { title, body },
-      data: dataPayload || {},
-      android: { priority: "high" },
-      apns: {
-        headers: { "apns-priority": "10" },
-        payload: { aps: { sound: "default", badge: 1 } }
-      }
-    };
-    await messaging.send(message);
-    return { success: true };
-  } catch (e) {
-    const code = e?.errorInfo?.code;
-    if (code && INVALID_TOKEN_CODES.includes(code)) {
-      console.warn("Token FCM inv\xE1lido (se eliminar\xE1 del usuario):", code);
-      return { success: false, tokenInvalid: true };
-    }
-    console.error("Error enviando push:", e);
-    return { success: false };
-  }
-}
-
-// src/routes/messages.ts
-var router6 = Router6();
-router6.use(requireAuth);
-router6.use((_req, res, next) => {
+init_firestore();
+import { Router as Router7 } from "express";
+import { FieldValue as FieldValue2 } from "firebase-admin/firestore";
+init_firebase_messaging();
+var router7 = Router7();
+router7.use(requireAuth);
+router7.use((_req, res, next) => {
   res.set("Cache-Control", "private, no-store, no-cache, must-revalidate");
   res.set("Pragma", "no-cache");
   next();
@@ -21979,7 +22715,7 @@ router6.use((_req, res, next) => {
 function normalizeUserIds(id1, id2) {
   return id1 < id2 ? [id1, id2] : [id2, id1];
 }
-router6.get("/conversations", async (req, res) => {
+router7.get("/conversations", async (req, res) => {
   const userId = req.user.id;
   const conv1 = await db().collection(COLLECTIONS.CONVERSATIONS).where("user1Id", "==", userId).get();
   const conv2 = await db().collection(COLLECTIONS.CONVERSATIONS).where("user2Id", "==", userId).get();
@@ -22029,7 +22765,7 @@ router6.get("/conversations", async (req, res) => {
   );
   res.json(list);
 });
-router6.get("/users/search", async (req, res) => {
+router7.get("/users/search", async (req, res) => {
   const q = req.query.q?.trim();
   if (!q || q.length < 2) {
     res.status(400).json({ error: "Ingres\xE1 al menos 2 caracteres (ID o email)" });
@@ -22063,7 +22799,7 @@ router6.get("/users/search", async (req, res) => {
   }
   res.json(users.slice(0, 10));
 });
-router6.post("/conversations", async (req, res) => {
+router7.post("/conversations", async (req, res) => {
   const { otherUserId } = req.body;
   if (!otherUserId || typeof otherUserId !== "string") {
     res.status(400).json({ error: "otherUserId requerido" });
@@ -22113,7 +22849,7 @@ router6.post("/conversations", async (req, res) => {
     createdAt: convData.createdAt?.toDate?.() ?? convData.createdAt
   });
 });
-router6.get("/conversations/:id", async (req, res) => {
+router7.get("/conversations/:id", async (req, res) => {
   const convId = req.params.id;
   const userId = req.user.id;
   const convDoc = await db().collection(COLLECTIONS.CONVERSATIONS).doc(convId).get();
@@ -22142,7 +22878,7 @@ router6.get("/conversations/:id", async (req, res) => {
     }
   });
 });
-router6.get("/conversations/:id/messages", async (req, res) => {
+router7.get("/conversations/:id/messages", async (req, res) => {
   const convId = req.params.id;
   const userId = req.user.id;
   const convDoc = await db().collection(COLLECTIONS.CONVERSATIONS).doc(convId).get();
@@ -22184,7 +22920,7 @@ router6.get("/conversations/:id/messages", async (req, res) => {
   );
   res.json(messages);
 });
-router6.post("/conversations/:id/messages", async (req, res) => {
+router7.post("/conversations/:id/messages", async (req, res) => {
   const convId = req.params.id;
   const { content } = req.body;
   const userId = req.user.id;
@@ -22227,7 +22963,7 @@ router6.post("/conversations/:id/messages", async (req, res) => {
       conversationId: convId
     });
     if (pushResult.tokenInvalid) {
-      await db().collection(COLLECTIONS.USERS).doc(recipientId).update({ fcmToken: FieldValue.delete() });
+      await db().collection(COLLECTIONS.USERS).doc(recipientId).update({ fcmToken: FieldValue2.delete() });
     }
   }
   res.status(201).json({
@@ -22239,13 +22975,18 @@ router6.post("/conversations/:id/messages", async (req, res) => {
     createdAt: messageData.createdAt
   });
 });
-var messagesRouter = router6;
+var messagesRouter = router7;
 
 // src/routes/admin.ts
-import { Router as Router7 } from "express";
+import { Router as Router8 } from "express";
 import multer4 from "multer";
+init_firestore();
+init_settings();
+init_mercadopago();
 
 // src/lib/payouts.ts
+init_firestore();
+init_settings();
 init_email();
 function getSellerAmount(totalAmount, commissionAmount) {
   return Math.round((totalAmount - commissionAmount) * 100) / 100;
@@ -22382,17 +23123,18 @@ async function retryTransfer(transferId) {
 }
 
 // src/routes/admin.ts
-import { FieldValue as FieldValue2 } from "firebase-admin/firestore";
-var router7 = Router7();
+init_firebase_messaging();
+import { FieldValue as FieldValue3 } from "firebase-admin/firestore";
+var router8 = Router8();
 var eventImageUpload = multer4({
   storage: multer4.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }
 });
 var PUNTOS_POR_RATING_POSITIVO2 = 5;
 var REDACTED_MESSAGE = "[Contenido removido por moderaci\xF3n]";
-router7.use(requireAuth);
-router7.use(requireAdmin);
-router7.get("/settings", async (_req, res) => {
+router8.use(requireAuth);
+router8.use(requireAdmin);
+router8.get("/settings", async (_req, res) => {
   const settings = await getPlatformSettings();
   res.json({
     ...settings,
@@ -22404,7 +23146,7 @@ router7.get("/settings", async (_req, res) => {
     }
   });
 });
-router7.put("/settings", async (req, res) => {
+router8.put("/settings", async (req, res) => {
   const body = req.body;
   const docRef = db().collection(COLLECTIONS.PLATFORM_SETTINGS).doc("main");
   const current = await getPlatformSettings();
@@ -22456,7 +23198,7 @@ router7.put("/settings", async (req, res) => {
     }
   });
 });
-router7.get("/stats", async (_req, res) => {
+router8.get("/stats", async (_req, res) => {
   const [usersSnap, ordersSnap, disputesSnap, kycSnap, listingsSnap, ordersCompletedSnap, ticketsPendingSnap] = await Promise.all([
     db().collection(COLLECTIONS.USERS).get(),
     db().collection(COLLECTIONS.ORDERS).get(),
@@ -22477,7 +23219,7 @@ router7.get("/stats", async (_req, res) => {
   });
 });
 var TRANSFER_STATUSES = ["PENDIENTE", "ENVIADO", "COMPLETADO", "FALLIDO", "PENDIENTE_MANUAL", "ENVIADO_MANUAL"];
-router7.get("/analytics", async (_req, res) => {
+router8.get("/analytics", async (_req, res) => {
   const [
     usersSnap,
     ordersSnap,
@@ -22591,7 +23333,7 @@ router7.get("/analytics", async (_req, res) => {
     recentOrders
   });
 });
-router7.get("/users", async (req, res) => {
+router8.get("/users", async (req, res) => {
   const { q, page = "1", limit = "20", role, kycStatus } = req.query;
   const pageNum = Number(page);
   const limitNum = Number(limit);
@@ -22626,7 +23368,7 @@ router7.get("/users", async (req, res) => {
   );
   res.json({ users: withKyc, total });
 });
-router7.get("/users/:userId", async (req, res) => {
+router8.get("/users/:userId", async (req, res) => {
   const { userId } = req.params;
   const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
   if (!userDoc.exists) return res.status(404).json({ error: "Usuario no encontrado" });
@@ -22649,7 +23391,7 @@ router7.get("/users/:userId", async (req, res) => {
   };
   res.json(user);
 });
-router7.patch("/users/:userId", async (req, res) => {
+router8.patch("/users/:userId", async (req, res) => {
   const { userId } = req.params;
   const body = req.body;
   const docRef = db().collection(COLLECTIONS.USERS).doc(userId);
@@ -22697,7 +23439,7 @@ router7.patch("/users/:userId", async (req, res) => {
     kyc: kyc ? { status: kyc.status, rejectionReason: kyc.rejectionReason } : null
   });
 });
-router7.delete("/users/:userId", async (req, res) => {
+router8.delete("/users/:userId", async (req, res) => {
   const { userId } = req.params;
   if (userId === req.user.id) {
     return res.status(400).json({ error: "No puedes eliminarte a ti mismo" });
@@ -22715,7 +23457,7 @@ router7.delete("/users/:userId", async (req, res) => {
   await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).delete();
   res.json({ ok: true });
 });
-router7.get("/users/:userId/cards", async (req, res) => {
+router8.get("/users/:userId/cards", async (req, res) => {
   const { userId } = req.params;
   const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
   if (!userDoc.exists) return res.status(404).json({ error: "Usuario no encontrado" });
@@ -22748,7 +23490,7 @@ router7.get("/users/:userId/cards", async (req, res) => {
     res.status(500).json({ error: msg });
   }
 });
-router7.get("/kyc/pending", async (_req, res) => {
+router8.get("/kyc/pending", async (_req, res) => {
   const [enRevisionSnap, pendienteSnap] = await Promise.all([
     db().collection(COLLECTIONS.KYC_VERIFICATIONS).where("status", "==", "EN_REVISION").get(),
     db().collection(COLLECTIONS.KYC_VERIFICATIONS).where("status", "==", "PENDIENTE").get()
@@ -22782,7 +23524,7 @@ router7.get("/kyc/pending", async (_req, res) => {
   );
   res.json(list);
 });
-router7.get("/kyc/:userId/detail", async (req, res) => {
+router8.get("/kyc/:userId/detail", async (req, res) => {
   const { userId } = req.params;
   const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
   if (!kycDoc.exists) return res.status(404).json({ error: "Verificaci\xF3n KYC no encontrada" });
@@ -22808,7 +23550,7 @@ router7.get("/kyc/:userId/detail", async (req, res) => {
   const result = await getDiditSessionDecision(sessionId);
   res.json({ ...base, hasDiditSession: true, didit: result.ok ? result.data : null });
 });
-router7.post("/kyc/:userId/sync-didit", async (req, res) => {
+router8.post("/kyc/:userId/sync-didit", async (req, res) => {
   const { userId } = req.params;
   const kycDoc = await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(userId).get();
   if (!kycDoc.exists) return res.status(404).json({ error: "Verificaci\xF3n KYC no encontrada" });
@@ -22845,7 +23587,7 @@ router7.post("/kyc/:userId/sync-didit", async (req, res) => {
     message: `Sincronizado desde Didit: ${ourStatus}`
   });
 });
-router7.patch("/kyc/:userId", async (req, res) => {
+router8.patch("/kyc/:userId", async (req, res) => {
   const { userId } = req.params;
   const { status, rejectionReason, sendEmail, comment } = req.body;
   if (status !== "APROBADO" && status !== "RECHAZADO" && status !== "RESUBMIT") {
@@ -22895,7 +23637,7 @@ router7.patch("/kyc/:userId", async (req, res) => {
     user: userDoc.exists ? { id: userId, email: userDoc.data()?.email } : null
   });
 });
-router7.get("/disputes", async (req, res) => {
+router8.get("/disputes", async (req, res) => {
   let query = db().collection(COLLECTIONS.DISPUTES).orderBy("createdAt", "desc");
   if (typeof req.query.status === "string" && req.query.status) {
     query = query.where("status", "==", req.query.status);
@@ -22927,7 +23669,7 @@ router7.get("/disputes", async (req, res) => {
   );
   res.json(disputes);
 });
-router7.patch("/disputes/:id/resolve", async (req, res) => {
+router8.patch("/disputes/:id/resolve", async (req, res) => {
   const { id } = req.params;
   const { resolution } = req.body;
   if (resolution !== "RESUELTA_FAVOR_COMPRADOR" && resolution !== "RESUELTA_FAVOR_VENDEDOR") {
@@ -22952,7 +23694,7 @@ router7.patch("/disputes/:id/resolve", async (req, res) => {
     order: orderDoc.exists ? orderDoc.data() : null
   });
 });
-router7.get("/conversations", async (req, res) => {
+router8.get("/conversations", async (req, res) => {
   const { page = "1", limit = "30" } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
   const snap = await db().collection(COLLECTIONS.CONVERSATIONS).orderBy("updatedAt", "desc").limit(Number(limit) + skip).get();
@@ -22975,7 +23717,7 @@ router7.get("/conversations", async (req, res) => {
   );
   res.json({ conversations, total });
 });
-router7.get("/conversations/:id/messages", async (req, res) => {
+router8.get("/conversations/:id/messages", async (req, res) => {
   const { id } = req.params;
   const convDoc = await db().collection(COLLECTIONS.CONVERSATIONS).doc(id).get();
   if (!convDoc.exists) return res.status(404).json({ error: "Conversaci\xF3n no encontrada" });
@@ -23002,7 +23744,7 @@ router7.get("/conversations/:id/messages", async (req, res) => {
     messages
   });
 });
-router7.get("/tickets/pending", async (_req, res) => {
+router8.get("/tickets/pending", async (_req, res) => {
   const snap = await db().collection(COLLECTIONS.TICKET_LISTINGS).orderBy("createdAt", "desc").limit(200).get();
   const docs = snap.docs.filter((d) => {
     const s = d.data().status;
@@ -23025,7 +23767,7 @@ router7.get("/tickets/pending", async (_req, res) => {
   );
   res.json({ tickets });
 });
-router7.get("/tickets", async (req, res) => {
+router8.get("/tickets", async (req, res) => {
   const { status, page = "1", limit = "50" } = req.query;
   const pageNum = Math.max(1, Number(page));
   const limitNum = Math.min(100, Math.max(1, Number(limit)));
@@ -23055,7 +23797,7 @@ router7.get("/tickets", async (req, res) => {
   );
   res.json({ tickets, total });
 });
-router7.delete("/tickets/:id/event-image", async (req, res) => {
+router8.delete("/tickets/:id/event-image", async (req, res) => {
   const { id } = req.params;
   const docRef = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id);
   const doc = await docRef.get();
@@ -23069,7 +23811,7 @@ router7.delete("/tickets/:id/event-image", async (req, res) => {
   const d = updated.data();
   res.json({ id: updated.id, eventImageUrl: d.eventImageUrl ?? null, eventImageSource: d.eventImageSource ?? null });
 });
-router7.post(
+router8.post(
   "/tickets/:id/event-image",
   eventImageUpload.single("eventImage"),
   async (req, res) => {
@@ -23096,7 +23838,7 @@ router7.post(
     }
   }
 );
-router7.patch("/tickets/:id/event-image", async (req, res) => {
+router8.patch("/tickets/:id/event-image", async (req, res) => {
   const { id } = req.params;
   const { eventImageUrl } = req.body;
   const docRef = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id);
@@ -23121,7 +23863,7 @@ router7.patch("/tickets/:id/event-image", async (req, res) => {
   });
   res.json({ eventImageUrl: url, eventImageSource: "admin" });
 });
-router7.get("/tickets/:id", async (req, res) => {
+router8.get("/tickets/:id", async (req, res) => {
   const { id } = req.params;
   const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id).get();
   if (!doc.exists) return res.status(404).json({ error: "Ticket no encontrado" });
@@ -23137,7 +23879,7 @@ router7.get("/tickets/:id", async (req, res) => {
     updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt
   });
 });
-router7.patch("/tickets/:id", async (req, res) => {
+router8.patch("/tickets/:id", async (req, res) => {
   const { id } = req.params;
   const body = req.body;
   const docRef = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id);
@@ -23170,7 +23912,7 @@ router7.patch("/tickets/:id", async (req, res) => {
     updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt
   });
 });
-router7.delete("/tickets/:id", async (req, res) => {
+router8.delete("/tickets/:id", async (req, res) => {
   const { id } = req.params;
   const docRef = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id);
   const doc = await docRef.get();
@@ -23181,7 +23923,7 @@ router7.delete("/tickets/:id", async (req, res) => {
   });
   res.json({ ok: true });
 });
-router7.patch("/tickets/:id/approve", async (req, res) => {
+router8.patch("/tickets/:id/approve", async (req, res) => {
   const { id } = req.params;
   const docRef = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id);
   const doc = await docRef.get();
@@ -23201,7 +23943,7 @@ router7.patch("/tickets/:id/approve", async (req, res) => {
   const updated = await docRef.get();
   res.json(updated.data());
 });
-router7.patch("/tickets/:id/reject", async (req, res) => {
+router8.patch("/tickets/:id/reject", async (req, res) => {
   const { id } = req.params;
   const { rejectionReason } = req.body;
   const docRef = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(id);
@@ -23222,7 +23964,7 @@ router7.patch("/tickets/:id/reject", async (req, res) => {
   const updated = await docRef.get();
   res.json(updated.data());
 });
-router7.get("/orders/:orderId", async (req, res) => {
+router8.get("/orders/:orderId", async (req, res) => {
   const { orderId } = req.params;
   const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
   if (!orderDoc.exists) return res.status(404).json({ error: "Orden no encontrada" });
@@ -23247,7 +23989,7 @@ router7.get("/orders/:orderId", async (req, res) => {
     transferDeadline: d.transferDeadline?.toDate?.() ?? d.transferDeadline
   });
 });
-router7.patch("/orders/:orderId", async (req, res) => {
+router8.patch("/orders/:orderId", async (req, res) => {
   const { orderId } = req.params;
   const body = req.body;
   const docRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
@@ -23309,7 +24051,7 @@ router7.patch("/orders/:orderId", async (req, res) => {
     updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt
   });
 });
-router7.delete("/orders/:orderId", async (req, res) => {
+router8.delete("/orders/:orderId", async (req, res) => {
   const { orderId } = req.params;
   const docRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
   const doc = await docRef.get();
@@ -23323,9 +24065,14 @@ router7.delete("/orders/:orderId", async (req, res) => {
     status: "CANCELADA",
     updatedAt: /* @__PURE__ */ new Date()
   });
+  const listingId = data.ticketListingId ? String(data.ticketListingId) : "";
+  if (listingId) {
+    const { releaseListingReservation: releaseListingReservation2 } = await Promise.resolve().then(() => (init_order_payments(), order_payments_exports));
+    await releaseListingReservation2(listingId, orderId);
+  }
   res.json({ ok: true });
 });
-router7.get("/transfers", async (req, res) => {
+router8.get("/transfers", async (req, res) => {
   const { page = "1", limit = "30", status } = req.query;
   const pageNum = Number(page);
   const limitNum = Math.min(Number(limit), 100);
@@ -23353,12 +24100,12 @@ router7.get("/transfers", async (req, res) => {
   );
   res.json({ transfers, total: snap.size });
 });
-router7.post("/transfers/:transferId/manual-complete", async (req, res) => {
+router8.post("/transfers/:transferId/manual-complete", async (req, res) => {
   const { transferId } = req.params;
   await markTransferAsManualComplete(transferId, req.user.id);
   res.json({ ok: true });
 });
-router7.post("/transfers/:transferId/retry", async (req, res) => {
+router8.post("/transfers/:transferId/retry", async (req, res) => {
   const { transferId } = req.params;
   const result = await retryTransfer(transferId);
   if (!result.success) {
@@ -23366,7 +24113,7 @@ router7.post("/transfers/:transferId/retry", async (req, res) => {
   }
   res.json({ ok: true });
 });
-router7.post("/orders/:orderId/transfer-manual", async (req, res) => {
+router8.post("/orders/:orderId/transfer-manual", async (req, res) => {
   const { orderId } = req.params;
   const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
   if (!orderDoc.exists) return res.status(404).json({ error: "Orden no encontrada" });
@@ -23397,7 +24144,7 @@ router7.post("/orders/:orderId/transfer-manual", async (req, res) => {
   });
   res.status(201).json({ transferId, amount: sellerAmount, currency: orderData.currency || "ARS" });
 });
-router7.get("/orders", async (req, res) => {
+router8.get("/orders", async (req, res) => {
   const { page = "1", limit = "20", status } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
   let query = db().collection(COLLECTIONS.ORDERS).orderBy("createdAt", "desc");
@@ -23424,7 +24171,7 @@ router7.get("/orders", async (req, res) => {
   );
   res.json({ orders, total: snap.size });
 });
-router7.get("/invoice-requests", async (_req, res) => {
+router8.get("/invoice-requests", async (_req, res) => {
   const snap = await db().collection(COLLECTIONS.TRANSACTION_INVOICE_REQUESTS).orderBy("createdAt", "desc").limit(500).get();
   const items = snap.docs.map((doc) => {
     const x = doc.data();
@@ -23446,7 +24193,7 @@ router7.get("/invoice-requests", async (_req, res) => {
   });
   res.json({ items });
 });
-router7.patch("/invoice-requests/:requestId", async (req, res) => {
+router8.patch("/invoice-requests/:requestId", async (req, res) => {
   const { requestId } = req.params;
   const status = req.body?.status;
   if (status !== "PENDIENTE" && status !== "ATENDIDA") {
@@ -23465,7 +24212,7 @@ router7.patch("/invoice-requests/:requestId", async (req, res) => {
     updatedAt: x.updatedAt?.toDate?.() ?? x.updatedAt
   });
 });
-router7.get("/ratings", async (req, res) => {
+router8.get("/ratings", async (req, res) => {
   const { page = "1", limit = "30", orderId } = req.query;
   const pageNum = Math.max(1, Number(page));
   const limitNum = Math.min(100, Math.max(1, Number(limit)));
@@ -23506,7 +24253,7 @@ router7.get("/ratings", async (req, res) => {
   );
   res.json({ ratings, total });
 });
-router7.get("/ratings/:ratingId", async (req, res) => {
+router8.get("/ratings/:ratingId", async (req, res) => {
   const doc = await db().collection(COLLECTIONS.ORDER_RATINGS).doc(req.params.ratingId).get();
   if (!doc.exists) return res.status(404).json({ error: "Valoraci\xF3n no encontrada" });
   const r = doc.data();
@@ -23528,7 +24275,7 @@ router7.get("/ratings/:ratingId", async (req, res) => {
     order: orderDoc.exists ? { id: orderDoc.id, status: orderDoc.data()?.status } : null
   });
 });
-router7.patch("/ratings/:ratingId", async (req, res) => {
+router8.patch("/ratings/:ratingId", async (req, res) => {
   const { ratingId } = req.params;
   const body = req.body;
   const ref = db().collection(COLLECTIONS.ORDER_RATINGS).doc(ratingId);
@@ -23575,7 +24322,7 @@ router7.patch("/ratings/:ratingId", async (req, res) => {
     createdAt: d.createdAt?.toDate?.() ?? d.createdAt
   });
 });
-router7.delete("/ratings/:ratingId", async (req, res) => {
+router8.delete("/ratings/:ratingId", async (req, res) => {
   const { ratingId } = req.params;
   const ref = db().collection(COLLECTIONS.ORDER_RATINGS).doc(ratingId);
   const doc = await ref.get();
@@ -23595,7 +24342,7 @@ router7.delete("/ratings/:ratingId", async (req, res) => {
   await ref.delete();
   res.json({ ok: true });
 });
-router7.patch("/messages/:messageId", async (req, res) => {
+router8.patch("/messages/:messageId", async (req, res) => {
   const { messageId } = req.params;
   const body = req.body;
   const ref = db().collection(COLLECTIONS.MESSAGES).doc(messageId);
@@ -23623,7 +24370,7 @@ router7.patch("/messages/:messageId", async (req, res) => {
     updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt
   });
 });
-router7.patch("/dispute-messages/:messageId", async (req, res) => {
+router8.patch("/dispute-messages/:messageId", async (req, res) => {
   const { messageId } = req.params;
   const body = req.body;
   const ref = db().collection(COLLECTIONS.DISPUTE_MESSAGES).doc(messageId);
@@ -23649,7 +24396,7 @@ router7.patch("/dispute-messages/:messageId", async (req, res) => {
     createdAt: d.createdAt?.toDate?.() ?? d.createdAt
   });
 });
-router7.patch("/disputes/:disputeId/notes", async (req, res) => {
+router8.patch("/disputes/:disputeId/notes", async (req, res) => {
   const { disputeId } = req.params;
   const adminNotes = typeof req.body.adminNotes === "string" ? req.body.adminNotes.slice(0, 5e3) : "";
   const ref = db().collection(COLLECTIONS.DISPUTES).doc(disputeId);
@@ -23663,7 +24410,7 @@ router7.patch("/disputes/:disputeId/notes", async (req, res) => {
     updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt
   });
 });
-router7.get("/users/:userId/push", async (req, res) => {
+router8.get("/users/:userId/push", async (req, res) => {
   const { userId } = req.params;
   const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
   if (!userDoc.exists) return res.status(404).json({ error: "Usuario no encontrado" });
@@ -23672,17 +24419,17 @@ router7.get("/users/:userId/push", async (req, res) => {
   const preview = t.length > 14 ? `${t.slice(0, 6)}\u2026${t.slice(-4)}` : t.length > 0 ? "\u2022\u2022\u2022\u2022" : null;
   res.json({ hasToken: t.length > 0, tokenPreview: preview });
 });
-router7.delete("/users/:userId/push", async (req, res) => {
+router8.delete("/users/:userId/push", async (req, res) => {
   const { userId } = req.params;
   const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
   if (!userDoc.exists) return res.status(404).json({ error: "Usuario no encontrado" });
   await db().collection(COLLECTIONS.USERS).doc(userId).update({
-    fcmToken: FieldValue2.delete(),
+    fcmToken: FieldValue3.delete(),
     updatedAt: /* @__PURE__ */ new Date()
   });
   res.json({ ok: true });
 });
-router7.post("/users/:userId/push-test", async (req, res) => {
+router8.post("/users/:userId/push-test", async (req, res) => {
   const { userId } = req.params;
   const { title, body, data } = req.body;
   const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
@@ -23698,7 +24445,7 @@ router7.post("/users/:userId/push-test", async (req, res) => {
     ...data && typeof data === "object" ? data : {}
   });
   if (result.tokenInvalid) {
-    await db().collection(COLLECTIONS.USERS).doc(userId).update({ fcmToken: FieldValue2.delete(), updatedAt: /* @__PURE__ */ new Date() });
+    await db().collection(COLLECTIONS.USERS).doc(userId).update({ fcmToken: FieldValue3.delete(), updatedAt: /* @__PURE__ */ new Date() });
     return res.status(410).json({ error: "Token inv\xE1lido; se elimin\xF3 del usuario" });
   }
   if (!result.success) {
@@ -23706,12 +24453,12 @@ router7.post("/users/:userId/push-test", async (req, res) => {
   }
   res.json({ ok: true, sent: true });
 });
-var adminRouter = router7;
+var adminRouter = router8;
 
 // src/routes/health.ts
 init_firebase_admin();
-import { Router as Router8 } from "express";
-var healthRouter = Router8();
+import { Router as Router9 } from "express";
+var healthRouter = Router9();
 healthRouter.get("/", async (_req, res) => {
   try {
     getFirebaseAdmin();
@@ -23722,8 +24469,11 @@ healthRouter.get("/", async (_req, res) => {
 });
 
 // src/routes/webhooks.ts
-import { Router as Router9 } from "express";
-var router8 = Router9();
+init_firestore();
+import { Router as Router10 } from "express";
+init_mercadopago();
+init_order_payments();
+var router9 = Router10();
 var WEBHOOK_SECRET = process.env.DIDIT_WEBHOOK_SECRET_KEY;
 function mapDiditStatus(status) {
   switch (status) {
@@ -23740,7 +24490,7 @@ function mapDiditStatus(status) {
       return status === "In Review" ? "EN_REVISION" : "PENDIENTE";
   }
 }
-router8.post("/didit", async (req, res) => {
+router9.post("/didit", async (req, res) => {
   const rawBody = req.rawBody;
   let body;
   try {
@@ -23802,7 +24552,7 @@ router8.post("/didit", async (req, res) => {
     return res.status(500).json({ error: "Error interno" });
   }
 });
-router8.post("/mercadopago", async (req, res) => {
+router9.post("/mercadopago", async (req, res) => {
   const rawBody = req.rawBody;
   if (!rawBody) {
     return res.status(400).json({ error: "Raw body no disponible" });
@@ -23848,52 +24598,25 @@ router8.post("/mercadopago", async (req, res) => {
   if (!orderId) {
     return res.status(200).json({ received: true });
   }
-  const orderRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
-  const orderDoc = await orderRef.get();
-  const ord = orderDoc.data();
-  if (!orderDoc.exists || ord?.status !== "PENDIENTE_PAGO") {
-    return res.status(200).json({ received: true });
-  }
-  const expectedTotal = typeof ord.totalAmount === "number" ? ord.totalAmount : null;
-  const orderCurrency = String(ord.currency || "ARS").toUpperCase();
-  const payCurrency = (payment.currency_id || "ARS").toUpperCase();
-  const amountOk = payment.transaction_amount == null || expectedTotal == null || Math.abs(payment.transaction_amount - expectedTotal) <= 0.02;
-  const currencyOk = orderCurrency === payCurrency;
-  if (payment.status === "approved") {
-    if (!amountOk || !currencyOk) {
-      console.warn("Webhook MercadoPago: pago aprobado no coincide con la orden (no se actualiza)", {
-        orderId,
-        expectedTotal,
-        orderCurrency,
-        gotAmount: payment.transaction_amount,
-        gotCurrency: payCurrency
-      });
-      return res.status(200).json({ received: true });
-    }
-    await orderRef.update({
-      status: "ESPERANDO_TRANSFERENCIA",
-      paymentIntentId: paymentId,
-      mercadopagoPaymentId: paymentId,
-      updatedAt: /* @__PURE__ */ new Date()
-    });
-  } else if (payment.status === "pending" || payment.status === "in_process") {
-    await orderRef.update({
-      mercadopagoPaymentId: paymentId,
-      mercadopagoPaymentStatus: payment.status,
-      updatedAt: /* @__PURE__ */ new Date()
-    });
+  try {
+    await applyMercadoPagoPaymentToOrder(orderId, payment);
+  } catch (e) {
+    console.error("Webhook MercadoPago: error aplicando pago", orderId, e);
   }
   return res.status(200).json({ received: true });
 });
-var webhooksRouter = router8;
+var webhooksRouter = router9;
 
 // src/routes/mercadopago.ts
-import { Router as Router10 } from "express";
+init_mercadopago();
+import { Router as Router11 } from "express";
 import path3 from "path";
 import { fileURLToPath as fileURLToPath2 } from "url";
+init_firestore();
+init_settings();
 var __dirname2 = path3.dirname(fileURLToPath2(import.meta.url));
-var router9 = Router10();
-router9.get("/public-key", async (_req, res) => {
+var router10 = Router11();
+router10.get("/public-key", async (_req, res) => {
   try {
     const publicKey = await getMercadoPagoPublicKey();
     res.json({ publicKey });
@@ -23901,7 +24624,7 @@ router9.get("/public-key", async (_req, res) => {
     res.status(503).json({ error: "Mercado Pago no configurado" });
   }
 });
-router9.get("/payer-email", requireAuth, async (req, res) => {
+router10.get("/payer-email", requireAuth, async (req, res) => {
   const settings = await getPlatformSettings();
   const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
   const email = userDoc.data()?.email;
@@ -23914,14 +24637,15 @@ router9.get("/payer-email", requireAuth, async (req, res) => {
   }
   res.json({ payerEmail: "test_payer_1@testuser.com" });
 });
-router9.get("/card-form", (_req, res) => {
+router10.get("/card-form", (_req, res) => {
   res.sendFile(path3.join(__dirname2, "..", "public", "card-form.html"));
 });
-var mercadopagoRouter = router9;
+var mercadopagoRouter = router10;
 
 // src/routes/settings.ts
-import { Router as Router11 } from "express";
-var settingsRouter = Router11();
+import { Router as Router12 } from "express";
+init_settings();
+var settingsRouter = Router12();
 settingsRouter.get("/branding", async (_req, res) => {
   res.set("Cache-Control", "public, max-age=120");
   const s = await getPlatformSettings();
@@ -23949,15 +24673,16 @@ settingsRouter.get("/marketplace-home", requireAuth, async (_req, res) => {
 });
 
 // src/routes/cron.ts
-import { Router as Router12 } from "express";
-var router10 = Router12();
+init_firestore();
+import { Router as Router13 } from "express";
+var router11 = Router13();
 var CRON_SECRET = process.env.CRON_SECRET;
 function isAuthorized(req) {
   if (!CRON_SECRET) return false;
   const auth = req.get("Authorization") || req.get("authorization");
   return auth === `Bearer ${CRON_SECRET}`;
 }
-router10.get("/retry-failed-transfers", async (req, res) => {
+router11.get("/retry-failed-transfers", async (req, res) => {
   if (!isAuthorized(req)) {
     return res.status(401).json({ error: "No autorizado" });
   }
@@ -23974,9 +24699,10 @@ router10.get("/retry-failed-transfers", async (req, res) => {
     results
   });
 });
-var cronRouter = router10;
+var cronRouter = router11;
 
 // src/index.ts
+init_settings();
 var isVercel = Boolean(process.env.VERCEL);
 var __dirname3 = path4.dirname(fileURLToPath3(import.meta.url));
 var app2 = express();
@@ -24045,6 +24771,7 @@ app2.use("/api/mercadopago", mercadopagoRouter);
 app2.use("/api/settings", settingsRouter);
 app2.use("/api/cron", cronRouter);
 app2.use("/api/users", usersRouter);
+app2.use("/api/users/preferences", router3);
 app2.use("/api/tickets", ticketsRouter);
 app2.use("/api/orders", ordersRouter);
 app2.use("/api/disputes", disputesRouter);

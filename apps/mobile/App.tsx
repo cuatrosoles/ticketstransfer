@@ -23,6 +23,13 @@ const linking = {
   config: {
     screens: {
       OrderPago: 'orden/:orderId/pago',
+      OrderPaymentResult: {
+        path: 'orden/:orderId/pago/resultado',
+        parse: {
+          status: (value: string) =>
+            value === 'failure' || value === 'pending' ? value : 'success',
+        },
+      },
     },
   },
 };

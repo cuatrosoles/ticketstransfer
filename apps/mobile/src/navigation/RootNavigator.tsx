@@ -28,6 +28,7 @@ import { ChatSoporteScreen } from '../screens/ChatSoporteScreen';
 import { MensajesScreen } from '../screens/MensajesScreen';
 import { MensajesConversationScreen } from '../screens/MensajesConversationScreen';
 import { OrderPagoScreen } from '../screens/OrderPagoScreen';
+import { OrderPaymentResultScreen } from '../screens/OrderPaymentResultScreen';
 import { OrderDetailScreen } from '../screens/OrderDetailScreen';
 import { OrderPurchaseDetailsScreen } from '../screens/OrderPurchaseDetailsScreen';
 import { AcercaScreen } from '../screens/AcercaScreen';
@@ -108,6 +109,7 @@ export function RootNavigator() {
           <Stack.Screen name="Mensajes" component={MensajesScreen} options={NO_HEADER} />
           <Stack.Screen name="MensajesConversation" component={MensajesConversationScreen} options={NO_HEADER} />
           <Stack.Screen name="OrderPago" component={OrderPagoScreen} options={NO_HEADER} />
+          <Stack.Screen name="OrderPaymentResult" component={OrderPaymentResultScreen} options={NO_HEADER} />
           <Stack.Screen name="Acerca" component={AcercaScreen} options={NO_HEADER} />
           <Stack.Screen name="PoliticaPrivacidad" component={PoliticaPrivacidadScreen} options={NO_HEADER} />
           <Stack.Screen name="TerminosYCondiciones" component={TerminosYCondicionesScreen} options={NO_HEADER} />

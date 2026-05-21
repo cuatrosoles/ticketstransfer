@@ -18,6 +18,12 @@ import {
 } from '../lib/mercadopago.js';
 import { getCommissionPercentage } from '../lib/settings.js';
 import { stripOriginalListingImageUrls } from '../lib/listing-image-privacy.js';
+import {
+  applyMercadoPagoPaymentToOrder,
+  releaseListingReservation,
+  reserveListingForOrder,
+  syncOrderPaymentFromMercadoPago,
+} from '../lib/order-payments.js';
 
 const router = Router();
 const upload = multer({
@@ -227,6 +233,7 @@ router.post('/', async (req: AuthRequest, res) => {
   };
 
   await db().collection(COLLECTIONS.ORDERS).doc(orderId).set(orderData);
+  await reserveListingForOrder(ticketListingId, orderId);
 
   let checkoutUrl: string | undefined;
 
@@ -252,6 +259,7 @@ router.post('/', async (req: AuthRequest, res) => {
       console.error('Error creando preferencia MercadoPago:', e);
       try {
         await db().collection(COLLECTIONS.ORDERS).doc(orderId).delete();
+        await releaseListingReservation(ticketListingId, orderId);
       } catch (delErr) {
         console.error('No se pudo revertir orden tras fallo de MP:', delErr);
       }
@@ -459,22 +467,40 @@ router.post('/:id/pay', async (req: AuthRequest, res) => {
       issuerId: typeof issuerId === 'number' ? issuerId : undefined,
     });
 
-    await db().collection(COLLECTIONS.ORDERS).doc(orderId).update({
-      mercadopagoPaymentId: payment.id,
-      ...(payment.status === 'approved' ? { paymentIntentId: payment.id } : {}),
-      status: payment.status === 'approved' ? 'ESPERANDO_TRANSFERENCIA' : d.status,
-      updatedAt: new Date(),
+    const applyResult = await applyMercadoPagoPaymentToOrder(orderId, {
+      id: payment.id,
+      status: payment.status,
+      external_reference: orderId,
+      transaction_amount: d.totalAmount,
+      currency_id: d.currency || 'ARS',
     });
 
     res.json({
       paymentId: payment.id,
       status: payment.status,
       statusDetail: payment.status_detail,
-      orderStatus: payment.status === 'approved' ? 'ESPERANDO_TRANSFERENCIA' : d.status,
+      orderStatus: applyResult.orderStatus,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Error al procesar el pago';
     res.status(500).json({ error: msg });
+  }
+});
+
+/** Sincroniza estado de pago con Mercado Pago (retorno del checkout o polling en app). */
+router.post('/:id/sync-payment', async (req: AuthRequest, res) => {
+  const orderId = req.params.id;
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
+  if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
+  const d = doc.data()!;
+  if (d.buyerId !== req.user!.id) return res.status(404).json({ error: 'No encontrado' });
+
+  try {
+    const result = await syncOrderPaymentFromMercadoPago(orderId);
+    res.json(result);
+  } catch (e) {
+    console.error('sync-payment:', e);
+    res.status(500).json({ error: 'No se pudo sincronizar el pago' });
   }
 });
 

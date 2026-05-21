@@ -107,14 +107,14 @@ export async function createCheckoutPreference(params: CreatePreferenceParams): 
 
   const isDeepLink = basePath.includes('://') && !basePath.startsWith('http');
   const success = isDeepLink
-    ? `${basePath}orden/${params.orderId}/pago?status=success`
-    : `${basePath}/orden/${params.orderId}/pago?status=success`;
+    ? `${basePath}orden/${params.orderId}/pago/resultado?status=success`
+    : `${basePath}/orden/${params.orderId}/pago/resultado?status=success`;
   const failure = isDeepLink
-    ? `${basePath}orden/${params.orderId}/pago?status=failure`
-    : `${basePath}/orden/${params.orderId}/pago?status=failure`;
+    ? `${basePath}orden/${params.orderId}/pago/resultado?status=failure`
+    : `${basePath}/orden/${params.orderId}/pago/resultado?status=failure`;
   const pending = isDeepLink
-    ? `${basePath}orden/${params.orderId}/pago?status=pending`
-    : `${basePath}/orden/${params.orderId}/pago?status=pending`;
+    ? `${basePath}orden/${params.orderId}/pago/resultado?status=pending`
+    : `${basePath}/orden/${params.orderId}/pago/resultado?status=pending`;
 
   const currencyId = mercadoPagoCurrencyIdForListing(params.currency);
 
@@ -163,16 +163,45 @@ export async function getPaymentById(paymentId: string): Promise<PaymentInfo | n
   try {
     const { payment } = await getMercadoPagoClient();
     const result = await payment.get({ id: paymentId });
-    const r = result as unknown as PaymentInfo;
-    return {
-      id: String(r.id),
-      status: r.status,
-      external_reference: r.external_reference,
-      transaction_amount: typeof r.transaction_amount === 'number' ? r.transaction_amount : undefined,
-      currency_id: r.currency_id,
-    };
+    return normalizePaymentInfo(result);
   } catch {
     return null;
+  }
+}
+
+function normalizePaymentInfo(raw: unknown): PaymentInfo | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as PaymentInfo & { id?: string | number };
+  if (r.id == null) return null;
+  return {
+    id: String(r.id),
+    status: String(r.status || ''),
+    external_reference: r.external_reference,
+    transaction_amount: typeof r.transaction_amount === 'number' ? r.transaction_amount : undefined,
+    currency_id: r.currency_id,
+  };
+}
+
+/** Busca pagos asociados a una orden (external_reference). */
+export async function searchPaymentsByExternalReference(orderId: string): Promise<PaymentInfo[]> {
+  try {
+    const { payment } = await getMercadoPagoClient();
+    const result = await payment.search({
+      options: {
+        qs: {
+          external_reference: orderId,
+          sort: 'date_created',
+          criteria: 'desc',
+        },
+      },
+    });
+    const rows = (result as { results?: unknown[] })?.results ?? [];
+    return rows
+      .map((row) => normalizePaymentInfo(row))
+      .filter((p): p is PaymentInfo => p != null);
+  } catch (e) {
+    console.error('Error buscando pagos MP por orden:', orderId, e);
+    return [];
   }
 }
 

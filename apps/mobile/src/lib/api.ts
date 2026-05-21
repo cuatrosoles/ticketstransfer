@@ -490,6 +490,18 @@ export async function confirmOrderReceived(orderId: string): Promise<{ ok: boole
   });
 }
 
+/** Sincroniza el pago con Mercado Pago tras volver del checkout (polling). */
+export async function syncOrderPayment(orderId: string): Promise<{
+  orderStatus: string;
+  paymentStatus: string | null;
+  synced: boolean;
+}> {
+  return api<{ orderStatus: string; paymentStatus: string | null; synced: boolean }>(
+    `/api/orders/${encodeURIComponent(orderId)}/sync-payment`,
+    { method: 'POST' }
+  );
+}
+
 export async function openOrderDispute(orderId: string, reason: string): Promise<{ id: string }> {
   return api<{ id: string }>('/api/disputes', {
     method: 'POST',
