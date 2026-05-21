@@ -72,24 +72,26 @@ export async function releaseListingReservation(listingId: string, orderId: stri
   });
 }
 
-async function getAdminRecipients(): Promise<Array<{ id: string; email: string; fcmToken?: string }>> {
+type AdminRecipient = { id: string; email: string; fcmToken?: string };
+
+async function getAdminRecipients(): Promise<AdminRecipient[]> {
   const fromEnv = process.env.ADMIN_NOTIFICATION_EMAIL?.trim();
   if (fromEnv) {
     return [{ id: 'env-admin', email: fromEnv }];
   }
   const snap = await db().collection(COLLECTIONS.USERS).where('role', '==', 'admin').get();
-  return snap.docs
-    .map((doc) => {
-      const d = doc.data();
-      const email = typeof d.email === 'string' ? d.email.trim() : '';
-      if (!email) return null;
-      return {
-        id: doc.id,
-        email,
-        fcmToken: typeof d.fcmToken === 'string' ? d.fcmToken : undefined,
-      };
-    })
-    .filter((x): x is { id: string; email: string; fcmToken?: string } => x != null);
+  const recipients: AdminRecipient[] = [];
+  for (const doc of snap.docs) {
+    const d = doc.data();
+    const email = typeof d.email === 'string' ? d.email.trim() : '';
+    if (!email) continue;
+    const row: AdminRecipient = { id: doc.id, email };
+    if (typeof d.fcmToken === 'string' && d.fcmToken.length > 0) {
+      row.fcmToken = d.fcmToken;
+    }
+    recipients.push(row);
+  }
+  return recipients;
 }
 
 async function sendPushSafe(
