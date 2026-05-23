@@ -1,4 +1,4 @@
-# SPA (Vite + React Router): Hostinger / LiteSpeed / Apache con mod_rewrite
+# SPA — despliegue en https://ticketstransfer.net (document root del dominio raíz)
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /

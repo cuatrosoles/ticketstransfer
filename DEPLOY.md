@@ -142,28 +142,20 @@ Con eso tu cliente puede instalar el APK en otra ciudad y registrarse / loguears
 
 ---
 
-## Web y admin estáticos (build local, subir solo `dist`)
+## Web y admin estáticos (Hostinger — build local, subir solo `dist`)
 
-Para **Hostinger** (u otro hosting estático) **sin** mover la API ni la base de datos:
+**Guía completa:** [docs/HOSTINGER_ESTATICOS.md](docs/HOSTINGER_ESTATICOS.md)
 
-1. En `v2/apps/web` y `v2/apps/admin`, creá **`.env.production`** con las mismas variables que en Vercel: `VITE_API_URL` (URL pública de tu API, sin barra final) y todas las `VITE_FIREBASE_*`. Vite usa ese archivo al ejecutar `pnpm run build` en cada app.
-2. Desde la carpeta **`v2`** ejecutá:
+| App | URL en producción | Carpeta a subir por FTP |
+|-----|-------------------|-------------------------|
+| Landing | https://ticketstransfer.net | `static-deploy/ticketstransfer.net/` |
+| Admin | https://admin.ticketstransfer.net | `static-deploy/admin.ticketstransfer.net/` |
 
-   ```bash
-   pnpm run static:prepare
-   ```
+La API y las bases de datos **no** se migran con este flujo.
 
-   Eso genera `apps/web/dist` y `apps/admin/dist` y copia todo a **`v2/static-deploy/web`** y **`v2/static-deploy/admin`** (incluye **`.htaccess`** para rutas SPA en Apache/LiteSpeed).
+1. Copiá `apps/web/.env.production.example` → `apps/web/.env.production` y `apps/admin/.env.production.example` → `apps/admin/.env.production`; completá `VITE_API_URL` y `VITE_FIREBASE_*`.
+2. Desde **`v2`**: `pnpm run static:prepare`
+3. Subí el **contenido** de cada carpeta al document root correspondiente en Hostinger (raíz del dominio vs. subdominio `admin`).
+4. En Firebase → Authentication → **Authorized domains**: `ticketstransfer.net` y `admin.ticketstransfer.net`.
 
-3. Subí por **FTP/SFTP** el **contenido** (no la carpeta vacía) de `static-deploy/web` al document root de la landing (dominio o subdominio) y el de `static-deploy/admin` al document root del panel admin.
-4. En **Firebase Console → Authentication → Authorized domains**, añadí los dominios donde quedó publicada cada app.
-
-Comandos útiles:
-
-| Comando | Qué hace |
-|---------|----------|
-| `pnpm run build:static` | Solo build de `web` y `admin` (usa `.env.production` de cada app). |
-| `pnpm run pack:static` | Solo copia `dist` a `static-deploy/` (falla si no existen los build). |
-| `pnpm run static:prepare` | Build + copia en un paso. |
-
-La carpeta `static-deploy/` está en `.gitignore` y no debe versionarse.
+Comandos: `build:static`, `pack:static`, `static:prepare`. La carpeta `static-deploy/` no se versiona.

@@ -1,6 +1,6 @@
 node_modules
 
-# Salida local para subir solo estáticos al hosting (pnpm static:prepare)
+# Salida local Hostinger: ticketstransfer.net + admin.ticketstransfer.net (pnpm static:prepare)
 static-deploy/
 
 # Firebase (credenciales - NUNCA subir)
