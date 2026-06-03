@@ -10,6 +10,7 @@
     "start": "serve -s dist -l ${PORT:-3000}"
   },
   "dependencies": {
+    "@tickets-transfer/shared": "workspace:*",
     "firebase": "^10.14.1",
     "lucide-react": "^0.323.0",
     "react": "^18.2.0",

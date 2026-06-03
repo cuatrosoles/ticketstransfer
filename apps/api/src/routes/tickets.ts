@@ -20,6 +20,7 @@ import {
   nearbyEventsQuerySchema,
   filterAndSortByDistance,
   hasValidCoordinates,
+  type LocationSource,
 } from '@tickets-transfer/shared';
 import {
   getMarketplaceHomePublicListingsLimit,
@@ -657,7 +658,7 @@ router.patch('/mine/:listingId', requireAuth, async (req: AuthRequest, res) => {
     const eventGeo = await resolveEventCoordinates({
       eventLatitude: mergedListing.eventLatitude as number | null | undefined,
       eventLongitude: mergedListing.eventLongitude as number | null | undefined,
-      eventLocationSource: mergedListing.eventLocationSource as string | null | undefined,
+      eventLocationSource: mergedListing.eventLocationSource as LocationSource | null | undefined,
       eventAddress: (mergedListing.eventAddress as string) ?? null,
       eventCity: (mergedListing.eventCity as string) ?? null,
       eventPlace: (mergedListing.eventPlace as string) ?? null,
