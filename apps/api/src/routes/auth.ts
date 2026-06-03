@@ -51,6 +51,9 @@ router.post('/register', async (req, res) => {
     city,
     province,
     postalCode,
+    latitude,
+    longitude,
+    locationSource,
   } = parsed.data;
 
   const auth = getAuth();
@@ -138,6 +141,11 @@ router.post('/register', async (req, res) => {
     city: city || null,
     province: province || null,
     postalCode: postalCode || null,
+    latitude: latitude ?? null,
+    longitude: longitude ?? null,
+    locationSource: latitude != null && longitude != null ? locationSource ?? 'manual' : null,
+    locationUpdatedAt:
+      latitude != null && longitude != null ? new Date() : null,
     role: isAdmin ? 'admin' : 'user',
     emailVerified: emailVerified || false,
     reputationScore: 0,
@@ -313,6 +321,10 @@ router.get('/me', requireAuth, async (req: AuthRequest, res) => {
     city: data.city,
     province: data.province,
     postalCode: data.postalCode,
+    latitude: data.latitude ?? null,
+    longitude: data.longitude ?? null,
+    locationSource: data.locationSource ?? null,
+    locationUpdatedAt: data.locationUpdatedAt?.toDate?.() ?? data.locationUpdatedAt ?? null,
     role: data.role,
     reputationScore: data.reputationScore ?? 0,
     createdAt: data.createdAt,

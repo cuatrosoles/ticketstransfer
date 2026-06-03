@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api, apiForm } from '../lib/api';
+import { formatCoordinates } from '@tickets-transfer/shared';
+import { EmbeddedGeoMap } from '../components/EmbeddedGeoMap';
 
 const CATEGORY_FALLBACKS: Record<string, string> = {
   MUSICA: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=800&q=80&fm=jpg',
@@ -34,6 +36,12 @@ type TicketDetailType = {
   eventName: string;
   eventDate: string | Date;
   eventPlace: string | null;
+  eventAddress?: string | null;
+  eventCity?: string | null;
+  eventLatitude?: number | null;
+  eventLongitude?: number | null;
+  eventLocationSource?: string | null;
+  eventGeocodedAt?: string | Date | null;
   sector: string | null;
   row: string | null;
   seat: string | null;
@@ -484,6 +492,29 @@ export function TicketDetail() {
             <p><strong>Evento:</strong> {ticket.eventName}</p>
             <p><strong>Fecha:</strong> {formatDate(ticket.eventDate)}</p>
             <p><strong>Lugar:</strong> {ticket.eventPlace || '-'}</p>
+            <p><strong>Dirección:</strong> {ticket.eventAddress || '—'}</p>
+            <p><strong>Ciudad:</strong> {ticket.eventCity || '—'}</p>
+            <p>
+              <strong>Coordenadas:</strong>{' '}
+              {ticket.eventLatitude != null && ticket.eventLongitude != null ? (
+                <>
+                  {formatCoordinates(ticket.eventLatitude, ticket.eventLongitude)}
+                  {ticket.eventLocationSource ? ` (${ticket.eventLocationSource})` : ''}
+                </>
+              ) : (
+                '— (sin GPS; se puede geocodificar al guardar dirección)'
+              )}
+            </p>
+            {ticket.eventLatitude != null && ticket.eventLongitude != null ? (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <EmbeddedGeoMap
+                  latitude={ticket.eventLatitude}
+                  longitude={ticket.eventLongitude}
+                  title="Mapa — ubicación del evento"
+                  height={320}
+                />
+              </div>
+            ) : null}
             <p><strong>Sector:</strong> {ticket.sector || '-'}</p>
             <p><strong>Fila:</strong> {ticket.row || '-'}</p>
             <p><strong>Asientos:</strong> {ticket.seat || '-'}</p>

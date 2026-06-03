@@ -38,6 +38,8 @@ export function HomeScreen() {
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [featured, setFeatured] = useState<MarketplacePublicItem[]>([]);
   const [recommended, setRecommended] = useState<MarketplacePublicItem[]>([]);
+  const [nearby, setNearby] = useState<MarketplacePublicItem[]>([]);
+  const [nearbyRadiusKm, setNearbyRadiusKm] = useState<number | null>(null);
   const [personalized, setPersonalized] = useState(false);
   const [marketplaceLoading, setMarketplaceLoading] = useState(true);
   const [marketplaceError, setMarketplaceError] = useState('');
@@ -96,6 +98,8 @@ export function HomeScreen() {
         if (!cancelled) {
           setFeatured(res.featured ?? []);
           setRecommended(res.recommended ?? []);
+          setNearby(res.nearby ?? []);
+          setNearbyRadiusKm(res.nearbyRadiusKm ?? null);
           setPersonalized(Boolean(res.personalized));
         }
       })
@@ -192,6 +196,38 @@ export function HomeScreen() {
               ))}
             </View>
           )}
+
+          {!marketplaceLoading && nearby.length > 0 ? (
+            <>
+              <View style={[styles.sectionHead, { marginTop: spacing.lg }]}>
+                <View>
+                  <Text style={styles.sectionTitle}>Cerca de vos</Text>
+                  {nearbyRadiusKm ? (
+                    <Text style={styles.sectionHint}>Radio {nearbyRadiusKm} km desde tu ubicación</Text>
+                  ) : null}
+                </View>
+                <TouchableOpacity onPress={goTienda} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={styles.sectionLink}>Ver todos</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carousel}>
+                {nearby.map((item) => (
+                  <View key={`near-${item.id}`} style={[styles.carouselCell, { width: carouselCardWidth }]}>
+                    <HomeEventCard
+                      item={item}
+                      variant="carousel"
+                      carouselWidth={carouselCardWidth}
+                      formatEventDateTime={formatDateTime}
+                      onPress={() => goDetail(item)}
+                      showFavoriteToggle
+                      favoriteActive={isFavorite(item.id)}
+                      onFavoritePress={() => toggleFavorite(item)}
+                    />
+                  </View>
+                ))}
+              </ScrollView>
+            </>
+          ) : null}
 
           <View style={[styles.sectionHead, { marginTop: spacing.lg }]}>
             <View>

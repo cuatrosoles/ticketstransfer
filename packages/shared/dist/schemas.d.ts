@@ -3,7 +3,7 @@
  * Ubicación: packages/shared/src/schemas.ts
  */
 import { z } from 'zod';
-export declare const registerSchema: z.ZodEffects<z.ZodObject<{
+export declare const registerSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     email: z.ZodString;
     password: z.ZodString;
     confirmPassword: z.ZodString;
@@ -21,6 +21,10 @@ export declare const registerSchema: z.ZodEffects<z.ZodObject<{
     city: z.ZodOptional<z.ZodString>;
     province: z.ZodOptional<z.ZodString>;
     postalCode: z.ZodOptional<z.ZodString>;
+    /** Ubicación GPS opcional al registrarse (para eventos cercanos). */
+    latitude: z.ZodEffects<z.ZodOptional<z.ZodNumber>, number | undefined, unknown>;
+    longitude: z.ZodEffects<z.ZodOptional<z.ZodNumber>, number | undefined, unknown>;
+    locationSource: z.ZodOptional<z.ZodEnum<["gps", "manual", "geocode"]>>;
     agreeTerms: z.ZodEffects<z.ZodBoolean, boolean, boolean>;
     isAdmin: z.ZodOptional<z.ZodBoolean>;
     role: z.ZodOptional<z.ZodEnum<["user", "admin"]>>;
@@ -31,6 +35,9 @@ export declare const registerSchema: z.ZodEffects<z.ZodObject<{
     firstName: string;
     lastName: string;
     agreeTerms: boolean;
+    latitude?: number | undefined;
+    longitude?: number | undefined;
+    locationSource?: "gps" | "manual" | "geocode" | undefined;
     username?: string | undefined;
     country?: string | undefined;
     tipoDocumento?: string | undefined;
@@ -52,6 +59,9 @@ export declare const registerSchema: z.ZodEffects<z.ZodObject<{
     firstName: string;
     lastName: string;
     agreeTerms: boolean;
+    latitude?: unknown;
+    longitude?: unknown;
+    locationSource?: "gps" | "manual" | "geocode" | undefined;
     username?: string | undefined;
     country?: string | undefined;
     tipoDocumento?: string | undefined;
@@ -73,6 +83,9 @@ export declare const registerSchema: z.ZodEffects<z.ZodObject<{
     firstName: string;
     lastName: string;
     agreeTerms: boolean;
+    latitude?: number | undefined;
+    longitude?: number | undefined;
+    locationSource?: "gps" | "manual" | "geocode" | undefined;
     username?: string | undefined;
     country?: string | undefined;
     tipoDocumento?: string | undefined;
@@ -94,6 +107,57 @@ export declare const registerSchema: z.ZodEffects<z.ZodObject<{
     firstName: string;
     lastName: string;
     agreeTerms: boolean;
+    latitude?: unknown;
+    longitude?: unknown;
+    locationSource?: "gps" | "manual" | "geocode" | undefined;
+    username?: string | undefined;
+    country?: string | undefined;
+    tipoDocumento?: string | undefined;
+    documentNumber?: string | undefined;
+    sexo?: "FEM" | "MASC" | "X" | undefined;
+    phone?: string | undefined;
+    phoneAreaCode?: string | undefined;
+    phonePrefix?: string | undefined;
+    dateOfBirth?: string | undefined;
+    city?: string | undefined;
+    province?: string | undefined;
+    postalCode?: string | undefined;
+    isAdmin?: boolean | undefined;
+    role?: "user" | "admin" | undefined;
+}>, {
+    email: string;
+    password: string;
+    confirmPassword: string;
+    firstName: string;
+    lastName: string;
+    agreeTerms: boolean;
+    latitude?: number | undefined;
+    longitude?: number | undefined;
+    locationSource?: "gps" | "manual" | "geocode" | undefined;
+    username?: string | undefined;
+    country?: string | undefined;
+    tipoDocumento?: string | undefined;
+    documentNumber?: string | undefined;
+    sexo?: "FEM" | "MASC" | "X" | undefined;
+    phone?: string | undefined;
+    phoneAreaCode?: string | undefined;
+    phonePrefix?: string | undefined;
+    dateOfBirth?: string | undefined;
+    city?: string | undefined;
+    province?: string | undefined;
+    postalCode?: string | undefined;
+    isAdmin?: boolean | undefined;
+    role?: "user" | "admin" | undefined;
+}, {
+    email: string;
+    password: string;
+    confirmPassword: string;
+    firstName: string;
+    lastName: string;
+    agreeTerms: boolean;
+    latitude?: unknown;
+    longitude?: unknown;
+    locationSource?: "gps" | "manual" | "geocode" | undefined;
     username?: string | undefined;
     country?: string | undefined;
     tipoDocumento?: string | undefined;
@@ -110,7 +174,7 @@ export declare const registerSchema: z.ZodEffects<z.ZodObject<{
     role?: "user" | "admin" | undefined;
 }>;
 /** Para API: sin confirmPassword ni agreeTerms */
-export declare const registerBodySchema: z.ZodObject<Omit<{
+export declare const registerBodySchema: z.ZodEffects<z.ZodObject<Omit<{
     email: z.ZodString;
     password: z.ZodString;
     confirmPassword: z.ZodString;
@@ -128,6 +192,10 @@ export declare const registerBodySchema: z.ZodObject<Omit<{
     city: z.ZodOptional<z.ZodString>;
     province: z.ZodOptional<z.ZodString>;
     postalCode: z.ZodOptional<z.ZodString>;
+    /** Ubicación GPS opcional al registrarse (para eventos cercanos). */
+    latitude: z.ZodEffects<z.ZodOptional<z.ZodNumber>, number | undefined, unknown>;
+    longitude: z.ZodEffects<z.ZodOptional<z.ZodNumber>, number | undefined, unknown>;
+    locationSource: z.ZodOptional<z.ZodEnum<["gps", "manual", "geocode"]>>;
     agreeTerms: z.ZodEffects<z.ZodBoolean, boolean, boolean>;
     isAdmin: z.ZodOptional<z.ZodBoolean>;
     role: z.ZodOptional<z.ZodEnum<["user", "admin"]>>;
@@ -136,6 +204,9 @@ export declare const registerBodySchema: z.ZodObject<Omit<{
     password: string;
     firstName: string;
     lastName: string;
+    latitude?: number | undefined;
+    longitude?: number | undefined;
+    locationSource?: "gps" | "manual" | "geocode" | undefined;
     username?: string | undefined;
     country?: string | undefined;
     tipoDocumento?: string | undefined;
@@ -155,6 +226,53 @@ export declare const registerBodySchema: z.ZodObject<Omit<{
     password: string;
     firstName: string;
     lastName: string;
+    latitude?: unknown;
+    longitude?: unknown;
+    locationSource?: "gps" | "manual" | "geocode" | undefined;
+    username?: string | undefined;
+    country?: string | undefined;
+    tipoDocumento?: string | undefined;
+    documentNumber?: string | undefined;
+    sexo?: "FEM" | "MASC" | "X" | undefined;
+    phone?: string | undefined;
+    phoneAreaCode?: string | undefined;
+    phonePrefix?: string | undefined;
+    dateOfBirth?: string | undefined;
+    city?: string | undefined;
+    province?: string | undefined;
+    postalCode?: string | undefined;
+    isAdmin?: boolean | undefined;
+    role?: "user" | "admin" | undefined;
+}>, {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    latitude?: number | undefined;
+    longitude?: number | undefined;
+    locationSource?: "gps" | "manual" | "geocode" | undefined;
+    username?: string | undefined;
+    country?: string | undefined;
+    tipoDocumento?: string | undefined;
+    documentNumber?: string | undefined;
+    sexo?: "FEM" | "MASC" | "X" | undefined;
+    phone?: string | undefined;
+    phoneAreaCode?: string | undefined;
+    phonePrefix?: string | undefined;
+    dateOfBirth?: string | undefined;
+    city?: string | undefined;
+    province?: string | undefined;
+    postalCode?: string | undefined;
+    isAdmin?: boolean | undefined;
+    role?: "user" | "admin" | undefined;
+}, {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    latitude?: unknown;
+    longitude?: unknown;
+    locationSource?: "gps" | "manual" | "geocode" | undefined;
     username?: string | undefined;
     country?: string | undefined;
     tipoDocumento?: string | undefined;
@@ -245,6 +363,10 @@ export declare const createTicketListingSchema: z.ZodObject<{
     category: z.ZodEffects<z.ZodOptional<z.ZodUnion<[z.ZodEnum<["MUSICA", "DEPORTES", "TEATRO", "FESTIVALES", "OTRO"]>, z.ZodLiteral<"">]>>, "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined, "" | "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined>;
     /** Si no se envía, la API trata la publicación como legada (mismo comportamiento que antes). */
     visibility: z.ZodOptional<z.ZodEnum<["PUBLIC", "PRIVATE"]>>;
+    /** Coordenadas del recinto/evento (opcional; si faltan, la API puede geocodificar dirección+ciudad). */
+    eventLatitude: z.ZodEffects<z.ZodOptional<z.ZodNumber>, number | undefined, unknown>;
+    eventLongitude: z.ZodEffects<z.ZodOptional<z.ZodNumber>, number | undefined, unknown>;
+    eventLocationSource: z.ZodOptional<z.ZodEnum<["gps", "manual", "geocode"]>>;
 }, "strip", z.ZodTypeAny, {
     ticketera: "TICKETEK" | "ALLACCESS" | "TICKET_PLUS" | "OTRA";
     eventName: string;
@@ -263,6 +385,9 @@ export declare const createTicketListingSchema: z.ZodObject<{
     quantityEntries?: string | number | undefined;
     orderRef?: string | undefined;
     visibility?: "PUBLIC" | "PRIVATE" | undefined;
+    eventLatitude?: number | undefined;
+    eventLongitude?: number | undefined;
+    eventLocationSource?: "gps" | "manual" | "geocode" | undefined;
 }, {
     ticketera: "TICKETEK" | "ALLACCESS" | "TICKET_PLUS" | "OTRA";
     eventName: string;
@@ -281,6 +406,9 @@ export declare const createTicketListingSchema: z.ZodObject<{
     currency?: string | undefined;
     orderRef?: string | undefined;
     visibility?: "PUBLIC" | "PRIVATE" | undefined;
+    eventLatitude?: unknown;
+    eventLongitude?: unknown;
+    eventLocationSource?: "gps" | "manual" | "geocode" | undefined;
 }>;
 /** Actualización parcial de publicación (vendedor); imágenes no se modifican por esta vía */
 export declare const updateTicketListingSchema: z.ZodObject<{
@@ -301,6 +429,9 @@ export declare const updateTicketListingSchema: z.ZodObject<{
     orderRef: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>>;
     category: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodUnion<[z.ZodEnum<["MUSICA", "DEPORTES", "TEATRO", "FESTIVALES", "OTRO"]>, z.ZodLiteral<"">]>>, "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined, "" | "MUSICA" | "DEPORTES" | "TEATRO" | "FESTIVALES" | "OTRO" | undefined>>;
     visibility: z.ZodOptional<z.ZodOptional<z.ZodEnum<["PUBLIC", "PRIVATE"]>>>;
+    eventLatitude: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodNumber>, number | undefined, unknown>>;
+    eventLongitude: z.ZodOptional<z.ZodEffects<z.ZodOptional<z.ZodNumber>, number | undefined, unknown>>;
+    eventLocationSource: z.ZodOptional<z.ZodOptional<z.ZodEnum<["gps", "manual", "geocode"]>>>;
 } & {
     publicationPassword: z.ZodEffects<z.ZodOptional<z.ZodNullable<z.ZodString>>, string | null | undefined, string | null | undefined>;
     ticketeraOtra: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
@@ -324,6 +455,9 @@ export declare const updateTicketListingSchema: z.ZodObject<{
     appBoletos?: "OTRA" | "QUENTRO" | "ENIGMA" | undefined;
     orderRef?: string | undefined;
     visibility?: "PUBLIC" | "PRIVATE" | undefined;
+    eventLatitude?: number | undefined;
+    eventLongitude?: number | undefined;
+    eventLocationSource?: "gps" | "manual" | "geocode" | undefined;
     publicationPassword?: string | null | undefined;
     ticketeraOtra?: string | undefined;
     appBoletosOtra?: string | undefined;
@@ -346,6 +480,9 @@ export declare const updateTicketListingSchema: z.ZodObject<{
     appBoletos?: "OTRA" | "QUENTRO" | "ENIGMA" | undefined;
     orderRef?: string | undefined;
     visibility?: "PUBLIC" | "PRIVATE" | undefined;
+    eventLatitude?: unknown;
+    eventLongitude?: unknown;
+    eventLocationSource?: "gps" | "manual" | "geocode" | undefined;
     publicationPassword?: string | null | undefined;
     ticketeraOtra?: string | undefined;
     appBoletosOtra?: string | undefined;

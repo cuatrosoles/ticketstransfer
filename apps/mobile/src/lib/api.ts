@@ -141,6 +141,7 @@ export async function getMe() {
 export type BrandingPayload = {
   commissionPercentage: number;
   marketplaceHomePublicListingsLimit: number;
+  marketplaceNearbyRadiusKm: number;
   visual: Record<string, unknown>;
   users: {
     supportEmail?: string;
@@ -168,6 +169,9 @@ export type MarketplacePublicItem = {
   eventPlace?: string | null;
   eventAddress?: string | null;
   eventCity?: string | null;
+  eventLatitude?: number | null;
+  eventLongitude?: number | null;
+  distanceKm?: number | null;
   eventImageUrl?: string | null;
   category?: string | null;
   quantityEntries?: string | null;
@@ -218,9 +222,37 @@ export type MarketplaceRecommendedResponse = {
   limit: number;
   featured: MarketplacePublicItem[];
   recommended: MarketplacePublicItem[];
+  nearby?: MarketplacePublicItem[];
+  nearbyRadiusKm?: number | null;
   preferences: UserPreferences;
   personalized: boolean;
 };
+
+export type MarketplaceNearbyResponse = {
+  radiusKm: number;
+  origin: { latitude: number; longitude: number };
+  total: number;
+  items: MarketplacePublicItem[];
+};
+
+export async function getMarketplaceNearby(radiusKm?: number): Promise<MarketplaceNearbyResponse> {
+  const q =
+    radiusKm != null
+      ? `?radiusKm=${encodeURIComponent(String(radiusKm))}`
+      : '';
+  return api<MarketplaceNearbyResponse>(`/api/tickets/marketplace/nearby${q}`);
+}
+
+export async function updateUserLocation(body: {
+  latitude: number;
+  longitude: number;
+  locationSource?: 'gps' | 'manual' | 'geocode';
+}): Promise<{ ok: boolean; latitude: number; longitude: number }> {
+  return api('/api/users/location', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
 
 export async function getMarketplaceRecommended(): Promise<MarketplaceRecommendedResponse> {
   return api<MarketplaceRecommendedResponse>('/api/tickets/marketplace/recommended');
@@ -281,6 +313,10 @@ export type Profile = {
   city: string | null;
   province: string | null;
   postalCode: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  locationSource?: string | null;
+  locationUpdatedAt?: string | null;
   address: string | null;
   reputationScore: number | null;
   profileImageUrl: string | null;

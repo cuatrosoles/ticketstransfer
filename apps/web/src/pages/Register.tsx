@@ -16,6 +16,7 @@ import {
   SEXO_OPCIONES,
   TIPO_DOCUMENTO,
   PREFIJO_TELEFONO_DEFAULT,
+  formatCoordinates,
 } from '@tickets-transfer/shared';
 
 type RegisterInput = z.infer<typeof registerSchema>;
@@ -23,6 +24,9 @@ type RegisterInput = z.infer<typeof registerSchema>;
 export function Register() {
   const [step, setStep] = useState(1);
   const [error, setError] = useState('');
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [geoBusy, setGeoBusy] = useState(false);
   const { register: doRegister } = useAuth();
   const navigate = useNavigate();
 
@@ -54,6 +58,9 @@ export function Register() {
         city: data.city,
         province: data.province,
         postalCode: data.postalCode,
+        latitude: latitude ?? undefined,
+        longitude: longitude ?? undefined,
+        locationSource: latitude != null && longitude != null ? 'gps' : undefined,
       });
       navigate('/onboarding/preferencias');
     } catch (e) {
@@ -186,6 +193,52 @@ export function Register() {
                 <div className="input-wrap">
                   <label>Cod. Postal</label>
                   <input type="text" className="input-field" placeholder="Código postal" {...register('postalCode')} />
+                </div>
+                <div className="input-wrap">
+                  <label>Ubicación (eventos cercanos)</label>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    style={{ marginBottom: 8 }}
+                    disabled={geoBusy || !navigator.geolocation}
+                    onClick={() => {
+                      if (!navigator.geolocation) return;
+                      setGeoBusy(true);
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          setLatitude(pos.coords.latitude);
+                          setLongitude(pos.coords.longitude);
+                          setGeoBusy(false);
+                        },
+                        () => {
+                          setError('No se pudo obtener la ubicación del navegador.');
+                          setGeoBusy(false);
+                        },
+                        { enableHighAccuracy: true, timeout: 15000 }
+                      );
+                    }}
+                  >
+                    {geoBusy ? 'Ubicando…' : 'Usar mi ubicación actual'}
+                  </button>
+                  {latitude != null && longitude != null ? (
+                    <p className="text-muted" style={{ fontSize: 12 }}>
+                      {formatCoordinates(latitude, longitude)}{' '}
+                      <button
+                        type="button"
+                        className="btn-link"
+                        onClick={() => {
+                          setLatitude(null);
+                          setLongitude(null);
+                        }}
+                      >
+                        Quitar
+                      </button>
+                    </p>
+                  ) : (
+                    <p className="text-muted" style={{ fontSize: 12 }}>
+                      Opcional. Permite ver eventos cercanos a tu zona en la tienda.
+                    </p>
+                  )}
                 </div>
                 {error && <p className="form-error">{error}</p>}
                 <div className="register-actions">

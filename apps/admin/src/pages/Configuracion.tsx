@@ -20,6 +20,7 @@ type MercadoPagoSettings = {
 type PlatformSettings = {
   commissionPercentage: number;
   marketplaceHomePublicListingsLimit: number;
+  marketplaceNearbyRadiusKm: number;
   mercadopago: MercadoPagoSettings;
   users?: Record<string, unknown>;
   visual?: Record<string, unknown>;
@@ -36,6 +37,7 @@ export function Configuracion() {
   const [form, setForm] = useState<PlatformSettings>({
     commissionPercentage: 6.5,
     marketplaceHomePublicListingsLimit: 6,
+    marketplaceNearbyRadiusKm: 100,
     mercadopago: { enabled: false, accessToken: '', publicKey: '', webhookSecret: '', sandboxMode: false },
     users: {},
     visual: {},
@@ -155,6 +157,29 @@ export function Configuracion() {
               <small className="text-muted">
                 Cantidad máxima de publicaciones <strong>públicas</strong> en la sección “Tickets a la Venta” del
                 inicio. Por defecto 6 (grilla de 2 columnas × 3 filas).
+              </small>
+            </div>
+            <div className="form-group">
+              <label>Radio eventos cercanos (km)</label>
+              <input
+                type="number"
+                min={1}
+                max={500}
+                step={1}
+                value={form.marketplaceNearbyRadiusKm ?? 100}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    marketplaceNearbyRadiusKm: Math.min(
+                      500,
+                      Math.max(1, parseInt(e.target.value, 10) || 100)
+                    ),
+                  }))
+                }
+              />
+              <small className="text-muted">
+                Distancia máxima desde la ubicación del usuario para el filtro “Cerca de vos” / “Cercanos” en app y
+                web. Por defecto <strong>100 km</strong> (1–500).
               </small>
             </div>
           </div>

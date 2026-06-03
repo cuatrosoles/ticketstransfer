@@ -25,6 +25,7 @@ import { useAuth } from '../context/AuthContext';
 import { sendEmailVerificationCode, verifyEmailCode, checkUsername } from '../lib/api';
 import { registerSchema, SEXO_OPCIONES, TIPO_DOCUMENTO, PREFIJO_TELEFONO_DEFAULT } from '../lib/registerConstants';
 import { PROVINCIAS_ARGENTINA, CIUDADES_POR_PROVINCIA } from '../data/provinciasArgentina';
+import { LocationCaptureButton } from '../components/LocationCaptureButton';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { GradientButton } from '../components/GradientButton';
@@ -82,6 +83,8 @@ export function RegisterScreen() {
   const [numero, setNumero] = useState('');
   const [piso, setPiso] = useState('');
   const [depto, setDepto] = useState('');
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [pickerModal, setPickerModal] = useState<'province' | 'city' | 'date' | null>(null);
@@ -209,6 +212,9 @@ export function RegisterScreen() {
       city: city || undefined,
       province: province || undefined,
       postalCode: postalCode || undefined,
+      latitude: latitude ?? undefined,
+      longitude: longitude ?? undefined,
+      locationSource: latitude != null && longitude != null ? 'gps' : undefined,
       direccion: direccion || undefined,
       numero: numero || undefined,
       piso: piso || undefined,
@@ -467,6 +473,19 @@ export function RegisterScreen() {
       <TextInput style={styles.input} placeholder="Piso" placeholderTextColor={colors.textMuted} value={piso} onChangeText={setPiso} />
       <Text style={styles.label}>Depto</Text>
       <TextInput style={styles.input} placeholder="Depto" placeholderTextColor={colors.textMuted} value={depto} onChangeText={setDepto} />
+      <Text style={styles.label}>Ubicación (eventos cercanos)</Text>
+      <LocationCaptureButton
+        latitude={latitude}
+        longitude={longitude}
+        onCapture={({ latitude: lat, longitude: lng }) => {
+          setLatitude(lat);
+          setLongitude(lng);
+        }}
+        onClear={() => {
+          setLatitude(null);
+          setLongitude(null);
+        }}
+      />
       <Text style={styles.hint}>Completá los campos obligatorios (Nombre, Apellido, Usuario y los del paso anterior) para registrar.</Text>
       <View style={styles.actions}>
         <GradientButton title="VOLVER" variant="secondary" onPress={() => setStep(2)} style={styles.actionBtn} />

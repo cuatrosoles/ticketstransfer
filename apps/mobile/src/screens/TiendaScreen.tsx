@@ -7,6 +7,7 @@ import { useState, useCallback } from 'react';
 import {
   View,
   Text,
+  TouchableOpacity,
   ScrollView,
   StyleSheet,
   ActivityIndicator,
@@ -17,8 +18,13 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { TabCompositeNavigationProp } from '../navigation/types';
 import {
   getMarketplaceStoreListings,
+  getMarketplaceNearby,
+  updateUserLocation,
   type MarketplacePublicItem,
 } from '../lib/api';
+import { LocationCaptureButton } from '../components/LocationCaptureButton';
+import { getCurrentDeviceLocation, showLocationError } from '../lib/geolocation';
+import { DEFAULT_NEARBY_RADIUS_KM } from '@tickets-transfer/shared';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
@@ -33,28 +39,55 @@ type Nav = TabCompositeNavigationProp<'Tienda'>;
 export function TiendaScreen() {
   const navigation = useNavigation<Nav>();
   const brand = useBranding();
+  const nearbyRadiusKm =
+    brand.data?.marketplaceNearbyRadiusKm ?? DEFAULT_NEARBY_RADIUS_KM;
   const { isFavorite, toggleFavorite } = useFavorites();
   const { width } = useWindowDimensions();
   const [items, setItems] = useState<MarketplacePublicItem[]>([]);
+  const [nearbyOnly, setNearbyOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [locationBusy, setLocationBusy] = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError('');
     try {
-      const res = await getMarketplaceStoreListings();
-      setItems(res.items ?? []);
-    } catch {
-      setError('No se pudieron cargar las publicaciones.');
+      if (nearbyOnly) {
+        const res = await getMarketplaceNearby(nearbyRadiusKm);
+        setItems(res.items ?? []);
+      } else {
+        const res = await getMarketplaceStoreListings();
+        setItems(res.items ?? []);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (nearbyOnly && msg.includes('ubicación')) {
+        setError('Configurá tu ubicación para ver eventos cercanos (registro o botón abajo).');
+      } else {
+        setError('No se pudieron cargar las publicaciones.');
+      }
       setItems([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [nearbyOnly, nearbyRadiusKm]);
+
+  const enableNearbyWithGps = async () => {
+    setLocationBusy(true);
+    try {
+      const loc = await getCurrentDeviceLocation();
+      await updateUserLocation({ ...loc, locationSource: 'gps' });
+      setNearbyOnly(true);
+    } catch (err) {
+      showLocationError(err instanceof Error ? err.message : 'No se pudo obtener la ubicación');
+    } finally {
+      setLocationBusy(false);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -95,6 +128,34 @@ export function TiendaScreen() {
           <Text style={styles.lead}>
             Tickets públicos verificados. Tocá un ticket para ver el detalle y continuar con la compra.
           </Text>
+          <View style={styles.filterRow}>
+            <TouchableOpacity
+              style={[styles.filterChip, !nearbyOnly && styles.filterChipActive]}
+              onPress={() => setNearbyOnly(false)}
+            >
+              <Text style={styles.filterChipText}>Todos</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterChip, nearbyOnly && styles.filterChipActive]}
+              onPress={() => (nearbyOnly ? setNearbyOnly(false) : void enableNearbyWithGps())}
+              disabled={locationBusy}
+            >
+              <Text style={styles.filterChipText}>
+                {locationBusy ? 'Ubicando…' : `Cercanos (${nearbyRadiusKm} km)`}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {nearbyOnly ? (
+            <LocationCaptureButton
+              label="Actualizar mi ubicación"
+              latitude={null}
+              longitude={null}
+              onCapture={async ({ latitude, longitude }) => {
+                await updateUserLocation({ latitude, longitude, locationSource: 'gps' });
+                load(true);
+              }}
+            />
+          ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {!error && items.length === 0 ? (
             <Text style={styles.empty}>No hay publicaciones en la tienda por el momento.</Text>
@@ -134,7 +195,17 @@ const styles = StyleSheet.create({
     paddingBottom: 110,
   },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  lead: { fontSize: 13, color: colors.textMuted, marginBottom: spacing.lg, lineHeight: 20 },
+  lead: { fontSize: 13, color: colors.textMuted, marginBottom: spacing.md, lineHeight: 20 },
+  filterRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  filterChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.35)',
+  },
+  filterChipActive: { borderColor: colors.primaryLight, backgroundColor: 'rgba(59,130,246,0.2)' },
+  filterChipText: { color: colors.text, fontSize: 13, fontWeight: '600' },
   error: { color: '#f87171', marginBottom: spacing.md, fontSize: 14 },
   empty: { color: colors.textMuted, fontSize: 15, textAlign: 'center', marginTop: spacing.lg },
   grid: {

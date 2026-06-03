@@ -12,6 +12,7 @@ import {
   eventDateDateOnly,
   listingValueToDatetimeLocal,
   runWithPublishProgress,
+  formatCoordinates,
 } from '@tickets-transfer/shared';
 
 const TIPOS_ENTRADA = ['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO'] as const;
@@ -32,6 +33,9 @@ export function Publicar() {
   const [eventPlace, setEventPlace] = useState('');
   const [eventAddress, setEventAddress] = useState('');
   const [eventCity, setEventCity] = useState('');
+  const [eventLatitude, setEventLatitude] = useState<number | null>(null);
+  const [eventLongitude, setEventLongitude] = useState<number | null>(null);
+  const [geoBusy, setGeoBusy] = useState(false);
   const [sector, setSector] = useState('');
   const [row, setRow] = useState('');
   const [seat, setSeat] = useState('');
@@ -115,6 +119,10 @@ export function Publicar() {
         setEventPlace(L.eventPlace || '');
         setEventAddress((L as { eventAddress?: string }).eventAddress || '');
         setEventCity((L as { eventCity?: string }).eventCity || '');
+        const lat = (L as { eventLatitude?: number }).eventLatitude;
+        const lng = (L as { eventLongitude?: number }).eventLongitude;
+        setEventLatitude(typeof lat === 'number' ? lat : null);
+        setEventLongitude(typeof lng === 'number' ? lng : null);
         setSector(L.sector || '');
         setRow((L.row as string) || '');
         setSeat((L.seat as string) || '');
@@ -241,6 +249,10 @@ export function Publicar() {
           eventPlace: parsed.data.eventPlace,
           eventAddress: parsed.data.eventAddress,
           eventCity: parsed.data.eventCity,
+          eventLatitude: eventLatitude ?? undefined,
+          eventLongitude: eventLongitude ?? undefined,
+          eventLocationSource:
+            eventLatitude != null && eventLongitude != null ? 'gps' : undefined,
           sector: parsed.data.sector,
           row: parsed.data.row,
           seat: parsed.data.seat,
@@ -285,6 +297,11 @@ export function Publicar() {
       if (parsed.data.eventPlace) formData.append('eventPlace', parsed.data.eventPlace);
       formData.append('eventAddress', parsed.data.eventAddress);
       formData.append('eventCity', parsed.data.eventCity);
+      if (eventLatitude != null) formData.append('eventLatitude', String(eventLatitude));
+      if (eventLongitude != null) formData.append('eventLongitude', String(eventLongitude));
+      if (eventLatitude != null && eventLongitude != null) {
+        formData.append('eventLocationSource', 'gps');
+      }
       if (parsed.data.sector) formData.append('sector', parsed.data.sector);
       if (parsed.data.row) formData.append('row', parsed.data.row);
       if (parsed.data.seat) formData.append('seat', parsed.data.seat);
@@ -433,6 +450,44 @@ export function Publicar() {
             />
           </div>
         </div>
+
+        <label className="block-label">Coordenadas del recinto (opcional)</label>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          style={{ marginBottom: 8 }}
+          disabled={geoBusy || !navigator.geolocation}
+          onClick={() => {
+            if (!navigator.geolocation) return;
+            setGeoBusy(true);
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                setEventLatitude(pos.coords.latitude);
+                setEventLongitude(pos.coords.longitude);
+                setGeoBusy(false);
+              },
+              () => {
+                alert('No se pudo obtener la ubicación del navegador.');
+                setGeoBusy(false);
+              },
+              { enableHighAccuracy: true, timeout: 15000 }
+            );
+          }}
+        >
+          {geoBusy ? 'Ubicando…' : 'Ubicar recinto con GPS del navegador'}
+        </button>
+        {eventLatitude != null && eventLongitude != null ? (
+          <p className="text-muted" style={{ fontSize: 12, marginBottom: 12 }}>
+            {formatCoordinates(eventLatitude, eventLongitude)}{' '}
+            <button type="button" className="btn-link" onClick={() => { setEventLatitude(null); setEventLongitude(null); }}>
+              Quitar
+            </button>
+          </p>
+        ) : (
+          <p className="text-muted" style={{ fontSize: 12, marginBottom: 12 }}>
+            Si no indicás GPS, la API puede geocodificar dirección y ciudad automáticamente.
+          </p>
+        )}
 
         {(eventImagePreview || eventImagePreviewLoading) && (
           <div style={{ marginBottom: 16 }}>

@@ -5,6 +5,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api';
+import { formatCoordinates } from '@tickets-transfer/shared';
+import { EmbeddedGeoMap } from '../components/EmbeddedGeoMap';
 import { CreditCard, Pencil, Trash2, Bell } from 'lucide-react';
 
 type UserDetailType = {
@@ -24,6 +26,10 @@ type UserDetailType = {
   city: string | null;
   province: string | null;
   postalCode: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  locationSource?: string | null;
+  locationUpdatedAt?: string | Date | null;
   role: string;
   emailVerified: boolean;
   reputationScore: number;
@@ -249,7 +255,27 @@ export function UserDetail() {
             <dt>Ciudad</dt><dd>{user.city || '—'}</dd>
             <dt>Provincia</dt><dd>{user.province || '—'}</dd>
             <dt>Código postal</dt><dd>{user.postalCode || '—'}</dd>
+            <dt>Coordenadas GPS</dt>
+            <dd>
+              {user.latitude != null && user.longitude != null ? (
+                <>
+                  {formatCoordinates(user.latitude, user.longitude)}
+                  {user.locationSource ? ` (${user.locationSource})` : ''}
+                </>
+              ) : (
+                '—'
+              )}
+            </dd>
+            <dt>Ubicación actualizada</dt>
+            <dd>{user.locationUpdatedAt ? formatDate(user.locationUpdatedAt) : '—'}</dd>
           </dl>
+          {user.latitude != null && user.longitude != null ? (
+            <EmbeddedGeoMap
+              latitude={user.latitude}
+              longitude={user.longitude}
+              title="Mapa — ubicación del usuario"
+            />
+          ) : null}
         </div>
 
         <div className="card">

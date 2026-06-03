@@ -156,6 +156,9 @@ export type MarketplaceListingItem = {
   eventPlace?: string | null;
   eventAddress?: string | null;
   eventCity?: string | null;
+  eventLatitude?: number | null;
+  eventLongitude?: number | null;
+  distanceKm?: number | null;
   eventImageUrl?: string | null;
   category?: string | null;
   quantityEntries?: unknown;

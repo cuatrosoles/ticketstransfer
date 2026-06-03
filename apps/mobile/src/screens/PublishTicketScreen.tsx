@@ -36,6 +36,7 @@ import {
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
+import { LocationCaptureButton } from '../components/LocationCaptureButton';
 import { EventCoverImage } from '../components/EventCoverImage';
 import { EventDateTimePicker } from '../components/EventDateTimePicker';
 import { PublishProgressButton } from '../components/PublishProgressButton';
@@ -107,6 +108,8 @@ export function PublishTicketScreen() {
   const [eventPlace, setEventPlace] = useState('');
   const [eventAddress, setEventAddress] = useState('');
   const [eventCity, setEventCity] = useState('');
+  const [eventLatitude, setEventLatitude] = useState<number | null>(null);
+  const [eventLongitude, setEventLongitude] = useState<number | null>(null);
   const [sector, setSector] = useState('');
   const [fila, setFila] = useState('');
   const [cantidadEntradas, setCantidadEntradas] = useState('');
@@ -183,6 +186,10 @@ export function PublishTicketScreen() {
         setEventPlace(L.eventPlace || '');
         setEventAddress((L as { eventAddress?: string }).eventAddress || '');
         setEventCity((L as { eventCity?: string }).eventCity || '');
+        const lat = (L as { eventLatitude?: number }).eventLatitude;
+        const lng = (L as { eventLongitude?: number }).eventLongitude;
+        setEventLatitude(typeof lat === 'number' ? lat : null);
+        setEventLongitude(typeof lng === 'number' ? lng : null);
         setSector(L.sector || '');
         setFila((L.row as string) || '');
         setCantidadEntradas((L.quantityEntries as string) || '');
@@ -376,6 +383,10 @@ export function PublishTicketScreen() {
           eventPlace: eventPlace.trim() || undefined,
           eventAddress: eventAddress.trim(),
           eventCity: eventCity.trim(),
+          eventLatitude: eventLatitude ?? undefined,
+          eventLongitude: eventLongitude ?? undefined,
+          eventLocationSource:
+            eventLatitude != null && eventLongitude != null ? 'gps' : undefined,
           sector: sector.trim() || undefined,
           row: fila.trim() || undefined,
           seat: butacasAsientos.trim() || undefined,
@@ -427,6 +438,11 @@ export function PublishTicketScreen() {
       formData.append('eventPlace', snapshot.eventPlace);
       formData.append('eventAddress', snapshot.eventAddress);
       formData.append('eventCity', snapshot.eventCity);
+      if (eventLatitude != null) formData.append('eventLatitude', String(eventLatitude));
+      if (eventLongitude != null) formData.append('eventLongitude', String(eventLongitude));
+      if (eventLatitude != null && eventLongitude != null) {
+        formData.append('eventLocationSource', 'gps');
+      }
       formData.append('sector', snapshot.sector);
       if (snapshot.fila) formData.append('row', snapshot.fila);
       if (snapshot.cantidadEntradas) formData.append('quantityEntries', snapshot.cantidadEntradas);
@@ -611,6 +627,21 @@ export function PublishTicketScreen() {
           />
         </View>
       </View>
+
+      <Text style={styles.label}>Coordenadas del recinto (opcional)</Text>
+      <LocationCaptureButton
+        label="Ubicar recinto con GPS"
+        latitude={eventLatitude}
+        longitude={eventLongitude}
+        onCapture={({ latitude: lat, longitude: lng }) => {
+          setEventLatitude(lat);
+          setEventLongitude(lng);
+        }}
+        onClear={() => {
+          setEventLatitude(null);
+          setEventLongitude(null);
+        }}
+      />
 
       {(eventImagePreview || eventImagePreviewLoading) ? (
         <View style={styles.previewWrap}>

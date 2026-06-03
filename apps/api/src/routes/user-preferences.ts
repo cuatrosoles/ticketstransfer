@@ -10,7 +10,11 @@ import {
 } from '@tickets-transfer/shared';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { db, COLLECTIONS } from '../lib/firestore.js';
-import { getMarketplaceHomePublicListingsLimit } from '../lib/settings.js';
+import { filterAndSortByDistance, hasValidCoordinates } from '@tickets-transfer/shared';
+import {
+  getMarketplaceHomePublicListingsLimit,
+  getMarketplaceNearbyRadiusKm,
+} from '../lib/settings.js';
 import {
   completeTasteOnboarding,
   ensureUserPreferences,
@@ -102,6 +106,8 @@ export async function loadPublicMarketplaceItems(limit: number): Promise<Marketp
         eventPlace: d.eventPlace ?? null,
         eventAddress: d.eventAddress ?? null,
         eventCity: d.eventCity ?? null,
+        eventLatitude: typeof d.eventLatitude === 'number' ? d.eventLatitude : null,
+        eventLongitude: typeof d.eventLongitude === 'number' ? d.eventLongitude : null,
         eventImageUrl: d.eventImageUrl ?? null,
         category: d.category ?? null,
         quantityEntries: d.quantityEntries ?? null,
@@ -128,10 +134,21 @@ export async function getRecommendedMarketplace(req: AuthRequest, res: Response)
   const featured = items.slice(0, 2);
   const pool = items.slice(2);
   const recommended = rankListingsByPreferences(pool, prefs, 12);
+
+  let nearby: typeof items = [];
+  const nearbyRadiusKm = await getMarketplaceNearbyRadiusKm();
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
+  const u = userDoc.data();
+  if (hasValidCoordinates(u?.latitude, u?.longitude)) {
+    nearby = filterAndSortByDistance(pool, u!.latitude, u!.longitude, nearbyRadiusKm).slice(0, 12);
+  }
+
   res.json({
     limit,
     featured,
     recommended,
+    nearby,
+    nearbyRadiusKm: nearby.length > 0 ? nearbyRadiusKm : null,
     preferences: preferencesToApi(prefs),
     personalized: Boolean(
       prefs &&

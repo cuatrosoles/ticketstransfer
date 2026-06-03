@@ -51,7 +51,7 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>Tickets Transfer usa Face ID para iniciar sesión de forma rápida y segura.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string/>
+	<string>Tickets Transfer usa tu ubicación para mostrarte eventos cercanos y mejorar tus publicaciones.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>FontAwesome.ttf</string>

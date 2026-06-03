@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import { parseDatetimeLocalValue } from './event-datetime.js';
+import { latitudeSchema, longitudeSchema, locationSourceSchema } from './geo.js';
 
 const registerBase = z.object({
   email: z.string().email('Email inválido'),
@@ -24,15 +25,43 @@ const registerBase = z.object({
   city: z.string().optional(),
   province: z.string().optional(),
   postalCode: z.string().optional(),
+  /** Ubicación GPS opcional al registrarse (para eventos cercanos). */
+  latitude: z.preprocess(
+    (v) => (v === '' || v == null || v === undefined ? undefined : Number(v)),
+    latitudeSchema.optional()
+  ),
+  longitude: z.preprocess(
+    (v) => (v === '' || v == null || v === undefined ? undefined : Number(v)),
+    longitudeSchema.optional()
+  ),
+  locationSource: locationSourceSchema.optional(),
   agreeTerms: z.boolean().refine((v) => v === true, 'Debes aceptar la política de privacidad'),
   isAdmin: z.boolean().optional(),
   role: z.enum(['user', 'admin']).optional(),
 });
 
-export const registerSchema = registerBase.refine((d) => d.password === d.confirmPassword, { message: 'Las contraseñas no coinciden', path: ['confirmPassword'] });
+export const registerSchema = registerBase
+  .refine((d) => d.password === d.confirmPassword, { message: 'Las contraseñas no coinciden', path: ['confirmPassword'] })
+  .refine(
+    (d) => {
+      const hasLat = d.latitude != null;
+      const hasLng = d.longitude != null;
+      return hasLat === hasLng;
+    },
+    { message: 'Indicá latitud y longitud juntas, o ninguna', path: ['longitude'] }
+  );
 
 /** Para API: sin confirmPassword ni agreeTerms */
-export const registerBodySchema = registerBase.omit({ confirmPassword: true, agreeTerms: true });
+export const registerBodySchema = registerBase
+  .omit({ confirmPassword: true, agreeTerms: true })
+  .refine(
+    (d) => {
+      const hasLat = d.latitude != null;
+      const hasLng = d.longitude != null;
+      return hasLat === hasLng;
+    },
+    { message: 'Indicá latitud y longitud juntas, o ninguna', path: ['longitude'] }
+  );
 
 export const loginSchema = z.object({
   email: z.string().min(1, 'Email o nombre de usuario requerido'),
@@ -112,6 +141,16 @@ export const createTicketListingSchema = z.object({
   category: z.union([categoriaEventoEnum, z.literal('')]).optional().transform((v) => (v === '' ? undefined : v)),
   /** Si no se envía, la API trata la publicación como legada (mismo comportamiento que antes). */
   visibility: listingVisibilitySchema.optional(),
+  /** Coordenadas del recinto/evento (opcional; si faltan, la API puede geocodificar dirección+ciudad). */
+  eventLatitude: z.preprocess(
+    (v) => (v === '' || v == null || v === undefined ? undefined : Number(v)),
+    latitudeSchema.optional()
+  ),
+  eventLongitude: z.preprocess(
+    (v) => (v === '' || v == null || v === undefined ? undefined : Number(v)),
+    longitudeSchema.optional()
+  ),
+  eventLocationSource: locationSourceSchema.optional(),
 });
 
 /** Actualización parcial de publicación (vendedor); imágenes no se modifican por esta vía */

@@ -9,7 +9,7 @@ import { db, COLLECTIONS } from '../lib/firestore.js';
 import { getAuth } from '../lib/firebase-admin.js';
 import { uploadFile } from '../lib/firebase-storage.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
-import { onboardingSchema } from '@tickets-transfer/shared';
+import { onboardingSchema, userLocationUpdateSchema } from '@tickets-transfer/shared';
 import { createDiditSession } from '../lib/didit.js';
 import {
   getOrCreateCustomer,
@@ -186,6 +186,10 @@ router.get('/profile', async (req: AuthRequest, res) => {
     city: data.city ?? null,
     province: data.province ?? null,
     postalCode: data.postalCode ?? null,
+    latitude: data.latitude ?? null,
+    longitude: data.longitude ?? null,
+    locationSource: data.locationSource ?? null,
+    locationUpdatedAt: data.locationUpdatedAt?.toDate?.() ?? data.locationUpdatedAt ?? null,
     address: profileAddressToApi(raw),
     reputationScore: data.reputationScore ?? null,
     profileImageUrl: data.profileImageUrl ?? null,
@@ -269,9 +273,52 @@ router.post('/profile/avatar', upload.single('avatar'), async (req: AuthRequest,
   res.json({ profileImageUrl });
 });
 
+/** Actualizar ubicación GPS del usuario (eventos cercanos). */
+router.put('/location', async (req: AuthRequest, res) => {
+  const parsed = userLocationUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Coordenadas inválidas', details: parsed.error.flatten() });
+    return;
+  }
+  const { latitude, longitude, locationSource } = parsed.data;
+  await db()
+    .collection(COLLECTIONS.USERS)
+    .doc(req.user!.id)
+    .update({
+      latitude,
+      longitude,
+      locationSource: locationSource ?? 'gps',
+      locationUpdatedAt: new Date(),
+      updatedAt: new Date(),
+    });
+  res.json({
+    ok: true,
+    latitude,
+    longitude,
+    locationSource: locationSource ?? 'gps',
+    locationUpdatedAt: new Date().toISOString(),
+  });
+});
+
 router.patch('/profile', async (req: AuthRequest, res) => {
   const body = req.body || {};
-  const { username, firstName, lastName, phone, city, province, postalCode, address, domicilio, fcmToken, cbuCvu, bankName } = body;
+  const {
+    username,
+    firstName,
+    lastName,
+    phone,
+    city,
+    province,
+    postalCode,
+    address,
+    domicilio,
+    fcmToken,
+    cbuCvu,
+    bankName,
+    latitude,
+    longitude,
+    locationSource,
+  } = body;
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (firstName !== undefined) updateData.firstName = firstName;
   if (lastName !== undefined) updateData.lastName = lastName;
@@ -294,6 +341,17 @@ router.patch('/profile', async (req: AuthRequest, res) => {
     updateData.cbuCvu = val && val.length === 22 ? val : null;
   }
   if (bankName !== undefined) updateData.bankName = typeof bankName === 'string' ? bankName.trim() || null : null;
+  if (latitude !== undefined && longitude !== undefined) {
+    const lat = typeof latitude === 'number' ? latitude : Number(latitude);
+    const lng = typeof longitude === 'number' ? longitude : Number(longitude);
+    if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+      updateData.latitude = lat;
+      updateData.longitude = lng;
+      updateData.locationSource =
+        typeof locationSource === 'string' ? locationSource : 'manual';
+      updateData.locationUpdatedAt = new Date();
+    }
+  }
 
   if (username !== undefined) {
     const usernameVal = typeof username === 'string' ? username.trim() : '';

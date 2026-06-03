@@ -68,6 +68,13 @@ router.put('/settings', async (req: AuthRequest, res) => {
     }
   }
 
+  if (typeof body.marketplaceNearbyRadiusKm === 'number') {
+    const n = Math.floor(body.marketplaceNearbyRadiusKm);
+    if (n >= 1 && n <= 500) {
+      updates.marketplaceNearbyRadiusKm = n;
+    }
+  }
+
   if (body.mercadopago && typeof body.mercadopago === 'object') {
     const mp = body.mercadopago as Record<string, unknown>;
     const useNew = (val: unknown, key: 'accessToken' | 'webhookSecret' | 'publicKey') =>
@@ -362,7 +369,7 @@ router.patch('/users/:userId', async (req: AuthRequest, res) => {
   const allowed = [
     'firstName', 'lastName', 'username', 'country', 'tipoDocumento', 'documentNumber',
     'sexo', 'phone', 'city', 'province', 'postalCode', 'role', 'reputationScore',
-    'cbuCvu', 'bankName',
+    'cbuCvu', 'bankName', 'latitude', 'longitude', 'locationSource',
   ];
   for (const key of allowed) {
     if (body[key] !== undefined) {
@@ -922,7 +929,13 @@ router.patch('/tickets/:id', async (req: AuthRequest, res) => {
   if (!doc.exists) return res.status(404).json({ error: 'Ticket no encontrado' });
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  const allowed = ['eventName', 'eventDate', 'eventPlace', 'sector', 'row', 'seat', 'quantityEntries', 'tipoEntrada', 'tipoEntradaOtro', 'price', 'currency', 'ticketera', 'ticketeraOtra', 'appBoletos', 'appBoletosOtra', 'orderRef', 'category', 'status'];
+  const allowed = [
+    'eventName', 'eventDate', 'eventPlace', 'eventAddress', 'eventCity',
+    'eventLatitude', 'eventLongitude', 'eventLocationSource',
+    'sector', 'row', 'seat', 'quantityEntries', 'tipoEntrada', 'tipoEntradaOtro',
+    'price', 'currency', 'ticketera', 'ticketeraOtra', 'appBoletos', 'appBoletosOtra',
+    'orderRef', 'category', 'status',
+  ];
   for (const key of allowed) {
     if (body[key] !== undefined) {
       if (key === 'eventDate' && body[key]) {

@@ -3,6 +3,7 @@
  * Valores por defecto y helpers para leer settings.
  */
 
+import { DEFAULT_NEARBY_RADIUS_KM, MAX_NEARBY_RADIUS_KM } from '@tickets-transfer/shared';
 import { db, COLLECTIONS } from './firestore.js';
 
 export type MercadoPagoSettings = {
@@ -30,6 +31,8 @@ export type PlatformSettings = {
   mercadopago: MercadoPagoSettings;
   /** Cantidad de tickets públicos en la grilla del inicio de la app (default 6) */
   marketplaceHomePublicListingsLimit: number;
+  /** Radio (km) para filtro “eventos cercanos” en marketplace (default 100) */
+  marketplaceNearbyRadiusKm: number;
   users?: Record<string, unknown>;
   visual?: Record<string, unknown>;
   /** Textos y flags de notificaciones (consumo futuro en API / plantillas). */
@@ -40,6 +43,7 @@ export type PlatformSettings = {
 const DEFAULTS: PlatformSettings = {
   commissionPercentage: 6.5,
   marketplaceHomePublicListingsLimit: 6,
+  marketplaceNearbyRadiusKm: DEFAULT_NEARBY_RADIUS_KM,
   mercadopago: {
     enabled: false,
     accessToken: '',
@@ -85,6 +89,10 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
       50,
       Math.max(1, Number(d.marketplaceHomePublicListingsLimit) || DEFAULTS.marketplaceHomePublicListingsLimit)
     ),
+    marketplaceNearbyRadiusKm: Math.min(
+      MAX_NEARBY_RADIUS_KM,
+      Math.max(1, Number(d.marketplaceNearbyRadiusKm) || DEFAULTS.marketplaceNearbyRadiusKm)
+    ),
     mercadopago: {
       enabled: d.mercadopago?.enabled ?? DEFAULTS.mercadopago.enabled,
       accessToken: d.mercadopago?.accessToken ?? '',
@@ -123,4 +131,9 @@ export async function getCommissionPercentage(): Promise<number> {
 export async function getMarketplaceHomePublicListingsLimit(): Promise<number> {
   const s = await getPlatformSettings();
   return s.marketplaceHomePublicListingsLimit;
+}
+
+export async function getMarketplaceNearbyRadiusKm(): Promise<number> {
+  const s = await getPlatformSettings();
+  return s.marketplaceNearbyRadiusKm;
 }

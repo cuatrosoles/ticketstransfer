@@ -9,6 +9,7 @@ import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import {
   getCommissionPercentage,
   getMarketplaceHomePublicListingsLimit,
+  getMarketplaceNearbyRadiusKm,
   getPlatformSettings,
 } from '../lib/settings.js';
 
@@ -25,6 +26,7 @@ settingsRouter.get('/branding', async (_req, res) => {
   res.json({
     commissionPercentage: s.commissionPercentage,
     marketplaceHomePublicListingsLimit: s.marketplaceHomePublicListingsLimit,
+    marketplaceNearbyRadiusKm: s.marketplaceNearbyRadiusKm,
     visual: s.visual && typeof s.visual === 'object' ? s.visual : {},
     users: {
       supportEmail: pickStr('supportEmail'),
@@ -45,4 +47,10 @@ settingsRouter.get('/commission', requireAuth, async (_req: AuthRequest, res) =>
 settingsRouter.get('/marketplace-home', requireAuth, async (_req: AuthRequest, res) => {
   const homePublicListingsLimit = await getMarketplaceHomePublicListingsLimit();
   res.json({ homePublicListingsLimit });
+});
+
+/** Radio por defecto (km) para eventos cercanos — configurable en admin. */
+settingsRouter.get('/marketplace-nearby', requireAuth, async (_req: AuthRequest, res) => {
+  const nearbyRadiusKm = await getMarketplaceNearbyRadiusKm();
+  res.json({ nearbyRadiusKm });
 });

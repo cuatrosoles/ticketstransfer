@@ -9,6 +9,7 @@ export * from './user-preferences.js';
 export * from './event-images.js';
 export * from './event-datetime.js';
 export * from './event-location-display.js';
+export * from './geo.js';
 export * from './publish-stages.js';
 /** Reexportación nominal (además de barrel) para que bundlers como esbuild vean todos los símbolos al resolver este entry. */
 export {

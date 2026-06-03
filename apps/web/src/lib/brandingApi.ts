@@ -3,6 +3,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 export type BrandingPayload = {
   commissionPercentage: number;
   marketplaceHomePublicListingsLimit: number;
+  marketplaceNearbyRadiusKm: number;
   visual: Record<string, unknown>;
   users: {
     supportEmail?: string;

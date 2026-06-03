@@ -15,9 +15,18 @@ import {
   shouldRefreshEventImage,
 } from '../lib/event-image-resolver.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
-import { createTicketListingSchema } from '@tickets-transfer/shared';
-import { getMarketplaceHomePublicListingsLimit } from '../lib/settings.js';
-import { getRecommendedMarketplace } from './user-preferences.js';
+import {
+  createTicketListingSchema,
+  nearbyEventsQuerySchema,
+  filterAndSortByDistance,
+  hasValidCoordinates,
+} from '@tickets-transfer/shared';
+import {
+  getMarketplaceHomePublicListingsLimit,
+  getMarketplaceNearbyRadiusKm,
+} from '../lib/settings.js';
+import { getRecommendedMarketplace, loadPublicMarketplaceItems } from './user-preferences.js';
+import { resolveEventCoordinates } from '../lib/listing-geo.js';
 
 /** PATCH /mine/:id — mismo criterio que en shared/schemas (evita import roto si no se pushea packages/shared). */
 const updateTicketListingSchema = createTicketListingSchema.partial().extend({
@@ -32,6 +41,15 @@ const updateTicketListingSchema = createTicketListingSchema.partial().extend({
 });
 
 const router = Router();
+
+function listingGeoFromDoc(d: Record<string, unknown>) {
+  return {
+    eventLatitude: typeof d.eventLatitude === 'number' ? d.eventLatitude : null,
+    eventLongitude: typeof d.eventLongitude === 'number' ? d.eventLongitude : null,
+    eventLocationSource: (d.eventLocationSource as string) ?? null,
+  };
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -119,6 +137,50 @@ router.get('/eventos', async (req, res) => {
 /** Marketplace personalizado: destacados + recomendados según preferencias del usuario autenticado. */
 router.get('/marketplace/recommended', requireAuth, getRecommendedMarketplace);
 
+/** Eventos públicos cercanos a la ubicación del usuario o a lat/lng indicados. */
+router.get('/marketplace/nearby', requireAuth, async (req: AuthRequest, res) => {
+  const configuredRadiusKm = await getMarketplaceNearbyRadiusKm();
+  const parsed = nearbyEventsQuerySchema.safeParse({
+    ...req.query,
+    radiusKm:
+      req.query.radiusKm != null && String(req.query.radiusKm).trim() !== ''
+        ? req.query.radiusKm
+        : configuredRadiusKm,
+  });
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Parámetros inválidos', details: parsed.error.flatten() });
+    return;
+  }
+  const { radiusKm } = parsed.data;
+  let originLat = parsed.data.latitude;
+  let originLng = parsed.data.longitude;
+
+  if (!hasValidCoordinates(originLat, originLng)) {
+    const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
+    const u = userDoc.data();
+    originLat = typeof u?.latitude === 'number' ? u.latitude : undefined;
+    originLng = typeof u?.longitude === 'number' ? u.longitude : undefined;
+  }
+
+  if (!hasValidCoordinates(originLat, originLng)) {
+    res.status(400).json({
+      error:
+        'Configurá tu ubicación en el registro o perfil, o enviá latitude y longitude en la consulta.',
+      code: 'LOCATION_REQUIRED',
+    });
+    return;
+  }
+
+  const pool = await loadPublicMarketplaceItems(100);
+  const items = filterAndSortByDistance(pool, originLat!, originLng!, radiusKm);
+  res.json({
+    radiusKm,
+    origin: { latitude: originLat, longitude: originLng },
+    total: items.length,
+    items,
+  });
+});
+
 /** Marketplace: tickets públicos. `?scope=store` lista hasta 100 para la Tienda; sin query usa límite de inicio (Admin). */
 router.get('/marketplace/public', async (req, res) => {
   const scope = typeof req.query.scope === 'string' ? req.query.scope : '';
@@ -148,6 +210,7 @@ router.get('/marketplace/public', async (req, res) => {
         eventPlace: d.eventPlace ?? null,
         eventAddress: d.eventAddress ?? null,
         eventCity: d.eventCity ?? null,
+        ...listingGeoFromDoc(d as Record<string, unknown>),
         eventImageUrl: d.eventImageUrl ?? null,
         category: d.category ?? null,
         quantityEntries: d.quantityEntries ?? null,
@@ -381,6 +444,15 @@ router.post(
     };
     const eventImage = await resolveAndStoreEventImage(listingId, eventImageInput);
 
+    const eventGeo = await resolveEventCoordinates({
+      eventLatitude: parsed.data.eventLatitude,
+      eventLongitude: parsed.data.eventLongitude,
+      eventLocationSource: parsed.data.eventLocationSource,
+      eventAddress: parsed.data.eventAddress,
+      eventCity: parsed.data.eventCity,
+      eventPlace: parsed.data.eventPlace,
+    });
+
     const listingData = {
       sellerId: req.user!.id,
       eventName: parsed.data.eventName,
@@ -388,6 +460,10 @@ router.post(
       eventPlace: parsed.data.eventPlace ?? null,
       eventAddress: parsed.data.eventAddress,
       eventCity: parsed.data.eventCity,
+      eventLatitude: eventGeo.eventLatitude,
+      eventLongitude: eventGeo.eventLongitude,
+      eventLocationSource: eventGeo.eventLocationSource,
+      eventGeocodedAt: eventGeo.eventGeocodedAt,
       sector: parsed.data.sector ?? null,
       row: parsed.data.row ?? null,
       seat: parsed.data.seat ?? null,
@@ -476,6 +552,11 @@ router.patch('/mine/:listingId', requireAuth, async (req: AuthRequest, res) => {
   if (payload.eventPlace !== undefined) updates.eventPlace = payload.eventPlace ?? null;
   if (payload.eventAddress !== undefined) updates.eventAddress = payload.eventAddress;
   if (payload.eventCity !== undefined) updates.eventCity = payload.eventCity;
+  if (payload.eventLatitude !== undefined) updates.eventLatitude = payload.eventLatitude ?? null;
+  if (payload.eventLongitude !== undefined) updates.eventLongitude = payload.eventLongitude ?? null;
+  if (payload.eventLocationSource !== undefined) {
+    updates.eventLocationSource = payload.eventLocationSource ?? null;
+  }
   if (payload.sector !== undefined) updates.sector = payload.sector ?? null;
   if (payload.row !== undefined) updates.row = payload.row ?? null;
   if (payload.seat !== undefined) updates.seat = payload.seat ?? null;
@@ -562,6 +643,29 @@ router.patch('/mine/:listingId', requireAuth, async (req: AuthRequest, res) => {
     const refreshedImage = await resolveAndStoreEventImage(req.params.listingId, merged);
     updates.eventImageUrl = refreshedImage.url;
     updates.eventImageSource = refreshedImage.source;
+  }
+
+  const locationFieldsTouched =
+    payload.eventAddress !== undefined ||
+    payload.eventCity !== undefined ||
+    payload.eventPlace !== undefined ||
+    payload.eventLatitude !== undefined ||
+    payload.eventLongitude !== undefined;
+
+  if (locationFieldsTouched) {
+    const mergedListing = { ...d, ...updates };
+    const eventGeo = await resolveEventCoordinates({
+      eventLatitude: mergedListing.eventLatitude as number | null | undefined,
+      eventLongitude: mergedListing.eventLongitude as number | null | undefined,
+      eventLocationSource: mergedListing.eventLocationSource as string | null | undefined,
+      eventAddress: (mergedListing.eventAddress as string) ?? null,
+      eventCity: (mergedListing.eventCity as string) ?? null,
+      eventPlace: (mergedListing.eventPlace as string) ?? null,
+    });
+    updates.eventLatitude = eventGeo.eventLatitude;
+    updates.eventLongitude = eventGeo.eventLongitude;
+    updates.eventLocationSource = eventGeo.eventLocationSource;
+    updates.eventGeocodedAt = eventGeo.eventGeocodedAt;
   }
 
   await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.listingId).update(updates);
