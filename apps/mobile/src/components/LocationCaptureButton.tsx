@@ -12,9 +12,15 @@ type Props = {
   label?: string;
   latitude: number | null;
   longitude: number | null;
-  onCapture: (coords: { latitude: number; longitude: number }) => void;
+  onCapture: (coords: { latitude: number; longitude: number }) => void | Promise<void>;
   onClear?: () => void;
   disabled?: boolean;
+  /** Texto bajo el botón cuando aún no hay coords; null = ocultar */
+  emptyHint?: string | null;
+  /** Texto bajo coords capturadas; null = ocultar */
+  capturedHint?: string | null;
+  /** Si true, el padre controla loading (p. ej. geocodificación inversa) */
+  loading?: boolean;
 };
 
 export function LocationCaptureButton({
@@ -24,18 +30,22 @@ export function LocationCaptureButton({
   onCapture,
   onClear,
   disabled,
+  emptyHint = null,
+  capturedHint = null,
+  loading: loadingExternal,
 }: Props) {
-  const [loading, setLoading] = React.useState(false);
+  const [loadingInternal, setLoadingInternal] = React.useState(false);
+  const loading = Boolean(loadingExternal) || loadingInternal;
 
   const capture = async () => {
-    setLoading(true);
+    setLoadingInternal(true);
     try {
       const loc = await getCurrentDeviceLocation();
-      onCapture(loc);
+      await onCapture(loc);
     } catch (e) {
       showLocationError(e instanceof Error ? e.message : 'No se pudo obtener la ubicación');
     } finally {
-      setLoading(false);
+      setLoadingInternal(false);
     }
   };
 
@@ -67,11 +77,10 @@ export function LocationCaptureButton({
             </TouchableOpacity>
           ) : null}
         </View>
-      ) : (
-        <Text style={styles.hint}>
-          Opcional. Mejora el filtro de eventos cercanos y la precisión del mapa del evento.
-        </Text>
-      )}
+      ) : emptyHint ? (
+        <Text style={styles.hint}>{emptyHint}</Text>
+      ) : null}
+      {hasCoords && capturedHint ? <Text style={styles.hint}>{capturedHint}</Text> : null}
     </View>
   );
 }

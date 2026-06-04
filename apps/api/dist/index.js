@@ -4508,7 +4508,7 @@ var init_schemas = __esm({
     init_geo();
     registerBase = external_exports.object({
       email: external_exports.string().email("Email inv\xE1lido"),
-      password: external_exports.string().min(8, "M\xEDnimo 8 caracteres").regex(/[A-Z]/, "Al menos una may\xFAscula").regex(/[0-9]/, "Al menos un n\xFAmero"),
+      password: external_exports.string().min(8, "M\xEDnimo 8 caracteres").regex(/[a-z]/, "Al menos una min\xFAscula").regex(/[A-Z]/, "Al menos una may\xFAscula").regex(/[0-9]/, "Al menos un n\xFAmero"),
       confirmPassword: external_exports.string(),
       firstName: external_exports.string().min(1, "Nombre requerido"),
       lastName: external_exports.string().min(1, "Apellido requerido"),
@@ -21959,6 +21959,41 @@ async function geocodeAddress(params) {
     return null;
   }
 }
+async function reverseGeocodeCoordinates(latitude, longitude) {
+  if (Number.isNaN(latitude) || Number.isNaN(longitude)) return null;
+  const url = new URL("https://nominatim.openstreetmap.org/reverse");
+  url.searchParams.set("lat", String(latitude));
+  url.searchParams.set("lon", String(longitude));
+  url.searchParams.set("format", "json");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("zoom", "18");
+  try {
+    const res = await fetch(url.toString(), {
+      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+      signal: AbortSignal.timeout(1e4)
+    });
+    if (!res.ok) {
+      console.warn("[geocoding] reverse status", res.status);
+      return null;
+    }
+    const data = await res.json();
+    const addr = data.address ?? {};
+    const city = addr.city || addr.town || addr.village || addr.suburb || addr.neighbourhood || addr.municipality || null;
+    return {
+      latitude,
+      longitude,
+      displayName: data.display_name || `${latitude}, ${longitude}`,
+      province: addr.state ?? null,
+      city,
+      postalCode: addr.postcode ?? null,
+      street: addr.road ?? null,
+      houseNumber: addr.house_number ?? null
+    };
+  } catch (e) {
+    console.warn("[geocoding] reverse error:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
 
 // src/lib/listing-geo.ts
 async function resolveEventCoordinates(input) {
@@ -25216,17 +25251,36 @@ settingsRouter.get("/marketplace-nearby", requireAuth, async (_req, res) => {
   res.json({ nearbyRadiusKm });
 });
 
-// src/routes/cron.ts
-init_firestore();
+// src/routes/geocode.ts
 import { Router as Router13 } from "express";
 var router11 = Router13();
+router11.get("/reverse", async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  if (Number.isNaN(lat) || Number.isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    res.status(400).json({ error: "lat y lng v\xE1lidos requeridos" });
+    return;
+  }
+  const result = await reverseGeocodeCoordinates(lat, lng);
+  if (!result) {
+    res.status(404).json({ error: "No se pudo resolver la direcci\xF3n para esas coordenadas" });
+    return;
+  }
+  res.json(result);
+});
+var geocodeRouter = router11;
+
+// src/routes/cron.ts
+init_firestore();
+import { Router as Router14 } from "express";
+var router12 = Router14();
 var CRON_SECRET = process.env.CRON_SECRET;
 function isAuthorized(req) {
   if (!CRON_SECRET) return false;
   const auth = req.get("Authorization") || req.get("authorization");
   return auth === `Bearer ${CRON_SECRET}`;
 }
-router11.get("/retry-failed-transfers", async (req, res) => {
+router12.get("/retry-failed-transfers", async (req, res) => {
   if (!isAuthorized(req)) {
     return res.status(401).json({ error: "No autorizado" });
   }
@@ -25243,7 +25297,7 @@ router11.get("/retry-failed-transfers", async (req, res) => {
     results
   });
 });
-var cronRouter = router11;
+var cronRouter = router12;
 
 // src/index.ts
 init_settings();
@@ -25313,6 +25367,7 @@ app2.use("/api/auth", authRouter);
 app2.use("/api/webhooks", webhooksRouter);
 app2.use("/api/mercadopago", mercadopagoRouter);
 app2.use("/api/settings", settingsRouter);
+app2.use("/api/geocode", geocodeRouter);
 app2.use("/api/cron", cronRouter);
 app2.use("/api/users", usersRouter);
 app2.use("/api/users/preferences", router3);

@@ -26,6 +26,7 @@ import { sendEmailVerificationCode, verifyEmailCode, checkUsername } from '../li
 import { registerSchema, SEXO_OPCIONES, TIPO_DOCUMENTO, PREFIJO_TELEFONO_DEFAULT } from '../lib/registerConstants';
 import { PROVINCIAS_ARGENTINA, CIUDADES_POR_PROVINCIA } from '../data/provinciasArgentina';
 import { LocationCaptureButton } from '../components/LocationCaptureButton';
+import { addressFieldsFromReverseGeocode, reverseGeocodeFromApi } from '../lib/addressGeocode';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { GradientButton } from '../components/GradientButton';
@@ -36,6 +37,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList, 'Register'>;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN = 8;
+const PASSWORD_HINT = 'Mínimo 8 caracteres, con mayúsculas, minúsculas y números.';
 const RESEND_COOLDOWN_SEC = 30;
 
 function validateStep1(
@@ -49,6 +51,7 @@ function validateStep1(
   if (!EMAIL_REGEX.test(email)) return 'Email inválido';
   if (email !== repeatEmail) return 'Los emails no coinciden';
   if (password.length < PASSWORD_MIN) return 'Mínimo 8 caracteres';
+  if (!/[a-z]/.test(password)) return 'Al menos una minúscula';
   if (!/[A-Z]/.test(password)) return 'Al menos una mayúscula';
   if (!/[0-9]/.test(password)) return 'Al menos un número';
   if (password !== confirmPassword) return 'Las contraseñas no coinciden';
@@ -85,6 +88,8 @@ export function RegisterScreen() {
   const [depto, setDepto] = useState('');
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
+  const [locationAutoFilled, setLocationAutoFilled] = useState(false);
+  const [locationBusy, setLocationBusy] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [pickerModal, setPickerModal] = useState<'province' | 'city' | 'date' | null>(null);
@@ -184,6 +189,45 @@ export function RegisterScreen() {
     }
   };
 
+  const clearGpsLocation = () => {
+    setLatitude(null);
+    setLongitude(null);
+    if (locationAutoFilled) {
+      setProvince('');
+      setCity('');
+      setPostalCode('');
+      setDireccion('');
+      setNumero('');
+      setPiso('');
+      setDepto('');
+      setLocationAutoFilled(false);
+    }
+  };
+
+  const applyGpsLocation = async (coords: { latitude: number; longitude: number }) => {
+    setLatitude(coords.latitude);
+    setLongitude(coords.longitude);
+    setLocationBusy(true);
+    setError('');
+    try {
+      const geo = await reverseGeocodeFromApi(coords.latitude, coords.longitude);
+      const fields = addressFieldsFromReverseGeocode(geo);
+      setProvince(fields.province);
+      setCity(fields.city);
+      setPostalCode(fields.postalCode);
+      setDireccion(fields.direccion);
+      setNumero(fields.numero);
+      setLocationAutoFilled(true);
+    } catch {
+      setLocationAutoFilled(false);
+      setError(
+        'Ubicación GPS obtenida. Completá provincia y ciudad manualmente si los campos quedaron vacíos.'
+      );
+    } finally {
+      setLocationBusy(false);
+    }
+  };
+
   const step3RequiredOk =
     !!firstName.trim() &&
     !!lastName.trim() &&
@@ -279,6 +323,7 @@ export function RegisterScreen() {
         onChangeText={(t) => { setPassword(t); setError(''); }}
         secureTextEntry
       />
+      <Text style={styles.fieldHint}>{PASSWORD_HINT}</Text>
       <Text style={styles.label}>Repetir Contraseña</Text>
       <TextInput
         style={styles.input}
@@ -288,6 +333,7 @@ export function RegisterScreen() {
         onChangeText={(t) => { setConfirmPassword(t); setError(''); }}
         secureTextEntry
       />
+      <Text style={styles.fieldHint}>{PASSWORD_HINT}</Text>
       <TouchableOpacity onPress={() => navigation.navigate('PoliticaPrivacidad')}>
         <Text style={styles.legalLink}>Política de Privacidad y uso de datos</Text>
       </TouchableOpacity>
@@ -451,6 +497,23 @@ export function RegisterScreen() {
           keyboardType="phone-pad"
         />
       </View>
+      <Text style={styles.label}>Tu ubicación</Text>
+      <Text style={styles.fieldHint}>
+        Detectamos tu ubicación para mostrarte eventos cercanos. Si preferís no usar GPS, completá la dirección manualmente.
+      </Text>
+      <LocationCaptureButton
+        latitude={latitude}
+        longitude={longitude}
+        loading={locationBusy}
+        onCapture={applyGpsLocation}
+        onClear={clearGpsLocation}
+        emptyHint={null}
+        capturedHint={
+          latitude != null && longitude != null
+            ? 'Dirección completada desde GPS. Revisá y ajustá los campos si hace falta.'
+            : null
+        }
+      />
       <Text style={styles.label}>Provincia</Text>
       <TouchableOpacity style={styles.input} onPress={() => setPickerModal('province')}>
         <Text style={styles.pickerValue}>{province ? PROVINCIAS_ARGENTINA.find((p) => p.id === province)?.nombre ?? province : 'Seleccionar provincia'}</Text>
@@ -473,19 +536,6 @@ export function RegisterScreen() {
       <TextInput style={styles.input} placeholder="Piso" placeholderTextColor={colors.textMuted} value={piso} onChangeText={setPiso} />
       <Text style={styles.label}>Depto</Text>
       <TextInput style={styles.input} placeholder="Depto" placeholderTextColor={colors.textMuted} value={depto} onChangeText={setDepto} />
-      <Text style={styles.label}>Ubicación (eventos cercanos)</Text>
-      <LocationCaptureButton
-        latitude={latitude}
-        longitude={longitude}
-        onCapture={({ latitude: lat, longitude: lng }) => {
-          setLatitude(lat);
-          setLongitude(lng);
-        }}
-        onClear={() => {
-          setLatitude(null);
-          setLongitude(null);
-        }}
-      />
       <Text style={styles.hint}>Completá los campos obligatorios (Nombre, Apellido, Usuario y los del paso anterior) para registrar.</Text>
       <View style={styles.actions}>
         <GradientButton title="VOLVER" variant="secondary" onPress={() => setStep(2)} style={styles.actionBtn} />
@@ -620,6 +670,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(96, 165, 250, 0.3)',
   },
   label: { fontSize: 14, fontWeight: '600', color: '#94a3b8', marginBottom: 8, marginTop: 16 },
+  fieldHint: { fontSize: 11, color: '#64748b', marginBottom: 4, marginTop: -4, lineHeight: 16 },
   input: {
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1,

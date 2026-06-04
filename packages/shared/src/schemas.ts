@@ -9,7 +9,7 @@ import { latitudeSchema, longitudeSchema, locationSourceSchema } from './geo.js'
 
 const registerBase = z.object({
   email: z.string().email('Email inválido'),
-  password: z.string().min(8, 'Mínimo 8 caracteres').regex(/[A-Z]/, 'Al menos una mayúscula').regex(/[0-9]/, 'Al menos un número'),
+  password: z.string().min(8, 'Mínimo 8 caracteres').regex(/[a-z]/, 'Al menos una minúscula').regex(/[A-Z]/, 'Al menos una mayúscula').regex(/[0-9]/, 'Al menos un número'),
   confirmPassword: z.string(),
   firstName: z.string().min(1, 'Nombre requerido'),
   lastName: z.string().min(1, 'Apellido requerido'),
