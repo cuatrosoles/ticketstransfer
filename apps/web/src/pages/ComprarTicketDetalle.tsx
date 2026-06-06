@@ -139,6 +139,9 @@ export function ComprarTicketDetalle() {
       .finally(() => setLoading(false));
   }, [state?.listingId, state?.password]);
 
+  const purchaseBlocked = Boolean(preview?.availability && !preview.availability.canPurchase);
+  const pendingMessage = preview?.availability?.message;
+
   const deliveryOk = useMemo(() => hasAnyDeliveryData(deliveryForm, showOtherField), [deliveryForm, showOtherField]);
   const canContinue = !payLoading && !!preview?.showFull && deliveryOk && !purchaseBlocked;
 
@@ -154,9 +157,6 @@ export function ComprarTicketDetalle() {
       return !prev;
     });
   }, []);
-
-  const purchaseBlocked = preview?.availability && !preview.availability.canPurchase;
-  const pendingMessage = preview?.availability?.message;
 
   const handleContinue = async () => {
     if (!preview?.showFull) return;
