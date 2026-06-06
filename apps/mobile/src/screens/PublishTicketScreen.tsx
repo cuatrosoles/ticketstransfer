@@ -20,10 +20,10 @@ import {
 } from 'react-native';
 import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { launchCameraSafe, launchImageLibrarySafe } from '../lib/imagePickerSafe';
 import { biometricLockBypassPickerOpenRef } from '../lib/biometricLockBypass';
-import Clipboard from '@react-native-clipboard/clipboard';
 import {
   createTicketListing,
   getProfile,
@@ -48,7 +48,6 @@ import {
 } from '@tickets-transfer/shared';
 import { colors, spacing, radius } from '../theme';
 import { TICKETERA_LOGOS, APP_BOLETOS_LOGOS } from '../data/serviceLogos';
-import { usePostPublishLoading } from '../context/PostPublishLoadingContext';
 
 const TIPOS_ENTRADA = ['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO'];
 const TICKETERAS = ['TICKETEK', 'ALLACCESS', 'TICKET_PLUS', 'OTRA'];
@@ -98,8 +97,7 @@ const chipStyles = StyleSheet.create({
 });
 
 export function PublishTicketScreen() {
-  const navigation = useNavigation();
-  const { startPostPublishLoading } = usePostPublishLoading();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Publish'>>();
   const route = useRoute<RouteProp<RootStackParamList, 'Publish'>>();
   const submitLockedRef = useRef(false);
   const editListingId = route.params?.editListingId;
@@ -481,35 +479,16 @@ export function PublishTicketScreen() {
         }
       );
       const listingId = listing?.id;
-      const goHomeAfterPublish = () => {
-        startPostPublishLoading();
-        (navigation as { navigate: (name: string, params?: object) => void }).navigate('Main', {
-          screen: 'Home',
-          params: { refreshListings: true },
-        });
-      };
-      const copyAndConfirm = () => {
-        if (listingId) {
-          Clipboard.setString(listingId);
-          Alert.alert('Copiado', 'El código del ticket se copió al portapapeles. Podés compartirlo por redes, email, etc.', [
-            { text: 'OK', onPress: goHomeAfterPublish },
-          ]);
-        } else {
-          goHomeAfterPublish();
-        }
-      };
-      Alert.alert(
-        'Listo',
-        listingId
-          ? `Tu ticket fue publicado y ya está disponible.\n\nCódigo: ${listingId}\n\nPodés copiarlo para compartirlo.`
-          : 'Tu ticket fue publicado.',
-        [
-          ...(listingId ? [{ text: 'Copiar código', onPress: copyAndConfirm }] : []),
-          { text: 'OK', onPress: goHomeAfterPublish },
-        ]
-      );
+      navigation.navigate('PublishSuccess', {
+        listingId: listingId ?? undefined,
+      });
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo publicar.');
+      const errMsg = e instanceof Error ? e.message : 'No se pudo publicar el ticket.';
+      if (editListingId) {
+        Alert.alert('Error', errMsg);
+      } else {
+        navigation.navigate('PublishError', { message: errMsg });
+      }
     } finally {
       submitLockedRef.current = false;
       setSubmitting(false);

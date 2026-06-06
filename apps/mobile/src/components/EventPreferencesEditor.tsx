@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tag: {
     backgroundColor: 'rgba(37, 99, 235, 0.25)',
-    borderRadius: radius.md,
+    borderRadius: radius,
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderWidth: 1,
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   chip: {
     paddingVertical: 10,
     paddingHorizontal: 14,
-    borderRadius: radius.md,
+    borderRadius: radius,
     borderWidth: 1.5,
     borderColor: 'rgba(148, 163, 184, 0.45)',
     backgroundColor: 'rgba(15, 23, 42, 0.55)',

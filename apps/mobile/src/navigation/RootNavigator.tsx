@@ -18,6 +18,8 @@ import { MainTabNavigator } from './MainTabNavigator';
 import { KycScreen } from '../screens/KycScreen';
 import { KycWebViewScreen } from '../screens/KycWebViewScreen';
 import { PublishTicketScreen } from '../screens/PublishTicketScreen';
+import { PublishTicketSuccessScreen } from '../screens/PublishTicketSuccessScreen';
+import { PublishTicketErrorScreen } from '../screens/PublishTicketErrorScreen';
 import { ComprarTicketScreen } from '../screens/ComprarTicketScreen';
 import { ComprarTicketDetalleScreen } from '../screens/ComprarTicketDetalleScreen';
 import { MyListingDetailScreen } from '../screens/MyListingDetailScreen';
@@ -77,6 +79,8 @@ export function RootNavigator() {
           <Stack.Screen name="Kyc" component={KycScreen} options={NO_HEADER} />
           <Stack.Screen name="KycWebView" component={KycWebViewScreen} options={NO_HEADER} />
           <Stack.Screen name="Publish" component={PublishTicketScreen} options={NO_HEADER} />
+          <Stack.Screen name="PublishSuccess" component={PublishTicketSuccessScreen} options={NO_HEADER} />
+          <Stack.Screen name="PublishError" component={PublishTicketErrorScreen} options={NO_HEADER} />
           <Stack.Screen name="ComprarTicket" component={ComprarTicketScreen} options={NO_HEADER} />
           <Stack.Screen name="ComprarTicketDetalle" component={ComprarTicketDetalleScreen} options={NO_HEADER} />
           <Stack.Screen name="OrderPurchaseDetails" component={OrderPurchaseDetailsScreen} options={NO_HEADER} />

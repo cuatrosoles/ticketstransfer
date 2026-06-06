@@ -1,5 +1,5 @@
 /**
- * Home – Portada inspirada en mockup: banner promo, destacados y recomendados.
+ * Home – Portada con banner TIENDA, secciones destacados / cercanos / recomendados (Cap02, Cap16).
  */
 
 import * as React from 'react';
@@ -12,9 +12,7 @@ import {
   ScrollView,
   ActivityIndicator,
   useWindowDimensions,
-  Image,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,7 +21,9 @@ import { useAuth } from '../context/AuthContext';
 import { BiometricActivationModal } from '../components/BiometricActivationModal';
 import { AuthBackground } from '../components/AuthBackground';
 import { HomeHeroHeader } from '../components/HomeHeroHeader';
-import { HomeEventCard } from '../components/HomeEventCard';
+import { HeroImageBanner } from '../components/HeroImageBanner';
+import { HomeEventCard, HOME_CARD_WIDTHS } from '../components/HomeEventCard';
+import { GradientButton } from '../components/GradientButton';
 import { useBranding } from '../context/BrandingContext';
 import { useUserMenu } from '../context/UserMenuContext';
 import { useProfileImage } from '../context/ProfileImageContext';
@@ -32,6 +32,8 @@ import { getMarketplaceRecommended, getMarketplaceNearby, recordListingInteracti
 import { DEFAULT_NEARBY_RADIUS_KM } from '@tickets-transfer/shared';
 import { formatDateTime } from '../lib/datetime';
 import { colors, spacing } from '../theme';
+
+const HERO_IMAGE = require('../assets/images/TIENDA-1920x1054.png');
 
 type Nav = TabCompositeNavigationProp<'Home'>;
 
@@ -63,9 +65,9 @@ export function HomeScreen() {
   const { openMenu } = useUserMenu();
   const { profileImageUrl } = useProfileImage();
   const { width } = useWindowDimensions();
-  const carouselCardWidth = Math.round(Math.min(168, width * 0.44));
-  const nearbyRadius =
-    brand.data?.marketplaceNearbyRadiusKm ?? DEFAULT_NEARBY_RADIUS_KM;
+  const nearbyCardWidth = Math.round(Math.min(HOME_CARD_WIDTHS.nearby, width * 0.48));
+  const recommendedCardWidth = Math.round(Math.min(HOME_CARD_WIDTHS.recommended, width * 0.38));
+  const nearbyRadius = brand.data?.marketplaceNearbyRadiusKm ?? DEFAULT_NEARBY_RADIUS_KM;
   const { isFavorite, toggleFavorite } = useFavorites();
 
   useEffect(() => {
@@ -162,14 +164,19 @@ export function HomeScreen() {
 
   const goTienda = () => navigation.navigate('Tienda');
 
-  const renderEventCarousel = (items: MarketplacePublicItem[], keyPrefix: string) => (
+  const renderCarousel = (
+    items: MarketplacePublicItem[],
+    variant: 'nearby' | 'recommended',
+    keyPrefix: string,
+    cardWidth: number
+  ) => (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carousel}>
       {items.map((item) => (
-        <View key={`${keyPrefix}-${item.id}`} style={[styles.carouselCell, { width: carouselCardWidth }]}>
+        <View key={`${keyPrefix}-${item.id}`} style={[styles.carouselCell, { width: cardWidth }]}>
           <HomeEventCard
             item={item}
-            variant="carousel"
-            carouselWidth={carouselCardWidth}
+            variant={variant}
+            carouselWidth={cardWidth}
             formatEventDateTime={formatDateTime}
             onPress={() => goDetail(item)}
             showFavoriteToggle
@@ -194,108 +201,107 @@ export function HomeScreen() {
             />
           </View>
 
+          <TouchableOpacity activeOpacity={0.92} onPress={goTienda}>
+            <HeroImageBanner source={HERO_IMAGE} aspectRatio={0.52}>
+              <Text style={styles.heroTitle}>Viví los mejores eventos</Text>
+              <Text style={styles.heroSub}>Tickets 100% verificados</Text>
+              <View style={styles.heroBtnWrap}>
+                <GradientButton title="Ir a la tienda" onPress={goTienda} style={styles.heroBtn} />
+              </View>
+            </HeroImageBanner>
+          </TouchableOpacity>
+
           <View style={styles.body}>
-          <View style={{ marginLeft: '-18%', marginBottom: '6%'}}>
-            <TouchableOpacity onPress={goTienda} activeOpacity={0.2}>
-              <Image source={require('../assets/images/home-hero-ref.png')} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>Eventos destacados</Text>
-            <TouchableOpacity onPress={goTienda} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.sectionLink}>Ver todos</Text>
-            </TouchableOpacity>
-          </View>
-
-          {marketplaceLoading ? (
-            <View style={styles.loader}>
-              <ActivityIndicator color={brand.primaryLight} size="large" />
-            </View>
-          ) : marketplaceError ? (
-            <View style={styles.fallback}>
-              <Text style={styles.err}>{marketplaceError}</Text>
-              <TouchableOpacity style={[styles.promoBtn, { backgroundColor: brand.primaryHex, alignSelf: 'center' }]} onPress={goTienda}>
-                <Text style={styles.promoBtnText}>Ir a la tienda</Text>
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>Eventos destacados</Text>
+              <TouchableOpacity onPress={goTienda} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.sectionLink}>Ver todos</Text>
               </TouchableOpacity>
             </View>
-          ) : featured.length === 0 ? (
-            <View style={styles.fallback}>
-              <Text style={styles.hint}>No hay eventos destacados por el momento.</Text>
-              <TouchableOpacity style={[styles.promoBtn, { backgroundColor: brand.primaryHex, alignSelf: 'center' }]} onPress={goTienda}>
-                <Text style={styles.promoBtnText}>Ir a la tienda</Text>
+
+            {marketplaceLoading ? (
+              <View style={styles.loader}>
+                <ActivityIndicator color={brand.primaryLight} size="large" />
+              </View>
+            ) : marketplaceError ? (
+              <View style={styles.fallback}>
+                <Text style={styles.err}>{marketplaceError}</Text>
+                <GradientButton title="Ir a la tienda" onPress={goTienda} style={{ alignSelf: 'center' }} />
+              </View>
+            ) : featured.length === 0 ? (
+              <View style={styles.fallback}>
+                <Text style={styles.hint}>No hay eventos destacados por el momento.</Text>
+                <GradientButton title="Ir a la tienda" onPress={goTienda} style={{ alignSelf: 'center' }} />
+              </View>
+            ) : (
+              <View style={styles.featuredRow}>
+                {featured.slice(0, 2).map((item) => (
+                  <HomeEventCard
+                    key={item.id}
+                    item={item}
+                    variant="featured"
+                    formatEventDateTime={formatDateTime}
+                    onPress={() => goDetail(item)}
+                    showFavoriteToggle
+                    favoriteActive={isFavorite(item.id)}
+                    onFavoritePress={() => toggleFavorite(item)}
+                  />
+                ))}
+              </View>
+            )}
+
+            <View style={[styles.sectionHead, { marginTop: spacing.lg }]}>
+              <View style={styles.sectionTitleWrap}>
+                <Text style={styles.sectionTitle}>Eventos cerca de vos</Text>
+                {nearbyRadiusKm ? (
+                  <Text style={styles.sectionHint}>A {nearbyRadiusKm} km de tu ubicación</Text>
+                ) : !nearbyLoading && !nearbyLocationMissing ? (
+                  <Text style={styles.sectionHint}>Según la ubicación de tu cuenta</Text>
+                ) : null}
+              </View>
+              <TouchableOpacity onPress={goTienda} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.sectionLink}>Ver todos</Text>
               </TouchableOpacity>
             </View>
-          ) : (
-            <View style={styles.featuredRow}>
-              {featured.map((item) => (
-                <HomeEventCard
-                  key={item.id}
-                  item={item}
-                  variant="featured"
-                  formatEventDateTime={formatDateTime}
-                  onPress={() => goDetail(item)}
-                  showFavoriteToggle
-                  favoriteActive={isFavorite(item.id)}
-                  onFavoritePress={() => toggleFavorite(item)}
-                />
-              ))}
-            </View>
-          )}
 
-          <View style={[styles.sectionHead, { marginTop: spacing.lg }]}>
-            <View>
-              <Text style={styles.sectionTitle}>Recomendados para vos</Text>
-              {personalized ? (
-                <Text style={styles.sectionHint}>Según tus gustos e interacciones</Text>
-              ) : null}
-            </View>
-            <TouchableOpacity onPress={goTienda} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.sectionLink}>Ver todos</Text>
-            </TouchableOpacity>
-          </View>
-
-          {!marketplaceLoading && recommended.length > 0 ? renderEventCarousel(recommended, 'rec') : null}
-
-          <View style={[styles.sectionHead, { marginTop: spacing.lg }]}>
-            <View style={styles.sectionTitleWrap}>
-              <Text style={styles.sectionTitle}>Eventos cercanos</Text>
-              {nearbyRadiusKm ? (
-                <Text style={styles.sectionHint}>
-                  A {nearbyRadiusKm} km de tu ubicación (registro o perfil)
+            {nearbyLoading ? (
+              <View style={styles.sectionLoader}>
+                <ActivityIndicator color={brand.primaryLight} size="small" />
+              </View>
+            ) : nearbyLocationMissing ? (
+              <View style={styles.fallbackCompact}>
+                <Text style={styles.hint}>
+                  Configurá tu ubicación en el registro o en tu perfil para ver eventos cerca tuyo.
                 </Text>
-              ) : !nearbyLoading && !nearbyLocationMissing ? (
-                <Text style={styles.sectionHint}>Según la ubicación de tu cuenta</Text>
-              ) : null}
-            </View>
-            <TouchableOpacity onPress={goTienda} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.sectionLink}>Ver todos</Text>
-            </TouchableOpacity>
-          </View>
-
-          {nearbyLoading ? (
-            <View style={styles.sectionLoader}>
-              <ActivityIndicator color={brand.primaryLight} size="small" />
-            </View>
-          ) : nearbyLocationMissing ? (
-            <View style={styles.fallbackCompact}>
+                <GradientButton
+                  title="Ir a mi perfil"
+                  onPress={() => navigation.navigate('Profile')}
+                  style={{ alignSelf: 'flex-start' }}
+                />
+              </View>
+            ) : nearby.length > 0 ? (
+              renderCarousel(nearby, 'nearby', 'near', nearbyCardWidth)
+            ) : !marketplaceLoading ? (
               <Text style={styles.hint}>
-                Configurá tu ubicación en el registro o en tu perfil para ver eventos cerca tuyo.
+                No hay eventos publicados dentro de {nearbyRadiusKm ?? nearbyRadius} km de tu ubicación.
               </Text>
-              <TouchableOpacity
-                style={[styles.promoBtn, { backgroundColor: brand.primaryHex, alignSelf: 'flex-start' }]}
-                onPress={() => navigation.navigate('Profile')}
-              >
-                <Text style={styles.promoBtnText}>Ir a mi perfil</Text>
+            ) : null}
+
+            <View style={[styles.sectionHead, { marginTop: spacing.lg }]}>
+              <View>
+                <Text style={styles.sectionTitle}>Recomendados para vos</Text>
+                {personalized ? (
+                  <Text style={styles.sectionHint}>Según tus gustos e interacciones</Text>
+                ) : null}
+              </View>
+              <TouchableOpacity onPress={goTienda} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.sectionLink}>Ver todos</Text>
               </TouchableOpacity>
             </View>
-          ) : nearby.length > 0 ? (
-            renderEventCarousel(nearby, 'near')
-          ) : !marketplaceLoading ? (
-            <Text style={styles.hint}>
-              No hay eventos publicados dentro de {nearbyRadiusKm ?? nearbyRadius} km de tu ubicación.
-            </Text>
-          ) : null}
+
+            {!marketplaceLoading && recommended.length > 0
+              ? renderCarousel(recommended, 'recommended', 'rec', recommendedCardWidth)
+              : null}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -315,75 +321,24 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { flex: 1 },
   content: { paddingBottom: 100 },
-  headerShell: { width: '100%', marginBottom: spacing.sm },
+  headerShell: { width: '100%', marginBottom: spacing.xs },
   body: { paddingHorizontal: spacing.lg },
-  promoOuter: {
-    marginBottom: spacing.lg,
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.38)',
-    shadowColor: '#38bdf8',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
-    elevation: 12,
-  },
-  promoCard: {
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.md,
-    borderTopWidth: 3,
-    borderTopColor: 'rgba(96, 165, 250, 0.95)',
-  },
-  promoTopGlow: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    height: '42%',
-    backgroundColor: 'rgba(37, 99, 235, 0.12)',
-  },
-  promoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  promoCopy: {
-    flex: 1,
-    minWidth: 0,
-    gap: 8,
-  },
-  promoTitle: {
-    fontSize: 22,
+  heroTitle: {
+    fontSize: 24,
     fontWeight: '900',
     color: colors.white,
     letterSpacing: 0.3,
-    lineHeight: 28,
+    lineHeight: 30,
+    maxWidth: '72%',
   },
-  promoSub: {
+  heroSub: {
     fontSize: 14,
     color: '#e2e8f0',
-    marginBottom: 4,
-  },
-  promoBtn: {
-    alignSelf: 'flex-start',
-    paddingVertical: 12,
-    paddingHorizontal: 22,
-    borderRadius: 14,
     marginTop: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
+    marginBottom: 12,
   },
-  promoBtnText: {
-    color: colors.white,
-    fontWeight: '800',
-    fontSize: 15,
-  },
-  promoMascot: {
-    width: 460,
-    height: 160,
-    flexShrink: 0,
-  },
+  heroBtnWrap: { alignSelf: 'flex-start', maxWidth: 200 },
+  heroBtn: { height: 46, borderRadius: 14 },
   sectionHead: {
     flexDirection: 'row',
     justifyContent: 'space-between',

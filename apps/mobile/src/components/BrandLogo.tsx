@@ -7,10 +7,10 @@ import * as React from 'react';
 import { Image, StyleSheet, type ImageStyle, type StyleProp } from 'react-native';
 import { useBranding } from '../context/BrandingContext';
 
-const DEFAULT_LOGO = require('../assets/images/LogoTT-v01.png');
+const DEFAULT_LOGO = require('../assets/images/LogoTT-1920x1036.png');
 
-/** Proporción real de LogoTT-v01.png */
-export const BRAND_LOGO_ASPECT = 2006 / 776;
+/** Proporción real de LogoTT-1920x1036.png */
+export const BRAND_LOGO_ASPECT = 1920 / 1036;
 
 /** Altura compacta para cabeceras de pantalla */
 export const BRAND_LOGO_HEIGHT_COMPACT = 60;

@@ -1,5 +1,5 @@
 /**
- * Bienvenida – mockup Nuevo Acceso (spotlight, arte hero, ACERCA con íconos, CTAs).
+ * Bienvenida – imagen INICIO con transición suave, card ACERCA y CTAs (Cap01).
  */
 
 import * as React from 'react';
@@ -18,7 +18,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import type { RootStackParamList } from '../navigation/types';
 import { GradientButton } from '../components/GradientButton';
-import { useBranding } from '../context/BrandingContext';
+import { neonGlassPanel } from '../lib/neonStyles';
+
+const HERO_IMAGE = require('../assets/images/INICIO-1080x1920.png');
 
 const ACERCA_PARAGRAPH =
   'Tickets Transfer es una app para comprar, vender e intercambiar entradas digitales en Argentina de forma segura y confiable. Mediamos entre comprador y vendedor para evitar estafas y fraudes. Apostamos al QR verificado y a tickets emitidos por ticketeras oficiales.';
@@ -45,78 +47,36 @@ type Nav = NativeStackNavigationProp<RootStackParamList, 'Welcome'>;
 
 export function WelcomeScreen() {
   const navigation = useNavigation<Nav>();
-  const brand = useBranding();
-  const { width } = useWindowDimensions();
-
-  const spotlightSize = Math.min(width * 1.35, 520);
+  const { width, height } = useWindowDimensions();
+  const heroHeight = Math.min(height * 0.52, width * 1.35);
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={['#0c1936', '#070d18']} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['#020617', '#020617']} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-
-
-          <View style={[styles.hero, { minHeight: spotlightSize * 0.62 }]}>
-            <View
-              pointerEvents="none"
-              style={[
-                styles.ring3,
-                {
-                  width: spotlightSize,
-                  height: spotlightSize,
-                  borderRadius: spotlightSize / 2,
-                  marginTop: -spotlightSize * 0.42,
-                },
-              ]}
-            />
-            <View
-              pointerEvents="none"
-              style={[
-                styles.ring2,
-                {
-                  width: spotlightSize * 0.72,
-                  height: spotlightSize * 0.72,
-                  borderRadius: (spotlightSize * 0.72) / 2,
-                  marginTop: -spotlightSize * 0.33,
-                },
-              ]}
-            />
-            <LinearGradient
-              pointerEvents="none"
-              colors={['rgba(0, 120, 255, 0.55)', 'rgba(0, 80, 220, 0.12)', 'transparent']}
-              style={[
-                styles.spotCore,
-                {
-                  width: spotlightSize * 0.5,
-                  height: spotlightSize * 0.5,
-                  borderRadius: (spotlightSize * 0.5) / 2,
-                  marginTop: -spotlightSize * 0.28,
-                },
-              ]}
-            />
+          <View style={[styles.hero, { height: heroHeight }]}>
             <Image
-              source={require('../assets/images/welcome-hero-ref.png')}
-              style={[styles.heroArt, { width: width * 1.25, maxWidth: 520, height: width * 1.55, maxHeight: 580 }]}
-              resizeMode="contain"
+              source={HERO_IMAGE}
+              style={{ width, height: heroHeight }}
+              resizeMode="cover"
             />
             <LinearGradient
-              colors={['transparent', 'rgba(7, 13, 24, 0.5)', '#070d18']}
-              style={styles.crowdFade}
+              colors={['transparent', 'rgba(2, 6, 23, 0.4)', 'rgba(2, 6, 23, 0.92)', '#020617']}
+              locations={[0, 0.55, 0.82, 1]}
+              style={styles.heroFade}
               pointerEvents="none"
             />
           </View>
 
-          <View style={styles.aboutCard}>
+          <View style={[styles.aboutCard, neonGlassPanel]}>
             <Text style={styles.aboutTitle}>ACERCA DE LA APP:</Text>
             <Text style={styles.aboutBody}>{ACERCA_PARAGRAPH}</Text>
             {FEATURES.map((f) => (
               <View key={f.title} style={styles.featureRow}>
                 <View style={styles.featureIcon}>
-                  <FontAwesome name={f.icon} size={30} color="#f8fafc" />
-                  {f.icon === 'shield' ? (
-                    <Text style={styles.shieldTick}>✓</Text>
-                  ) : null}
+                  <FontAwesome name={f.icon} size={28} color="#f8fafc" />
+                  {f.icon === 'shield' ? <Text style={styles.shieldTick}>✓</Text> : null}
                 </View>
                 <View style={styles.featureText}>
                   <Text style={styles.featureTitle}>{f.title}</Text>
@@ -137,7 +97,7 @@ export function WelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#070d18' },
+  root: { flex: 1, backgroundColor: '#020617' },
   safe: { flex: 1 },
   scroll: { flex: 1 },
   content: {
@@ -145,101 +105,25 @@ const styles = StyleSheet.create({
     paddingBottom: 36,
     alignItems: 'center',
   },
-  logoRow: {
-    width: '100%',
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 6,
-    zIndex: 3,
-  },
-  ticketBadge: {
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: 'rgba(248, 250, 252, 0.85)',
-    backgroundColor: 'rgba(37, 99, 235, 0.55)',
-    shadowColor: '#38bdf8',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
-    shadowRadius: 16,
-    elevation: 10,
-    maxWidth: 320,
-    width: '100%',
-    alignItems: 'center',
-  },
-  ticketLogoImg: {
-    width: '100%',
-    height: 44,
-  },
-  ticketLogoText: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: '#ffffff',
-    letterSpacing: 0.6,
-    textAlign: 'center',
-  },
   hero: {
     width: '100%',
-    alignItems: 'center',
+    marginHorizontal: -22,
+    marginBottom: 0,
     overflow: 'hidden',
-    marginBottom: 8,
   },
-  ring3: {
+  heroFade: {
     position: 'absolute',
-    borderWidth: 1,
-    borderColor: 'rgba(125, 211, 252, 0.14)',
-    backgroundColor: 'transparent',
-  },
-  ring2: {
-    position: 'absolute',
-    borderWidth: 1,
-    borderColor: 'rgba(125, 211, 252, 0.22)',
-    backgroundColor: 'transparent',
-  },
-  spotCore: {
-    position: 'absolute',
-    opacity: 0.95,
-  },
-  heroArt: {
-    marginTop: -12,
-    zIndex: 2,
-  },
-  crowdFade: {
-    position: 'absolute',
-    bottom: 0,
     left: 0,
     right: 0,
-    height: 22,
-    zIndex: 2,
-  },
-  headline: {
-    marginTop: 6,
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#ffffff',
-    letterSpacing: 1,
-    textAlign: 'center',
-  },
-  subhead: {
-    marginTop: 10,
-    fontSize: 15,
-    color: '#e2e8f0',
-    textAlign: 'center',
-    lineHeight: 22,
-    paddingHorizontal: 12,
-    marginBottom: 18,
+    bottom: 0,
+    height: '55%',
   },
   aboutCard: {
     width: '100%',
     maxWidth: 440,
-    borderRadius: 22,
     paddingVertical: 20,
     paddingHorizontal: 18,
-    backgroundColor: 'rgba(13, 36, 82, 0.82)',
-    borderWidth: 1,
-    borderColor: 'rgba(147, 197, 253, 0.35)',
-    marginTop: 18,
+    marginTop: 8,
     marginBottom: 28,
   },
   aboutTitle: {

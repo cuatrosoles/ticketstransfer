@@ -41,7 +41,7 @@ export function LoginScreen() {
   const goToMain = () => {
     setShowBiometricModal(false);
     clearPendingBiometricPrompt();
-    navigation.replace('Main', {});
+    navigation.replace('Main');
   };
 
   const handleLogin = async () => {
@@ -52,7 +52,7 @@ export function LoginScreen() {
       if (biometricAvailability?.available && !biometricEnabled) {
         setShowBiometricModal(true);
       } else {
-        navigation.replace('Main', {});
+        navigation.replace('Main');
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error al iniciar sesión';
@@ -137,11 +137,11 @@ const styles = StyleSheet.create({
   content: { paddingTop: 24, paddingBottom: 48, paddingHorizontal: 24, flexGrow: 1, alignItems: 'center' },
   glassWrap: { width: '100%', maxWidth: 420 },
   glassPanel: {
-    backgroundColor: 'rgba(30, 58, 138, 0.4)',
+    backgroundColor: 'rgba(13, 36, 82, 0.72)',
     borderRadius: 20,
     padding: 32,
     borderWidth: 1,
-    borderColor: 'rgba(96, 165, 250, 0.3)',
+    borderColor: 'rgba(96, 165, 250, 0.55)',
   },
   label: { fontSize: 14, color: '#94a3b8', marginBottom: 8 },
   inputWithIcon: {

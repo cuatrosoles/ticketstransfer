@@ -1,13 +1,13 @@
 /**
- * Header Home: menú, logo ancho, campana y avatar.
+ * Header Home: menú, campana y avatar (sin logo central – Cap04/Cap16).
  */
 
 import * as React from 'react';
-import { View, Image, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
-import { BrandLogo, BRAND_LOGO_HEIGHT_COMPACT } from './BrandLogo';
 import { ensureImageUrl } from '../lib/api';
 import { headerEdgePadding, headerTopPadding } from '../theme';
+import { neonGlow } from '../lib/neonStyles';
 
 type Props = {
   profileImageUri: string | null;
@@ -18,19 +18,18 @@ type Props = {
 
 export function HomeHeroHeader({ profileImageUri, onOpenMenu, onBell, onAvatar }: Props) {
   const uriDisplay = ensureImageUrl(profileImageUri);
-  const { width: screenW } = useWindowDimensions();
-  const sideControlsW = 44 + 40 + 44 + 10 + 8;
-  const logoMaxWidth = Math.max(120, screenW - headerEdgePadding * 2 - sideControlsW);
 
   return (
     <View style={styles.row}>
-      <TouchableOpacity style={styles.menuBtn} onPress={onOpenMenu} accessibilityLabel="Menú">
+      <TouchableOpacity
+        style={[styles.menuBtn, neonGlow('#38bdf8', 'soft')]}
+        onPress={onOpenMenu}
+        accessibilityLabel="Menú"
+      >
         <FontAwesome name="bars" size={20} color="#f8fafc" />
       </TouchableOpacity>
 
-      <View style={styles.logoWrap}>
-        <BrandLogo height={BRAND_LOGO_HEIGHT_COMPACT} style={[styles.logo, { maxWidth: logoMaxWidth }]} />
-      </View>
+      <View style={styles.spacer} />
 
       <View style={styles.right}>
         <TouchableOpacity style={styles.iconGhost} onPress={onBell} accessibilityLabel="Mensajes">
@@ -65,20 +64,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: 'rgba(15, 23, 42, 0.85)',
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.35)',
+    borderColor: 'rgba(96, 165, 250, 0.55)',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  logoWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 0,
-  },
-  logo: {
-    width: '100%',
-  },
+  spacer: { flex: 1 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
   iconGhost: {
     width: 40,

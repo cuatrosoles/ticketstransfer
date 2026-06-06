@@ -1,5 +1,5 @@
 /**
- * Tarjetas estilo portada Home (imagen degradada + datos + chip precio).
+ * Tarjetas estilo portada Home – variantes featured / nearby / recommended (Cap16).
  */
 
 import * as React from 'react';
@@ -9,20 +9,34 @@ import type { MarketplacePublicItem } from '../lib/api';
 import { formatEventLocationDisplay } from '@tickets-transfer/shared';
 import { EventCoverImage } from './EventCoverImage';
 import { colors, spacing } from '../theme';
+import { neonGlow } from '../lib/neonStyles';
 
 export function formatListingPrice(price?: number | null): string {
   if (price == null || Number.isNaN(price)) return 'Consultar';
   return `$${Math.round(price).toLocaleString('es-AR')}`;
 }
 
+/** Alturas fijas por sección para uniformidad (Cap16) */
+export const HOME_CARD_HEIGHTS = {
+  featured: 268,
+  nearby: 220,
+  recommended: 188,
+} as const;
+
+export const HOME_CARD_WIDTHS = {
+  featured: 0,
+  nearby: 196,
+  recommended: 148,
+} as const;
+
+type Variant = 'featured' | 'nearby' | 'recommended';
+
 type Props = {
   item: MarketplacePublicItem;
   formatEventDateTime: (iso: string | Date) => string;
   onPress: () => void;
-  variant: 'featured' | 'carousel';
-  /** Ancho fijo para carrusel */
+  variant: Variant;
   carouselWidth?: number;
-  /** Muestra corazón sobre la zona gráfica (no dispara `onPress` de la tarjeta) */
   showFavoriteToggle?: boolean;
   favoriteActive?: boolean;
   onFavoritePress?: () => void;
@@ -38,50 +52,79 @@ export function HomeEventCard({
   favoriteActive,
   onFavoritePress,
 }: Props) {
-  const imgH = variant === 'featured' ? 118 : 92;
-  const containerStyle =
-    variant === 'carousel' && carouselWidth != null ? [styles.card, { width: carouselWidth }] : [styles.card, styles.cardFeaturedFlex];
+  const cardHeight = HOME_CARD_HEIGHTS[variant];
+  const fixedWidth =
+    variant === 'featured'
+      ? undefined
+      : carouselWidth ?? HOME_CARD_WIDTHS[variant];
+
+  const imgH =
+    variant === 'featured' ? 132 : variant === 'nearby' ? 88 : 72;
+
+  const containerStyle = [
+    styles.card,
+    neonGlow('#38bdf8', variant === 'featured' ? 'strong' : 'soft'),
+    { height: cardHeight },
+    fixedWidth != null ? { width: fixedWidth } : styles.cardFeaturedFlex,
+  ];
+
+  const priceBadge = (
+    <View style={styles.pricePill}>
+      <Text style={styles.priceText}>{formatListingPrice(item.price)}</Text>
+    </View>
+  );
+
+  const favBtn =
+    showFavoriteToggle && onFavoritePress ? (
+      <TouchableOpacity
+        style={styles.favBtn}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        onPress={onFavoritePress}
+        accessibilityRole="button"
+        accessibilityLabel={favoriteActive ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+      >
+        <FontAwesome name={favoriteActive ? 'heart' : 'heart-o'} size={16} color={favoriteActive ? '#f472b6' : '#f1f5f9'} />
+      </TouchableOpacity>
+    ) : null;
+
+  const metaBlock = (
+    <>
+      <Text style={[styles.title, variant === 'recommended' && styles.titleSm]} numberOfLines={2}>
+        {item.eventName}
+      </Text>
+      <Text style={styles.meta} numberOfLines={1}>
+        {formatEventDateTime(item.eventDate)}
+      </Text>
+      <Text style={styles.meta} numberOfLines={1}>
+        {formatEventLocationDisplay(item)}
+      </Text>
+    </>
+  );
+
+  if (variant === 'nearby') {
+    return (
+      <TouchableOpacity style={containerStyle} onPress={onPress} activeOpacity={0.92}>
+        {favBtn}
+        <View style={[styles.body, styles.nearbyBodyTop]}>
+          {metaBlock}
+        </View>
+        <View style={styles.nearbyImageWrap}>
+          <EventCoverImage eventImageUrl={item.eventImageUrl} category={item.category} height={imgH} showGlyph />
+          <View style={styles.priceOverlay}>{priceBadge}</View>
+        </View>
+      </TouchableOpacity>
+    );
+  }
 
   return (
-    <TouchableOpacity
-      style={containerStyle}
-      onPress={onPress}
-      activeOpacity={0.92}
-      accessibilityRole="button"
-      accessibilityLabel={`${item.eventName}, comprar`}
-    >
+    <TouchableOpacity style={containerStyle} onPress={onPress} activeOpacity={0.92}>
       <View style={styles.coverWrap}>
-        <EventCoverImage
-          eventImageUrl={item.eventImageUrl}
-          category={item.category}
-          height={imgH}
-          showGlyph
-        />
-        {showFavoriteToggle && onFavoritePress ? (
-          <TouchableOpacity
-            style={styles.favBtn}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            onPress={onFavoritePress}
-            accessibilityRole="button"
-            accessibilityLabel={favoriteActive ? 'Quitar de favoritos' : 'Agregar a favoritos'}
-          >
-            <FontAwesome name={favoriteActive ? 'heart' : 'heart-o'} size={18} color={favoriteActive ? '#f472b6' : '#f1f5f9'} />
-          </TouchableOpacity>
-        ) : null}
+        <EventCoverImage eventImageUrl={item.eventImageUrl} category={item.category} height={imgH} showGlyph />
+        {favBtn}
       </View>
       <View style={styles.body}>
-        <Text style={styles.title} numberOfLines={2}>
-          {item.eventName}
-        </Text>
-        <Text style={styles.meta} numberOfLines={2}>
-          {formatEventDateTime(item.eventDate)}
-        </Text>
-        <Text style={styles.meta} numberOfLines={2}>
-          {formatEventLocationDisplay(item)}
-        </Text>
-        <View style={styles.pricePill}>
-          <Text style={styles.priceText}>{formatListingPrice(item.price)}</Text>
-        </View>
+        {metaBlock}
+        {priceBadge}
       </View>
     </TouchableOpacity>
   );
@@ -92,14 +135,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.45)',
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    borderColor: 'rgba(96, 165, 250, 0.65)',
+    backgroundColor: 'rgba(13, 36, 82, 0.78)',
     marginBottom: spacing.sm,
-    shadowColor: '#38bdf8',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    elevation: 6,
+    position: 'relative',
   },
   cardFeaturedFlex: {
     flex: 1,
@@ -110,18 +149,35 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   body: {
+    flex: 1,
     paddingHorizontal: spacing.sm,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-    gap: 4,
+    paddingBottom: spacing.sm,
+    gap: 3,
+    justifyContent: 'flex-start',
+  },
+  nearbyBodyTop: {
+    flex: 0,
+    paddingBottom: 6,
+    paddingTop: spacing.sm,
+  },
+  nearbyImageWrap: {
+    flex: 1,
+    position: 'relative',
+    marginTop: 'auto',
+  },
+  priceOverlay: {
+    position: 'absolute',
+    left: 8,
+    bottom: 8,
   },
   favBtn: {
     position: 'absolute',
     top: 8,
     right: 8,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: 'rgba(15, 23, 42, 0.55)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -135,6 +191,10 @@ const styles = StyleSheet.create({
     color: colors.white,
     lineHeight: 18,
   },
+  titleSm: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
   meta: {
     fontSize: 11,
     color: '#cbd5e1',
@@ -142,17 +202,17 @@ const styles = StyleSheet.create({
   },
   pricePill: {
     alignSelf: 'flex-start',
-    marginTop: 6,
+    marginTop: 4,
     backgroundColor: '#2563eb',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(147, 197, 253, 0.45)',
+    borderColor: 'rgba(147, 197, 253, 0.55)',
   },
   priceText: {
     color: colors.white,
     fontWeight: '800',
-    fontSize: 13,
+    fontSize: 12,
   },
 });

@@ -100,18 +100,18 @@ export function MainTabNavigator() {
 
 const styles = StyleSheet.create({
   tabOuter: {
-    backgroundColor: 'rgba(15, 23, 42, 0.94)',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(59, 130, 246, 0.28)',
+    backgroundColor: 'rgba(8, 18, 40, 0.96)',
+    borderTopWidth: 1.5,
+    borderTopColor: 'rgba(96, 165, 250, 0.45)',
     paddingTop: 8,
     ...Platform.select({
       ios: {
-        shadowColor: '#2563eb',
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 12,
+        shadowColor: '#38bdf8',
+        shadowOffset: { width: 0, height: -6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 16,
       },
-      android: { elevation: 18 },
+      android: { elevation: 20 },
     }),
   },
   tabInner: {
@@ -137,17 +137,17 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(59, 130, 246, 0.42)',
-    borderWidth: 1,
-    borderColor: 'rgba(147, 197, 253, 0.55)',
+    backgroundColor: 'rgba(37, 99, 235, 0.55)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(147, 197, 253, 0.65)',
     ...Platform.select({
       ios: {
         shadowColor: '#38bdf8',
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.95,
-        shadowRadius: 14,
+        shadowRadius: 16,
       },
-      android: { elevation: 10 },
+      android: { elevation: 12 },
     }),
   },
   tabLabel: {

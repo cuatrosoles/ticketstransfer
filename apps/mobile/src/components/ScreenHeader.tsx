@@ -88,6 +88,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.35)',
   },
   rightSlot: { flexShrink: 0 },
   backIcon: { fontSize: 22, color: '#f8fafc' },

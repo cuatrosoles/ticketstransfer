@@ -26,6 +26,8 @@ export type RootStackParamList = {
   Kyc: undefined;
   KycWebView: { sessionUrl: string };
   Publish: { editListingId?: string };
+  PublishSuccess: { listingId?: string };
+  PublishError: { message: string };
   ComprarTicket: undefined;
   ComprarTicketDetalle: { listingId: string; password: string };
   MyListingDetail: { listingId: string };

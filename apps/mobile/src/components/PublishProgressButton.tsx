@@ -5,6 +5,7 @@
 import * as React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { colors, radius, spacing } from '../theme';
+import { neonGlow } from '../lib/neonStyles';
 
 type Props = {
   label: string;
@@ -49,11 +50,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     borderRadius: radius,
     overflow: 'hidden',
-    backgroundColor: 'rgba(30, 58, 138, 0.65)',
+    backgroundColor: 'rgba(13, 36, 82, 0.72)',
     borderWidth: 1,
-    borderColor: 'rgba(96, 165, 250, 0.35)',
+    borderColor: 'rgba(96, 165, 250, 0.55)',
     minHeight: 52,
     justifyContent: 'center',
+    ...neonGlow('#38bdf8', 'soft'),
   },
   fill: {
     position: 'absolute',

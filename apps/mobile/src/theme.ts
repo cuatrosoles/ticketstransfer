@@ -41,10 +41,10 @@ export function headerBleedMargin(parentHorizontalPadding: number = spacing.lg):
   return parentHorizontalPadding > headerEdgePadding ? -(parentHorizontalPadding - headerEdgePadding) : 0;
 }
 
-/** Estilo glass unificado (igual que auth) para cards en toda la app */
+/** Estilo glass unificado con borde neón para cards en toda la app */
 export const glassCard = {
-  backgroundColor: 'rgba(30, 58, 138, 0.4)' as const,
+  backgroundColor: 'rgba(13, 36, 82, 0.72)' as const,
   borderRadius: 20 as const,
   borderWidth: 1 as const,
-  borderColor: 'rgba(96, 165, 250, 0.3)' as const,
+  borderColor: 'rgba(96, 165, 250, 0.55)' as const,
 };

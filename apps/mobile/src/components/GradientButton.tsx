@@ -6,6 +6,7 @@ import * as React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, ActivityIndicator, StyleProp } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useBranding } from '../context/BrandingContext';
+import { neonGlow } from '../lib/neonStyles';
 
 type Props = {
   title: string;
@@ -75,11 +76,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 8,
+    borderColor: 'rgba(147, 197, 253, 0.45)',
+    ...neonGlow('#3b82f6', 'strong'),
   },
   gradient: { ...StyleSheet.absoluteFillObject },
   primaryText: { color: '#ffffff', fontWeight: '600', fontSize: 16 },
@@ -90,6 +88,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     backgroundColor: 'transparent',
+    ...neonGlow('#60a5fa', 'soft'),
   },
   secondaryText: { fontWeight: '600', fontSize: 16 },
 });
