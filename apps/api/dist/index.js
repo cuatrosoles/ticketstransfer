@@ -127,7 +127,7 @@ var init_firestore = __esm({
 });
 
 // ../../packages/shared/src/constants.ts
-var CATEGORIAS_EVENTOS, TICKET_LISTING_STATUS, ORDER_STATUS, DISPUTE_STATUS, HORAS_MAX_TRANSFERENCIA_VENDEDOR;
+var CATEGORIAS_EVENTOS, TICKET_LISTING_STATUS, ORDER_STATUS, DISPUTE_STATUS, HORAS_MAX_TRANSFERENCIA_VENDEDOR, MINUTOS_RESERVA_PAGO;
 var init_constants = __esm({
   "../../packages/shared/src/constants.ts"() {
     "use strict";
@@ -164,6 +164,7 @@ var init_constants = __esm({
       "RESUELTA_FAVOR_VENDEDOR"
     ];
     HORAS_MAX_TRANSFERENCIA_VENDEDOR = 72;
+    MINUTOS_RESERVA_PAGO = 45;
   }
 });
 
@@ -4536,7 +4537,11 @@ var init_schemas = __esm({
       locationSource: locationSourceSchema.optional(),
       agreeTerms: external_exports.boolean().refine((v) => v === true, "Debes aceptar la pol\xEDtica de privacidad"),
       isAdmin: external_exports.boolean().optional(),
-      role: external_exports.enum(["user", "admin"]).optional()
+      role: external_exports.enum(["user", "admin"]).optional(),
+      /** CBU/CVU (22 dígitos) o alias bancario — al menos uno requerido para recibir pagos */
+      cbuCvu: external_exports.string().optional(),
+      bankAlias: external_exports.string().optional(),
+      bankName: external_exports.string().optional()
     });
     registerSchema = registerBase.refine((d) => d.password === d.confirmPassword, { message: "Las contrase\xF1as no coinciden", path: ["confirmPassword"] }).refine(
       (d) => {
@@ -4545,6 +4550,13 @@ var init_schemas = __esm({
         return hasLat === hasLng;
       },
       { message: "Indic\xE1 latitud y longitud juntas, o ninguna", path: ["longitude"] }
+    ).refine(
+      (d) => {
+        const cbu = (d.cbuCvu ?? "").replace(/\D/g, "");
+        const alias = (d.bankAlias ?? "").trim();
+        return cbu.length === 22 || alias.length >= 3 && alias.length <= 20;
+      },
+      { message: "Indic\xE1 CBU/CVU (22 d\xEDgitos) o alias bancario para recibir pagos", path: ["cbuCvu"] }
     );
     registerBodySchema = registerBase.omit({ confirmPassword: true, agreeTerms: true }).refine(
       (d) => {
@@ -4553,6 +4565,13 @@ var init_schemas = __esm({
         return hasLat === hasLng;
       },
       { message: "Indic\xE1 latitud y longitud juntas, o ninguna", path: ["longitude"] }
+    ).refine(
+      (d) => {
+        const cbu = (d.cbuCvu ?? "").replace(/\D/g, "");
+        const alias = (d.bankAlias ?? "").trim();
+        return cbu.length === 22 || alias.length >= 3 && alias.length <= 20;
+      },
+      { message: "Indic\xE1 CBU/CVU (22 d\xEDgitos) o alias bancario para recibir pagos", path: ["cbuCvu"] }
     );
     loginSchema = external_exports.object({
       email: external_exports.string().min(1, "Email o nombre de usuario requerido"),
@@ -17964,6 +17983,7 @@ var init_dist = __esm({
 // src/lib/email.ts
 var email_exports = {};
 __export(email_exports, {
+  sendBuyerConfirmedDeliveryAdminEmail: () => sendBuyerConfirmedDeliveryAdminEmail,
   sendNewSaleAdminEmail: () => sendNewSaleAdminEmail,
   sendPaymentApprovedBuyerEmail: () => sendPaymentApprovedBuyerEmail,
   sendPaymentApprovedSellerEmail: () => sendPaymentApprovedSellerEmail,
@@ -18074,6 +18094,18 @@ async function sendPaymentPendingBuyerEmail(to, params) {
       <p>Tu pago de <strong>${params.eventName}</strong> est\xE1 pendiente de acreditaci\xF3n. Te avisaremos cuando se confirme.</p>
       <p style="color: #64748b; font-size: 12px;">Orden: ${params.orderId}</p>
       <p style="color: #64748b; font-size: 12px;">\u2014 Tickets Transfer</p>
+    </div>
+  `;
+  return sendHtmlEmail(to, subject, html);
+}
+async function sendBuyerConfirmedDeliveryAdminEmail(to, params) {
+  const subject = `[Admin] Comprador confirm\xF3 ticket recibido - ${params.eventName}`;
+  const html = `
+    <div style="font-family: sans-serif; max-width: 420px; margin: 0 auto;">
+      <h2 style="color: #1e293b;">Ticket recibido \u2014 acci\xF3n requerida</h2>
+      <p>El comprador confirm\xF3 haber recibido el ticket de <strong>${params.eventName}</strong>.</p>
+      <p style="color: #64748b; font-size: 14px;">Revis\xE1 la evidencia en el panel y marc\xE1 la orden como <strong>COMPLETADA</strong> para liberar el pago al vendedor.</p>
+      <p style="color: #64748b; font-size: 12px;">Orden: ${params.orderId}</p>
     </div>
   `;
   return sendHtmlEmail(to, subject, html);
@@ -18526,7 +18558,10 @@ var init_firebase_messaging = __esm({
 var order_payments_exports = {};
 __export(order_payments_exports, {
   applyMercadoPagoPaymentToOrder: () => applyMercadoPagoPaymentToOrder,
+  expireStalePaymentReservations: () => expireStalePaymentReservations,
+  getListingPurchaseAvailability: () => getListingPurchaseAvailability,
   markListingSold: () => markListingSold,
+  notifyBuyerConfirmedDelivery: () => notifyBuyerConfirmedDelivery,
   notifyPaymentApproved: () => notifyPaymentApproved,
   notifyPaymentFailed: () => notifyPaymentFailed,
   notifyPaymentPending: () => notifyPaymentPending,
@@ -18540,6 +18575,94 @@ function paymentMatchesOrder(payment, expectedTotal, orderCurrency) {
   const amountOk = payment.transaction_amount == null || expectedTotal == null || Math.abs(payment.transaction_amount - expectedTotal) <= 0.02;
   const currencyOk = orderCurrency === payCurrency;
   return amountOk && currencyOk;
+}
+function orderReservationExpired(order) {
+  const expires = order.paymentReservationExpiresAt;
+  if (!expires) return false;
+  const d = expires instanceof Date ? expires : typeof expires.toDate === "function" ? expires.toDate() : new Date(String(expires));
+  return !Number.isNaN(d.getTime()) && d.getTime() < Date.now();
+}
+async function expireStalePaymentReservations(limit = 50) {
+  const snap = await db().collection(COLLECTIONS.ORDERS).where("status", "==", "PENDIENTE_PAGO").orderBy("createdAt", "asc").limit(limit).get();
+  let released = 0;
+  for (const doc of snap.docs) {
+    const d = doc.data();
+    if (!orderReservationExpired(d)) continue;
+    await doc.ref.update({
+      status: "CANCELADA",
+      cancelReason: "Pago no concretado dentro del plazo de reserva",
+      updatedAt: /* @__PURE__ */ new Date()
+    });
+    const listingId = d.ticketListingId ? String(d.ticketListingId) : "";
+    if (listingId) {
+      await releaseListingReservation(listingId, doc.id);
+    }
+    released += 1;
+  }
+  return released;
+}
+async function getListingPurchaseAvailability(listingId, buyerId) {
+  await expireStalePaymentReservations(20);
+  const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(listingId).get();
+  if (!listingDoc.exists) {
+    return { canPurchase: false, status: "UNAVAILABLE", message: "Publicaci\xF3n no encontrada" };
+  }
+  const listing = listingDoc.data();
+  const status = String(listing.status || "");
+  if (status === "VENDIDO" || status === "ELIMINADO") {
+    return { canPurchase: false, status: "UNAVAILABLE", message: "Este ticket ya no est\xE1 disponible" };
+  }
+  if (status === "DISPONIBLE") {
+    return { canPurchase: true, status: "AVAILABLE" };
+  }
+  if (status !== "PAUSADO") {
+    return { canPurchase: false, status: "UNAVAILABLE", message: "Ticket no disponible" };
+  }
+  const reservedOrderId = listing.reservedOrderId ? String(listing.reservedOrderId) : null;
+  if (!reservedOrderId) {
+    await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(listingId).update({
+      status: "DISPONIBLE",
+      updatedAt: /* @__PURE__ */ new Date()
+    });
+    return { canPurchase: true, status: "AVAILABLE" };
+  }
+  const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(reservedOrderId).get();
+  if (!orderDoc.exists) {
+    await releaseListingReservation(listingId, reservedOrderId);
+    return { canPurchase: true, status: "AVAILABLE" };
+  }
+  const order = orderDoc.data();
+  if (order.status !== "PENDIENTE_PAGO" || orderReservationExpired(order)) {
+    await db().collection(COLLECTIONS.ORDERS).doc(reservedOrderId).update({
+      status: "CANCELADA",
+      cancelReason: "Pago no concretado dentro del plazo de reserva",
+      updatedAt: /* @__PURE__ */ new Date()
+    });
+    await releaseListingReservation(listingId, reservedOrderId);
+    return { canPurchase: true, status: "AVAILABLE" };
+  }
+  const reservedByCurrentUser = Boolean(buyerId && String(order.buyerId) === buyerId);
+  const expiresRaw = order.paymentReservationExpiresAt;
+  const reservationExpiresAt = expiresRaw instanceof Date ? expiresRaw : typeof expiresRaw?.toDate === "function" ? expiresRaw.toDate() : null;
+  if (reservedByCurrentUser) {
+    return {
+      canPurchase: true,
+      status: "PENDING_PAYMENT",
+      message: "Ten\xE9s una compra en curso. Pod\xE9s continuar con el pago.",
+      reservationExpiresAt,
+      reservedOrderId,
+      reservedByCurrentUser: true
+    };
+  }
+  const minutesLeft = reservationExpiresAt ? Math.max(1, Math.ceil((reservationExpiresAt.getTime() - Date.now()) / 6e4)) : MINUTOS_RESERVA_PAGO;
+  return {
+    canPurchase: false,
+    status: "PENDING_PAYMENT",
+    message: `Otro usuario est\xE1 procesando el pago de este ticket. Volv\xE9 a intentar en unos ${minutesLeft} minuto${minutesLeft === 1 ? "" : "s"}.`,
+    reservationExpiresAt,
+    reservedOrderId,
+    reservedByCurrentUser: false
+  };
 }
 async function reserveListingForOrder(listingId, orderId) {
   const ref = db().collection(COLLECTIONS.TICKET_LISTINGS).doc(listingId);
@@ -18766,6 +18889,22 @@ async function applyMercadoPagoPaymentToOrder(orderId, payment, options) {
   }
   return { applied: false, orderStatus: currentStatus, paymentStatus: payment.status };
 }
+async function notifyBuyerConfirmedDelivery(params) {
+  const admins = await getAdminRecipients();
+  for (const admin2 of admins) {
+    void sendBuyerConfirmedDeliveryAdminEmail(admin2.email, {
+      orderId: params.orderId,
+      eventName: params.eventName
+    });
+    void sendPushSafe(
+      admin2.id,
+      admin2.fcmToken,
+      "Ticket recibido \u2014 revisar orden",
+      `El comprador confirm\xF3 la recepci\xF3n de "${params.eventName}". Marc\xE1 la orden como COMPLETADA para pagar al vendedor.`,
+      { type: "order_delivery", orderId: params.orderId, status: "VERIFICANDO" }
+    );
+  }
+}
 async function syncOrderPaymentFromMercadoPago(orderId) {
   const orderRef = db().collection(COLLECTIONS.ORDERS).doc(orderId);
   const orderDoc = await orderRef.get();
@@ -18803,6 +18942,7 @@ async function syncOrderPaymentFromMercadoPago(orderId) {
 var init_order_payments = __esm({
   "src/lib/order-payments.ts"() {
     "use strict";
+    init_src();
     init_firestore();
     init_mercadopago();
     init_email();
@@ -18856,6 +18996,29 @@ async function requireAuth(req, res, next) {
     res.status(401).json({ error: "Token inv\xE1lido o expirado" });
   }
 }
+async function optionalAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token) {
+    next();
+    return;
+  }
+  try {
+    const auth = getAuth();
+    const decoded = await auth.verifyIdToken(token);
+    const userDoc = await db().collection(COLLECTIONS.USERS).doc(decoded.uid).get();
+    if (userDoc.exists) {
+      const data = userDoc.data();
+      req.user = {
+        id: decoded.uid,
+        email: decoded.email || data.email || "",
+        role: data.role || "user"
+      };
+    }
+  } catch {
+  }
+  next();
+}
 function requireAdmin(req, res, next) {
   if (req.user?.role !== "admin") {
     res.status(403).json({ error: "Acceso denegado" });
@@ -18902,7 +19065,10 @@ router.post("/register", async (req, res) => {
     postalCode,
     latitude,
     longitude,
-    locationSource
+    locationSource,
+    cbuCvu,
+    bankAlias,
+    bankName
   } = parsed.data;
   const auth = getAuth();
   const usersRef = db().collection(COLLECTIONS.USERS);
@@ -18981,6 +19147,12 @@ router.post("/register", async (req, res) => {
     emailVerified: emailVerified || false,
     reputationScore: 0,
     profileImageUrl: null,
+    cbuCvu: (() => {
+      const digits = (cbuCvu ?? "").replace(/\D/g, "");
+      return digits.length === 22 ? digits : null;
+    })(),
+    bankAlias: bankAlias?.trim() || null,
+    bankName: bankName?.trim() || null,
     createdAt: /* @__PURE__ */ new Date(),
     updatedAt: /* @__PURE__ */ new Date()
   };
@@ -19677,6 +19849,7 @@ router2.get("/profile", async (req, res) => {
     reputationScore: data.reputationScore ?? null,
     profileImageUrl: data.profileImageUrl ?? null,
     cbuCvu: data.cbuCvu ?? null,
+    bankAlias: data.bankAlias ?? null,
     bankName: data.bankName ?? null,
     kyc: kyc ? { status: kyc.status, rejectionReason: kyc.rejectionReason ?? null } : { status: "PENDIENTE", rejectionReason: null },
     preferences: preferencesToApi(userPrefs)
@@ -19785,6 +19958,7 @@ router2.patch("/profile", async (req, res) => {
     domicilio,
     fcmToken,
     cbuCvu,
+    bankAlias,
     bankName,
     latitude,
     longitude,
@@ -19805,6 +19979,10 @@ router2.patch("/profile", async (req, res) => {
   if (cbuCvu !== void 0) {
     const val = typeof cbuCvu === "string" ? cbuCvu.replace(/\D/g, "").trim() || null : null;
     updateData.cbuCvu = val && val.length === 22 ? val : null;
+  }
+  if (bankAlias !== void 0) {
+    const alias = typeof bankAlias === "string" ? bankAlias.trim().slice(0, 20) || null : null;
+    updateData.bankAlias = alias;
   }
   if (bankName !== void 0) updateData.bankName = typeof bankName === "string" ? bankName.trim() || null : null;
   if (latitude !== void 0 && longitude !== void 0) {
@@ -22027,6 +22205,7 @@ async function resolveEventCoordinates(input) {
 }
 
 // src/routes/tickets.ts
+init_order_payments();
 var updateTicketListingSchema2 = createTicketListingSchema.partial().extend({
   publicationPassword: external_exports.string().nullable().optional().transform((s) => s === "" ? null : s),
   ticketeraOtra: external_exports.string().optional().transform((s) => s === "" ? void 0 : s),
@@ -22200,11 +22379,18 @@ router4.get("/event-image/preview", requireAuth, async (req, res) => {
   }
   res.json(preview);
 });
-router4.get("/:id", async (req, res) => {
+router4.get("/:id", optionalAuth, async (req, res) => {
   const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
   const d = doc.data();
-  if (d.status !== "DISPONIBLE") return res.status(404).json({ error: "No encontrado" });
+  const listingStatus = String(d.status || "");
+  if (listingStatus === "VENDIDO" || listingStatus === "ELIMINADO") {
+    return res.status(404).json({ error: "No encontrado" });
+  }
+  const availability = await getListingPurchaseAvailability(doc.id, req.user?.id ?? null);
+  if (listingStatus !== "DISPONIBLE" && listingStatus !== "PAUSADO") {
+    return res.status(404).json({ error: "No encontrado" });
+  }
   const password = req.query.password;
   const pubPassword = d.publicationPassword;
   const isPublicListing = d.visibility === "PUBLIC";
@@ -22226,6 +22412,7 @@ router4.get("/:id", async (req, res) => {
       kyc: kycDoc?.exists ? { status: kycDoc.data()?.status } : { status: "PENDIENTE" }
     } : null,
     showFull,
+    availability,
     createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
     updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
     eventDate: d.eventDate?.toDate?.() ?? d.eventDate
@@ -22603,6 +22790,7 @@ function stripOriginalListingImageUrls(listing) {
 }
 
 // src/routes/orders.ts
+init_src();
 init_order_payments();
 var router5 = Router5();
 var upload3 = multer3({
@@ -22718,9 +22906,32 @@ router5.post("/", async (req, res) => {
     return;
   }
   const listing = listingDoc.data();
-  if (listing.status !== "DISPONIBLE") {
-    res.status(404).json({ error: "Ticket no disponible" });
+  const buyerId = req.user.id.trim();
+  const availability = await getListingPurchaseAvailability(ticketListingId, buyerId);
+  if (!availability.canPurchase) {
+    res.status(409).json({
+      error: availability.message || "Ticket no disponible para compra en este momento",
+      code: "TICKET_PENDING_PAYMENT",
+      reservationExpiresAt: availability.reservationExpiresAt ?? null
+    });
     return;
+  }
+  if (availability.reservedByCurrentUser && availability.reservedOrderId) {
+    const existingOrderDoc = await db().collection(COLLECTIONS.ORDERS).doc(availability.reservedOrderId).get();
+    if (existingOrderDoc.exists && existingOrderDoc.data()?.status === "PENDIENTE_PAGO") {
+      const existing = existingOrderDoc.data();
+      res.status(200).json({
+        order: {
+          id: availability.reservedOrderId,
+          ...existing,
+          ticketListing: stripOriginalListingImageUrls({ id: listingDoc.id, ...listing })
+        },
+        paymentNeeded: true,
+        checkoutUrl: existing.mercadopagoCheckoutUrl ?? void 0,
+        resumed: true
+      });
+      return;
+    }
   }
   const listingPrice = asPositiveNumber(listing.price);
   if (listingPrice == null) {
@@ -22731,7 +22942,6 @@ router5.post("/", async (req, res) => {
   const listingEventName = asTrimmedOptionalString(listing.eventName) ?? "Ticket";
   const sellerIdCandidates = [listing.sellerId, listing.userId, listing.seller?.id];
   const sellerId = sellerIdCandidates.find((v) => typeof v === "string" && v.trim().length > 0)?.trim();
-  const buyerId = req.user.id.trim();
   if (!sellerId) {
     res.status(409).json({ error: "La publicaci\xF3n no tiene vendedor asignado. Volv\xE9 a publicar el ticket." });
     return;
@@ -22749,10 +22959,12 @@ router5.post("/", async (req, res) => {
     return;
   }
   const commissionRate = await getCommissionPercentage() / 100;
-  const commissionAmount = listingPrice * commissionRate;
-  const totalAmount = listingPrice + commissionAmount;
+  const commissionAmount = Math.round(listingPrice * commissionRate * 100) / 100;
+  const totalAmount = listingPrice;
   const transferDeadline = /* @__PURE__ */ new Date();
   transferDeadline.setHours(transferDeadline.getHours() + HORAS_MAX_TRANSFERENCIA_VENDEDOR);
+  const paymentReservationExpiresAt = /* @__PURE__ */ new Date();
+  paymentReservationExpiresAt.setMinutes(paymentReservationExpiresAt.getMinutes() + MINUTOS_RESERVA_PAGO);
   const orderId = db().collection(COLLECTIONS.ORDERS).doc().id;
   const orderData = {
     ticketListingId,
@@ -22764,6 +22976,7 @@ router5.post("/", async (req, res) => {
     currency: listingCurrency,
     paymentMethod,
     transferDeadline,
+    paymentReservationExpiresAt,
     createdAt: /* @__PURE__ */ new Date(),
     updatedAt: /* @__PURE__ */ new Date(),
     ...deliveryFields
@@ -23019,20 +23232,55 @@ router5.post("/:id/transfer-done", async (req, res) => {
   res.json({ ok: true });
 });
 router5.post("/:id/confirm-received", async (req, res) => {
-  if (typeof req.body?.received !== "boolean") {
+  if (typeof req.body?.received !== "boolean" || req.body.received !== true) {
     res.status(400).json({ error: "Datos inv\xE1lidos" });
     return;
   }
-  const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
+  const orderId = req.params.id;
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
   if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
   const d = doc.data();
   if (d.buyerId !== req.user.id) return res.status(404).json({ error: "No encontrado" });
-  await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({
-    status: req.body.received ? "ESPERANDO_CONFIRMACION_COMPRADOR" : d.status,
-    buyerConfirmedAt: req.body.received ? /* @__PURE__ */ new Date() : null,
+  if (d.status === "VERIFICANDO" || d.status === "COMPLETADA") {
+    return res.json({
+      ok: true,
+      status: d.status,
+      alreadyConfirmed: true,
+      message: "Ya confirmaste la recepci\xF3n del ticket. El equipo est\xE1 procesando el pago al vendedor."
+    });
+  }
+  const allowedStatuses = [
+    "TRANSFERIDO_VENDEDOR",
+    "ESPERANDO_CONFIRMACION_COMPRADOR",
+    "EVIDENCIA_SUBIDA"
+  ];
+  if (!allowedStatuses.includes(String(d.status))) {
+    return res.status(400).json({
+      error: "El estado actual de la orden no permite confirmar la recepci\xF3n del ticket"
+    });
+  }
+  if (!d.buyerEvidenceUrl && !d.evidenceUrl) {
+    return res.status(400).json({
+      error: "Sub\xED primero la captura del ticket recibido antes de confirmar"
+    });
+  }
+  await db().collection(COLLECTIONS.ORDERS).doc(orderId).update({
+    status: "VERIFICANDO",
+    buyerConfirmedAt: /* @__PURE__ */ new Date(),
     updatedAt: /* @__PURE__ */ new Date()
   });
-  res.json({ ok: true });
+  const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(String(d.ticketListingId)).get();
+  const eventName = listingDoc.exists ? String(listingDoc.data()?.eventName || "Ticket") : "Ticket";
+  void notifyBuyerConfirmedDelivery({
+    orderId,
+    eventName,
+    buyerId: String(d.buyerId)
+  });
+  res.json({
+    ok: true,
+    status: "VERIFICANDO",
+    message: "Confirmaste la recepci\xF3n del ticket. El equipo revisar\xE1 la operaci\xF3n y liberar\xE1 el pago al vendedor."
+  });
 });
 router5.post("/:id/evidence", upload3.single("evidence"), async (req, res) => {
   const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
@@ -23960,6 +24208,7 @@ router8.patch("/users/:userId", async (req, res) => {
     "role",
     "reputationScore",
     "cbuCvu",
+    "bankAlias",
     "bankName",
     "latitude",
     "longitude",
@@ -24664,7 +24913,7 @@ router8.get("/transfers", async (req, res) => {
       return {
         id: doc.id,
         ...d,
-        seller: sellerDoc.exists ? { id: d.sellerId, email: sellerDoc.data()?.email, firstName: sellerDoc.data()?.firstName, lastName: sellerDoc.data()?.lastName, cbuCvu: sellerDoc.data()?.cbuCvu } : null,
+        seller: sellerDoc.exists ? { id: d.sellerId, email: sellerDoc.data()?.email, firstName: sellerDoc.data()?.firstName, lastName: sellerDoc.data()?.lastName, cbuCvu: sellerDoc.data()?.cbuCvu, bankAlias: sellerDoc.data()?.bankAlias } : null,
         order: orderDoc.exists ? { id: d.orderId, totalAmount: orderDoc.data()?.totalAmount } : null,
         createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
         updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
@@ -25273,6 +25522,7 @@ var geocodeRouter = router11;
 // src/routes/cron.ts
 init_firestore();
 import { Router as Router14 } from "express";
+init_order_payments();
 var router12 = Router14();
 var CRON_SECRET = process.env.CRON_SECRET;
 function isAuthorized(req) {
@@ -25296,6 +25546,13 @@ router12.get("/retry-failed-transfers", async (req, res) => {
     processed: results.length,
     results
   });
+});
+router12.get("/expire-payment-reservations", async (req, res) => {
+  if (!isAuthorized(req)) {
+    return res.status(401).json({ error: "No autorizado" });
+  }
+  const released = await expireStalePaymentReservations(100);
+  res.json({ ok: true, released });
 });
 var cronRouter = router12;
 

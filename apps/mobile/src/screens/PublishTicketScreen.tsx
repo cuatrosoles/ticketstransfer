@@ -700,7 +700,7 @@ export function PublishTicketScreen() {
       <TextInput style={styles.input} placeholder="15000" placeholderTextColor={colors.textMuted} value={price} onChangeText={setPrice} keyboardType="numeric" />
       {priceNum > 0 && (
         <Text style={styles.montoVendedor}>
-          Comisión por transferencia {commissionPercentage}%. Usted recibirá: ARS ${montoVendedor.toLocaleString('es-AR')}
+          Precio para el comprador (incluye todo lo que pagará en Mercado Pago): ARS ${priceNum.toLocaleString('es-AR')}. Comisión plataforma {commissionPercentage}% descontada al vendedor. Usted recibirá: ARS ${montoVendedor.toLocaleString('es-AR')}
         </Text>
       )}
 

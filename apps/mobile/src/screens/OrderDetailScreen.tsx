@@ -37,6 +37,7 @@ const statusMeta: Record<string, { label: string; tone: 'warning' | 'success' | 
   CANCELADA: { label: 'Cancelado', tone: 'danger' },
   EN_DISPUTA: { label: 'En disputa', tone: 'danger' },
   EVIDENCIA_SUBIDA: { label: 'Ticket recibido informado', tone: 'warning' },
+  VERIFICANDO: { label: 'En verificación — pago al vendedor pendiente', tone: 'warning' },
 };
 
 /** Fase para los 3 indicadores: pendiente / transferido / rechazado. */
@@ -171,10 +172,22 @@ export function OrderDetailScreen() {
   };
 
   const onConfirmReceived = async () => {
+    if (!order?.buyerEvidenceUrl && !order?.evidenceUrl) {
+      Alert.alert(
+        'Captura requerida',
+        'Subí primero la captura del ticket recibido y luego confirmá la recepción.'
+      );
+      return;
+    }
     setBusy(true);
     try {
-      await confirmOrderReceived(orderId);
+      const res = await confirmOrderReceived(orderId);
       await load();
+      Alert.alert(
+        'Ticket confirmado',
+        res.message ||
+          'Confirmaste la recepción del ticket. El equipo revisará la operación y liberará el pago al vendedor.'
+      );
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo confirmar.');
     } finally {
@@ -223,7 +236,8 @@ export function OrderDetailScreen() {
     ['TRANSFERIDO_VENDEDOR', 'ESPERANDO_CONFIRMACION_COMPRADOR', 'EVIDENCIA_SUBIDA'].includes(status);
   const canConfirmReceived =
     isBuyerView &&
-    ['TRANSFERIDO_VENDEDOR', 'ESPERANDO_CONFIRMACION_COMPRADOR', 'EVIDENCIA_SUBIDA'].includes(status);
+    ['TRANSFERIDO_VENDEDOR', 'ESPERANDO_CONFIRMACION_COMPRADOR', 'EVIDENCIA_SUBIDA'].includes(status) &&
+    !!(order?.buyerEvidenceUrl || order?.evidenceUrl);
   const canGoToPay = isBuyerView && status === 'PENDIENTE_PAGO';
   const canDispute =
     isBuyerView &&

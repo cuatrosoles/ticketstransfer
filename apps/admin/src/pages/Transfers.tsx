@@ -15,7 +15,7 @@ type Transfer = {
   status: string;
   payoutId?: string;
   errorMessage?: string;
-  seller?: { id: string; email?: string; firstName?: string; lastName?: string; cbuCvu?: string };
+  seller?: { id: string; email?: string; firstName?: string; lastName?: string; cbuCvu?: string; bankAlias?: string };
   order?: { id: string; totalAmount?: number };
   createdAt: string;
   updatedAt: string;
@@ -147,6 +147,11 @@ export function Transfers() {
                     {t.seller?.cbuCvu && (
                       <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
                         CBU: ****{t.seller.cbuCvu?.slice(-4)}
+                      </small>
+                    )}
+                    {t.seller?.bankAlias && (
+                      <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', display: 'block' }}>
+                        Alias: {t.seller.bankAlias}
                       </small>
                     )}
                   </td>

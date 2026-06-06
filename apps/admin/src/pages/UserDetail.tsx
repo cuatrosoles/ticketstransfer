@@ -35,6 +35,7 @@ type UserDetailType = {
   reputationScore: number;
   profileImageUrl: string | null;
   cbuCvu: string | null;
+  bankAlias: string | null;
   bankName: string | null;
   createdAt: string | Date;
   updatedAt: string | Date;
@@ -95,6 +96,7 @@ export function UserDetail() {
           role: u.role,
           reputationScore: u.reputationScore ?? 0,
           cbuCvu: u.cbuCvu ?? '',
+          bankAlias: u.bankAlias ?? '',
           bankName: u.bankName ?? '',
         });
       })
@@ -282,6 +284,7 @@ export function UserDetail() {
           <h3 style={{ marginTop: 0, marginBottom: 12 }}>Datos bancarios (para recibir pagos)</h3>
           <dl className="detail-dl">
             <dt>CBU/CVU</dt><dd>{user.cbuCvu ? `****${user.cbuCvu.slice(-4)} (22 dígitos)` : '—'}</dd>
+            <dt>Alias bancario</dt><dd>{user.bankAlias || '—'}</dd>
             <dt>Banco</dt><dd>{user.bankName || '—'}</dd>
           </dl>
         </div>
@@ -407,6 +410,10 @@ export function UserDetail() {
               <div className="form-group">
                 <label>CBU/CVU (22 dígitos, para recibir pagos)</label>
                 <input value={form.cbuCvu ?? ''} onChange={(e) => setForm((f) => ({ ...f, cbuCvu: e.target.value.replace(/\D/g, '').slice(0, 22) }))} className="input" placeholder="0000000000000000000000" maxLength={22} />
+              </div>
+              <div className="form-group">
+                <label>Alias bancario</label>
+                <input value={form.bankAlias ?? ''} onChange={(e) => setForm((f) => ({ ...f, bankAlias: e.target.value }))} className="input" placeholder="mi.alias.mp" />
               </div>
               <div className="form-group">
                 <label>Nombre del banco</label>

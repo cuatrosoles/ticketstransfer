@@ -369,7 +369,7 @@ router.patch('/users/:userId', async (req: AuthRequest, res) => {
   const allowed = [
     'firstName', 'lastName', 'username', 'country', 'tipoDocumento', 'documentNumber',
     'sexo', 'phone', 'city', 'province', 'postalCode', 'role', 'reputationScore',
-    'cbuCvu', 'bankName', 'latitude', 'longitude', 'locationSource',
+    'cbuCvu', 'bankAlias', 'bankName', 'latitude', 'longitude', 'locationSource',
   ];
   for (const key of allowed) {
     if (body[key] !== undefined) {
@@ -1165,7 +1165,7 @@ router.get('/transfers', async (req: AuthRequest, res) => {
       return {
         id: doc.id,
         ...d,
-        seller: sellerDoc.exists ? { id: d.sellerId, email: sellerDoc.data()?.email, firstName: sellerDoc.data()?.firstName, lastName: sellerDoc.data()?.lastName, cbuCvu: sellerDoc.data()?.cbuCvu } : null,
+        seller: sellerDoc.exists ? { id: d.sellerId, email: sellerDoc.data()?.email, firstName: sellerDoc.data()?.firstName, lastName: sellerDoc.data()?.lastName, cbuCvu: sellerDoc.data()?.cbuCvu, bankAlias: sellerDoc.data()?.bankAlias } : null,
         order: orderDoc.exists ? { id: d.orderId, totalAmount: orderDoc.data()?.totalAmount } : null,
         createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
         updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,

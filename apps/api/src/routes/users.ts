@@ -194,6 +194,7 @@ router.get('/profile', async (req: AuthRequest, res) => {
     reputationScore: data.reputationScore ?? null,
     profileImageUrl: data.profileImageUrl ?? null,
     cbuCvu: data.cbuCvu ?? null,
+    bankAlias: data.bankAlias ?? null,
     bankName: data.bankName ?? null,
     kyc: kyc ? { status: kyc.status, rejectionReason: kyc.rejectionReason ?? null } : { status: 'PENDIENTE', rejectionReason: null },
     preferences: preferencesToApi(userPrefs),
@@ -314,6 +315,7 @@ router.patch('/profile', async (req: AuthRequest, res) => {
     domicilio,
     fcmToken,
     cbuCvu,
+    bankAlias,
     bankName,
     latitude,
     longitude,
@@ -339,6 +341,10 @@ router.patch('/profile', async (req: AuthRequest, res) => {
   if (cbuCvu !== undefined) {
     const val = typeof cbuCvu === 'string' ? cbuCvu.replace(/\D/g, '').trim() || null : null;
     updateData.cbuCvu = val && val.length === 22 ? val : null;
+  }
+  if (bankAlias !== undefined) {
+    const alias = typeof bankAlias === 'string' ? bankAlias.trim().slice(0, 20) || null : null;
+    updateData.bankAlias = alias;
   }
   if (bankName !== undefined) updateData.bankName = typeof bankName === 'string' ? bankName.trim() || null : null;
   if (latitude !== undefined && longitude !== undefined) {

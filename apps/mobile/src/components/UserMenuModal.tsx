@@ -20,7 +20,6 @@ const MENU_ITEMS: MenuEntry[] = [
   
   ///{ id: 'perfil', label: 'Información de tu perfil', kind: 'tab', tab: 'Profile' },
   
-  { id: 'tarjetas', label: 'Tarjetas adheridas', kind: 'stack', route: 'TarjetasAdheridas' },
   { id: 'soporte', label: 'Chat Soporte', kind: 'stack', route: 'ChatSoporte' },
   { id: 'mensajes', label: 'Mensajes', kind: 'stack', route: 'Mensajes' },
   { id: 'politica', label: 'Política de privacidad y uso de datos', kind: 'stack', route: 'PoliticaPrivacidad' },

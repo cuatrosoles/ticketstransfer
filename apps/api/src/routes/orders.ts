@@ -18,8 +18,11 @@ import {
 } from '../lib/mercadopago.js';
 import { getCommissionPercentage } from '../lib/settings.js';
 import { stripOriginalListingImageUrls } from '../lib/listing-image-privacy.js';
+import { MINUTOS_RESERVA_PAGO } from '@tickets-transfer/shared';
 import {
   applyMercadoPagoPaymentToOrder,
+  getListingPurchaseAvailability,
+  notifyBuyerConfirmedDelivery,
   releaseListingReservation,
   reserveListingForOrder,
   syncOrderPaymentFromMercadoPago,
@@ -177,9 +180,32 @@ router.post('/', async (req: AuthRequest, res) => {
     return;
   }
   const listing = listingDoc.data() as Record<string, unknown>;
-  if (listing.status !== 'DISPONIBLE') {
-    res.status(404).json({ error: 'Ticket no disponible' });
+  const buyerId = req.user!.id.trim();
+  const availability = await getListingPurchaseAvailability(ticketListingId, buyerId);
+  if (!availability.canPurchase) {
+    res.status(409).json({
+      error: availability.message || 'Ticket no disponible para compra en este momento',
+      code: 'TICKET_PENDING_PAYMENT',
+      reservationExpiresAt: availability.reservationExpiresAt ?? null,
+    });
     return;
+  }
+  if (availability.reservedByCurrentUser && availability.reservedOrderId) {
+    const existingOrderDoc = await db().collection(COLLECTIONS.ORDERS).doc(availability.reservedOrderId).get();
+    if (existingOrderDoc.exists && existingOrderDoc.data()?.status === 'PENDIENTE_PAGO') {
+      const existing = existingOrderDoc.data()!;
+      res.status(200).json({
+        order: {
+          id: availability.reservedOrderId,
+          ...existing,
+          ticketListing: stripOriginalListingImageUrls({ id: listingDoc.id, ...listing }),
+        },
+        paymentNeeded: true,
+        checkoutUrl: existing.mercadopagoCheckoutUrl ?? undefined,
+        resumed: true,
+      });
+      return;
+    }
   }
   const listingPrice = asPositiveNumber(listing.price);
   if (listingPrice == null) {
@@ -190,7 +216,6 @@ router.post('/', async (req: AuthRequest, res) => {
   const listingEventName = asTrimmedOptionalString(listing.eventName) ?? 'Ticket';
   const sellerIdCandidates = [listing.sellerId, listing.userId, (listing.seller as { id?: unknown } | undefined)?.id];
   const sellerId = sellerIdCandidates.find((v): v is string => typeof v === 'string' && v.trim().length > 0)?.trim();
-  const buyerId = req.user!.id.trim();
 
   if (!sellerId) {
     res.status(409).json({ error: 'La publicación no tiene vendedor asignado. Volvé a publicar el ticket.' });
@@ -211,10 +236,12 @@ router.post('/', async (req: AuthRequest, res) => {
   }
 
   const commissionRate = (await getCommissionPercentage()) / 100;
-  const commissionAmount = listingPrice * commissionRate;
-  const totalAmount = listingPrice + commissionAmount;
+  const commissionAmount = Math.round(listingPrice * commissionRate * 100) / 100;
+  const totalAmount = listingPrice;
   const transferDeadline = new Date();
   transferDeadline.setHours(transferDeadline.getHours() + HORAS_MAX_TRANSFERENCIA_VENDEDOR);
+  const paymentReservationExpiresAt = new Date();
+  paymentReservationExpiresAt.setMinutes(paymentReservationExpiresAt.getMinutes() + MINUTOS_RESERVA_PAGO);
 
   const orderId = db().collection(COLLECTIONS.ORDERS).doc().id;
   const orderData = {
@@ -227,6 +254,7 @@ router.post('/', async (req: AuthRequest, res) => {
     currency: listingCurrency,
     paymentMethod,
     transferDeadline,
+    paymentReservationExpiresAt,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...deliveryFields,
@@ -532,20 +560,60 @@ router.post('/:id/transfer-done', async (req: AuthRequest, res) => {
 });
 
 router.post('/:id/confirm-received', async (req: AuthRequest, res) => {
-  if (typeof req.body?.received !== 'boolean') {
+  if (typeof req.body?.received !== 'boolean' || req.body.received !== true) {
     res.status(400).json({ error: 'Datos inválidos' });
     return;
   }
-  const doc = await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).get();
+  const orderId = req.params.id;
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
   if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
   const d = doc.data()!;
   if (d.buyerId !== req.user!.id) return res.status(404).json({ error: 'No encontrado' });
-  await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({
-    status: req.body.received ? 'ESPERANDO_CONFIRMACION_COMPRADOR' : d.status,
-    buyerConfirmedAt: req.body.received ? new Date() : null,
+
+  if (d.status === 'VERIFICANDO' || d.status === 'COMPLETADA') {
+    return res.json({
+      ok: true,
+      status: d.status,
+      alreadyConfirmed: true,
+      message: 'Ya confirmaste la recepción del ticket. El equipo está procesando el pago al vendedor.',
+    });
+  }
+  const allowedStatuses = [
+    'TRANSFERIDO_VENDEDOR',
+    'ESPERANDO_CONFIRMACION_COMPRADOR',
+    'EVIDENCIA_SUBIDA',
+  ];
+  if (!allowedStatuses.includes(String(d.status))) {
+    return res.status(400).json({
+      error: 'El estado actual de la orden no permite confirmar la recepción del ticket',
+    });
+  }
+  if (!d.buyerEvidenceUrl && !d.evidenceUrl) {
+    return res.status(400).json({
+      error: 'Subí primero la captura del ticket recibido antes de confirmar',
+    });
+  }
+
+  await db().collection(COLLECTIONS.ORDERS).doc(orderId).update({
+    status: 'VERIFICANDO',
+    buyerConfirmedAt: new Date(),
     updatedAt: new Date(),
   });
-  res.json({ ok: true });
+
+  const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(String(d.ticketListingId)).get();
+  const eventName = listingDoc.exists ? String(listingDoc.data()?.eventName || 'Ticket') : 'Ticket';
+  void notifyBuyerConfirmedDelivery({
+    orderId,
+    eventName,
+    buyerId: String(d.buyerId),
+  });
+
+  res.json({
+    ok: true,
+    status: 'VERIFICANDO',
+    message:
+      'Confirmaste la recepción del ticket. El equipo revisará la operación y liberará el pago al vendedor.',
+  });
 });
 
 router.post('/:id/evidence', upload.single('evidence'), async (req: AuthRequest, res) => {

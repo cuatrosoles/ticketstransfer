@@ -40,6 +40,32 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
   }
 }
 
+/** Igual que requireAuth pero continúa sin usuario si no hay token válido. */
+export async function optionalAuth(req: AuthRequest, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) {
+    next();
+    return;
+  }
+  try {
+    const auth = getAuth();
+    const decoded = await auth.verifyIdToken(token);
+    const userDoc = await db().collection(COLLECTIONS.USERS).doc(decoded.uid).get();
+    if (userDoc.exists) {
+      const data = userDoc.data()!;
+      req.user = {
+        id: decoded.uid,
+        email: decoded.email || data.email || '',
+        role: data.role || 'user',
+      };
+    }
+  } catch {
+    // Token inválido: tratar como visitante anónimo
+  }
+  next();
+}
+
 export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction) {
   if (req.user?.role !== 'admin') {
     res.status(403).json({ error: 'Acceso denegado' });

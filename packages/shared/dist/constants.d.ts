@@ -56,3 +56,5 @@ export declare const DISPUTE_STATUS: readonly ["ABIERTA", "EN_REVISION", "ESPERA
 export declare const TIPO_DOCUMENTO: readonly ["DNI", "LC", "LE", "PASAPORTE"];
 export declare const PREFIJO_TELEFONO_DEFAULT = "+549";
 export declare const HORAS_MAX_TRANSFERENCIA_VENDEDOR = 72;
+/** Minutos que un comprador tiene para concretar el pago antes de liberar el ticket */
+export declare const MINUTOS_RESERVA_PAGO = 45;

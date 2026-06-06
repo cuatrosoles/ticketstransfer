@@ -114,6 +114,7 @@ export function ProfileScreen() {
     postalCode: '',
     address: '',
     cbuCvu: '',
+    bankAlias: '',
     bankName: '',
   });
 
@@ -137,6 +138,7 @@ export function ProfileScreen() {
         postalCode: data.postalCode ?? '',
         address: data.address ?? '',
         cbuCvu: data.cbuCvu ?? '',
+        bankAlias: data.bankAlias ?? '',
         bankName: data.bankName ?? '',
       });
     } catch (e) {
@@ -164,6 +166,7 @@ export function ProfileScreen() {
         postalCode: form.postalCode?.trim() || undefined,
         address: form.address?.trim() || undefined,
         cbuCvu: form.cbuCvu?.replace(/\D/g, '').slice(0, 22) || undefined,
+        bankAlias: form.bankAlias?.trim() || undefined,
         bankName: form.bankName?.trim() || undefined,
       };
       await updateProfile(payload);
@@ -189,6 +192,7 @@ export function ProfileScreen() {
         postalCode: profile.postalCode ?? '',
         address: profile.address ?? '',
         cbuCvu: profile.cbuCvu ?? '',
+        bankAlias: profile.bankAlias ?? '',
         bankName: profile.bankName ?? '',
       });
     }
@@ -393,6 +397,7 @@ export function ProfileScreen() {
               </View>
             </View>
             <ProfileField label="CBU/CVU (para recibir pagos)" value={profile.cbuCvu ? `****${profile.cbuCvu.slice(-4)}` : '—'} />
+            <ProfileField label="Alias bancario" value={profile.bankAlias || '—'} />
             <ProfileField label="Banco" value={profile.bankName || '—'} />
             <ProfileField label="Domicilio" value={profile.address || '—'} />
             <ProfileField label="Ciudad" value={profile.city || '—'} />
@@ -491,6 +496,15 @@ export function ProfileScreen() {
               onChangeText={(t) => setForm((f) => ({ ...f, cbuCvu: t.replace(/\D/g, '').slice(0, 22) }))}
               keyboardType="numeric"
               maxLength={22}
+            />
+            <Text style={styles.label}>Alias bancario</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="mi.alias.mp"
+              placeholderTextColor={colors.textMuted}
+              value={form.bankAlias}
+              onChangeText={(t) => setForm((f) => ({ ...f, bankAlias: t }))}
+              autoCapitalize="none"
             />
             <Text style={styles.label}>Nombre del banco (opcional)</Text>
             <TextInput

@@ -23,7 +23,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
-import { api, getUserCards, removeUserCard, type CardItem } from '../lib/api';
+import { api } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
@@ -48,9 +48,6 @@ export function OrderPagoScreen() {
   const [loading, setLoading] = useState(true);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(params?.checkoutUrl ?? null);
   const [openingMp, setOpeningMp] = useState(false);
-  const [cards, setCards] = useState<CardItem[]>([]);
-  const [cardsLoading, setCardsLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   const loadOrder = useCallback(async (): Promise<Order | null> => {
@@ -78,24 +75,6 @@ export function OrderPagoScreen() {
       .then((r) => setCheckoutUrl(r.checkoutUrl))
       .catch(() => {});
   }, [params?.orderId, order?.status, checkoutUrl]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setCardsLoading(true);
-    getUserCards()
-      .then((r) => {
-        if (!cancelled) setCards(r.cards || []);
-      })
-      .catch(() => {
-        if (!cancelled) setCards([]);
-      })
-      .finally(() => {
-        if (!cancelled) setCardsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [params?.orderId]);
 
   /** Deep link legacy: orden/:id/pago?status= → pantalla de resultado. */
   useEffect(() => {
@@ -167,35 +146,6 @@ export function OrderPagoScreen() {
     );
   };
 
-  const handleRemoveCard = (card: CardItem) => {
-    Alert.alert('Eliminar tarjeta', '¿Quitar esta tarjeta de tu cuenta?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          setDeletingId(card.id);
-          try {
-            await removeUserCard(card.id);
-            setCards((c) => c.filter((x) => x.id !== card.id));
-          } catch (e) {
-            Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
-          } finally {
-            setDeletingId(null);
-          }
-        },
-      },
-    ]);
-  };
-
-  const addCard = () => {
-    if (params?.orderId) {
-      navigation.navigate('CardFormWebView', { returnTo: 'OrderPago', orderId: params.orderId });
-    } else {
-      navigation.navigate('CardFormWebView', {});
-    }
-  };
-
   if (loading) {
     return (
       <AuthBackground>
@@ -235,36 +185,11 @@ export function OrderPagoScreen() {
             usuarios adjunten/validen capturas de recibido.
           </Text>
           <Text style={styles.hint}>
-            Podés usar tarjeta, débito o cuenta de Mercado Pago. Agregá tarjetas acá o en Perfil → Tarjetas
-            adheridas. Al pagar con Mercado Pago podés elegir medios guardados en tu cuenta MP.
+            Pagá con tarjeta, débito o cuenta de Mercado Pago desde el checkout oficial. Podés usar medios guardados en tu cuenta de Mercado Pago al momento del pago.
           </Text>
 
           {order.status === 'PENDIENTE_PAGO' && (
             <>
-              <Text style={styles.sectionLabel}>Tarjetas adheridas</Text>
-              {cardsLoading ? (
-                <ActivityIndicator color={colors.primary} style={{ marginVertical: 8 }} />
-              ) : cards.length === 0 ? (
-                <Text style={styles.muted}>No tenés tarjetas guardadas todavía.</Text>
-              ) : (
-                cards.map((c) => (
-                  <View key={c.id} style={styles.cardRow}>
-                    <Text style={styles.cardLabel}>
-                      {(c.payment_method?.name || 'Tarjeta')} •••• {c.last_four_digits}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => handleRemoveCard(c)}
-                      disabled={deletingId === c.id}
-                      style={styles.deleteCardBtn}
-                    >
-                      <Text style={styles.deleteCardBtnText}>
-                        {deletingId === c.id ? '…' : 'Eliminar'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                ))
-              )}
-
               {checkoutUrl && (
                 <TouchableOpacity
                   style={styles.btn}
@@ -301,9 +226,6 @@ export function OrderPagoScreen() {
               )}
               */}
 
-              <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={addCard}>
-                <Text style={styles.btnText}>+ Agregar tarjeta</Text>
-              </TouchableOpacity>
               {!checkoutUrl && <Text style={styles.muted}>Generando link de pago…</Text>}
               <TouchableOpacity style={styles.refreshBtn} onPress={() => void loadOrder()}>
                 <Text style={styles.refreshBtnText}>Actualizar estado del pago</Text>

@@ -48,3 +48,5 @@ export const DISPUTE_STATUS = [
 export const TIPO_DOCUMENTO = ['DNI', 'LC', 'LE', 'PASAPORTE'];
 export const PREFIJO_TELEFONO_DEFAULT = '+549';
 export const HORAS_MAX_TRANSFERENCIA_VENDEDOR = 72;
+/** Minutos que un comprador tiene para concretar el pago antes de liberar el ticket */
+export const MINUTOS_RESERVA_PAGO = 45;

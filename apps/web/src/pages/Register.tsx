@@ -61,6 +61,9 @@ export function Register() {
         latitude: latitude ?? undefined,
         longitude: longitude ?? undefined,
         locationSource: latitude != null && longitude != null ? 'gps' : undefined,
+        cbuCvu: data.cbuCvu?.replace(/\D/g, '').slice(0, 22) || undefined,
+        bankAlias: data.bankAlias?.trim() || undefined,
+        bankName: data.bankName?.trim() || undefined,
       });
       navigate('/onboarding/preferencias');
     } catch (e) {
@@ -194,6 +197,28 @@ export function Register() {
                   <label>Cod. Postal</label>
                   <input type="text" className="input-field" placeholder="Código postal" {...register('postalCode')} />
                 </div>
+                <div className="input-wrap">
+                  <label>CBU/CVU (22 dígitos)</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="0000000000000000000000"
+                    maxLength={22}
+                    {...register('cbuCvu')}
+                  />
+                  {errors.cbuCvu && <p className="form-error">{errors.cbuCvu.message}</p>}
+                </div>
+                <div className="input-wrap">
+                  <label>Alias bancario</label>
+                  <input type="text" className="input-field" placeholder="mi.alias.mp" {...register('bankAlias')} />
+                </div>
+                <div className="input-wrap">
+                  <label>Banco (opcional)</label>
+                  <input type="text" className="input-field" placeholder="Nombre del banco" {...register('bankName')} />
+                </div>
+                <p className="text-muted" style={{ fontSize: 12, marginBottom: 12 }}>
+                  Indicá CBU/CVU o alias para recibir pagos como vendedor. Podés editarlos después desde tu perfil.
+                </p>
                 <div className="input-wrap">
                   <label>Ubicación (eventos cercanos)</label>
                   <button

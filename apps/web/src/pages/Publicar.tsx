@@ -547,8 +547,11 @@ export function Publicar() {
         <label className="block-label">Cantidad de entradas</label>
         <input className="input-field" value={quantityEntries} onChange={(e) => setQuantityEntries(e.target.value)} placeholder="Ej: 2" />
 
-        <label className="block-label">Precio (ARS) *</label>
+        <label className="block-label">Precio para el comprador (ARS) *</label>
         <input className="input-field" type="text" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="15000" required />
+        <p className="text-muted" style={{ fontSize: 12, marginTop: 6, marginBottom: 12 }}>
+          Este es el monto que verá y pagará el comprador en Mercado Pago. La comisión de la plataforma se descuenta solo a vos como vendedor al liberar el pago.
+        </p>
 
         <label className="block-label">Ticketera</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>

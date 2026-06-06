@@ -28,7 +28,8 @@ import { useBranding } from '../context/BrandingContext';
 import { useUserMenu } from '../context/UserMenuContext';
 import { useProfileImage } from '../context/ProfileImageContext';
 import { useFavorites } from '../context/FavoritesContext';
-import { getMarketplaceRecommended, recordListingInteraction, type MarketplacePublicItem } from '../lib/api';
+import { getMarketplaceRecommended, getMarketplaceNearby, recordListingInteraction, type MarketplacePublicItem } from '../lib/api';
+import { DEFAULT_NEARBY_RADIUS_KM } from '@tickets-transfer/shared';
 import { formatDateTime } from '../lib/datetime';
 import { colors, spacing } from '../theme';
 
@@ -40,6 +41,8 @@ export function HomeScreen() {
   const [recommended, setRecommended] = useState<MarketplacePublicItem[]>([]);
   const [nearby, setNearby] = useState<MarketplacePublicItem[]>([]);
   const [nearbyRadiusKm, setNearbyRadiusKm] = useState<number | null>(null);
+  const [nearbyLoading, setNearbyLoading] = useState(true);
+  const [nearbyLocationMissing, setNearbyLocationMissing] = useState(false);
   const [personalized, setPersonalized] = useState(false);
   const [marketplaceLoading, setMarketplaceLoading] = useState(true);
   const [marketplaceError, setMarketplaceError] = useState('');
@@ -61,6 +64,8 @@ export function HomeScreen() {
   const { profileImageUrl } = useProfileImage();
   const { width } = useWindowDimensions();
   const carouselCardWidth = Math.round(Math.min(168, width * 0.44));
+  const nearbyRadius =
+    brand.data?.marketplaceNearbyRadiusKm ?? DEFAULT_NEARBY_RADIUS_KM;
   const { isFavorite, toggleFavorite } = useFavorites();
 
   useEffect(() => {
@@ -92,27 +97,49 @@ export function HomeScreen() {
   const loadMarketplace = useCallback(() => {
     let cancelled = false;
     setMarketplaceLoading(true);
+    setNearbyLoading(true);
     setMarketplaceError('');
-    getMarketplaceRecommended()
-      .then((res) => {
-        if (!cancelled) {
-          setFeatured(res.featured ?? []);
-          setRecommended(res.recommended ?? []);
-          setNearby(res.nearby ?? []);
-          setNearbyRadiusKm(res.nearbyRadiusKm ?? null);
-          setPersonalized(Boolean(res.personalized));
+    setNearbyLocationMissing(false);
+
+    const recommendedReq = getMarketplaceRecommended();
+    const nearbyReq = getMarketplaceNearby(nearbyRadius).catch((e: unknown) => {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg.toLowerCase().includes('ubicación') || msg.toLowerCase().includes('location')) {
+        return null;
+      }
+      throw e;
+    });
+
+    Promise.all([recommendedReq, nearbyReq])
+      .then(([res, nearbyRes]) => {
+        if (cancelled) return;
+        setFeatured(res.featured ?? []);
+        setRecommended(res.recommended ?? []);
+        setPersonalized(Boolean(res.personalized));
+
+        if (nearbyRes == null) {
+          setNearby([]);
+          setNearbyRadiusKm(null);
+          setNearbyLocationMissing(true);
+        } else {
+          setNearby(nearbyRes.items ?? []);
+          setNearbyRadiusKm(nearbyRes.radiusKm ?? nearbyRadius);
+          setNearbyLocationMissing(false);
         }
       })
       .catch(() => {
         if (!cancelled) setMarketplaceError('No se pudieron cargar los eventos.');
       })
       .finally(() => {
-        if (!cancelled) setMarketplaceLoading(false);
+        if (!cancelled) {
+          setMarketplaceLoading(false);
+          setNearbyLoading(false);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [nearbyRadius]);
 
   useEffect(() => {
     const cleanup = loadMarketplace();
@@ -134,6 +161,25 @@ export function HomeScreen() {
   };
 
   const goTienda = () => navigation.navigate('Tienda');
+
+  const renderEventCarousel = (items: MarketplacePublicItem[], keyPrefix: string) => (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carousel}>
+      {items.map((item) => (
+        <View key={`${keyPrefix}-${item.id}`} style={[styles.carouselCell, { width: carouselCardWidth }]}>
+          <HomeEventCard
+            item={item}
+            variant="carousel"
+            carouselWidth={carouselCardWidth}
+            formatEventDateTime={formatDateTime}
+            onPress={() => goDetail(item)}
+            showFavoriteToggle
+            favoriteActive={isFavorite(item.id)}
+            onFavoritePress={() => toggleFavorite(item)}
+          />
+        </View>
+      ))}
+    </ScrollView>
+  );
 
   return (
     <AuthBackground>
@@ -197,38 +243,6 @@ export function HomeScreen() {
             </View>
           )}
 
-          {!marketplaceLoading && nearby.length > 0 ? (
-            <>
-              <View style={[styles.sectionHead, { marginTop: spacing.lg }]}>
-                <View>
-                  <Text style={styles.sectionTitle}>Cerca de vos</Text>
-                  {nearbyRadiusKm ? (
-                    <Text style={styles.sectionHint}>Radio {nearbyRadiusKm} km desde tu ubicación</Text>
-                  ) : null}
-                </View>
-                <TouchableOpacity onPress={goTienda} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={styles.sectionLink}>Ver todos</Text>
-                </TouchableOpacity>
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carousel}>
-                {nearby.map((item) => (
-                  <View key={`near-${item.id}`} style={[styles.carouselCell, { width: carouselCardWidth }]}>
-                    <HomeEventCard
-                      item={item}
-                      variant="carousel"
-                      carouselWidth={carouselCardWidth}
-                      formatEventDateTime={formatDateTime}
-                      onPress={() => goDetail(item)}
-                      showFavoriteToggle
-                      favoriteActive={isFavorite(item.id)}
-                      onFavoritePress={() => toggleFavorite(item)}
-                    />
-                  </View>
-                ))}
-              </ScrollView>
-            </>
-          ) : null}
-
           <View style={[styles.sectionHead, { marginTop: spacing.lg }]}>
             <View>
               <Text style={styles.sectionTitle}>Recomendados para vos</Text>
@@ -241,23 +255,46 @@ export function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {!marketplaceLoading && recommended.length > 0 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carousel}>
-              {recommended.map((item) => (
-                <View key={item.id} style={[styles.carouselCell, { width: carouselCardWidth }]}>
-                  <HomeEventCard
-                    item={item}
-                    variant="carousel"
-                    carouselWidth={carouselCardWidth}
-                    formatEventDateTime={formatDateTime}
-                    onPress={() => goDetail(item)}
-                    showFavoriteToggle
-                    favoriteActive={isFavorite(item.id)}
-                    onFavoritePress={() => toggleFavorite(item)}
-                  />
-                </View>
-              ))}
-            </ScrollView>
+          {!marketplaceLoading && recommended.length > 0 ? renderEventCarousel(recommended, 'rec') : null}
+
+          <View style={[styles.sectionHead, { marginTop: spacing.lg }]}>
+            <View style={styles.sectionTitleWrap}>
+              <Text style={styles.sectionTitle}>Eventos cercanos</Text>
+              {nearbyRadiusKm ? (
+                <Text style={styles.sectionHint}>
+                  A {nearbyRadiusKm} km de tu ubicación (registro o perfil)
+                </Text>
+              ) : !nearbyLoading && !nearbyLocationMissing ? (
+                <Text style={styles.sectionHint}>Según la ubicación de tu cuenta</Text>
+              ) : null}
+            </View>
+            <TouchableOpacity onPress={goTienda} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.sectionLink}>Ver todos</Text>
+            </TouchableOpacity>
+          </View>
+
+          {nearbyLoading ? (
+            <View style={styles.sectionLoader}>
+              <ActivityIndicator color={brand.primaryLight} size="small" />
+            </View>
+          ) : nearbyLocationMissing ? (
+            <View style={styles.fallbackCompact}>
+              <Text style={styles.hint}>
+                Configurá tu ubicación en el registro o en tu perfil para ver eventos cerca tuyo.
+              </Text>
+              <TouchableOpacity
+                style={[styles.promoBtn, { backgroundColor: brand.primaryHex, alignSelf: 'flex-start' }]}
+                onPress={() => navigation.navigate('Profile')}
+              >
+                <Text style={styles.promoBtnText}>Ir a mi perfil</Text>
+              </TouchableOpacity>
+            </View>
+          ) : nearby.length > 0 ? (
+            renderEventCarousel(nearby, 'near')
+          ) : !marketplaceLoading ? (
+            <Text style={styles.hint}>
+              No hay eventos publicados dentro de {nearbyRadiusKm ?? nearbyRadius} km de tu ubicación.
+            </Text>
           ) : null}
           </View>
         </ScrollView>
@@ -353,6 +390,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.sm,
   },
+  sectionTitleWrap: {
+    flex: 1,
+    paddingRight: spacing.sm,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
@@ -385,6 +426,17 @@ const styles = StyleSheet.create({
     minHeight: 160,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  sectionLoader: {
+    minHeight: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  fallbackCompact: {
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
   },
   fallback: {
     paddingVertical: spacing.lg,

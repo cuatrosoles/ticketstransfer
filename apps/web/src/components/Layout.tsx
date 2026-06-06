@@ -18,7 +18,6 @@ const ROUTE_TITLES: Record<string, string> = {
   '/mis-ventas': 'Mis ventas',
   '/perfil': 'Mi perfil',
   '/tickets': 'Tickets',
-  '/tarjetas': 'Tarjetas adheridas',
   '/soporte': 'Chat Soporte',
   '/mensajes': 'Mensajes',
   '/acerca': 'Acerca de',
@@ -75,7 +74,6 @@ export function Layout({ children }: Props) {
             <Link to="/home" onClick={() => setMenuOpen(false)}>Inicio</Link>
             <Link to="/perfil" onClick={() => setMenuOpen(false)}>Información de tu perfil</Link>
             <Link to="/tickets" onClick={() => setMenuOpen(false)}>Tickets</Link>
-            <Link to="/tarjetas" onClick={() => setMenuOpen(false)}>Tarjetas adheridas</Link>
             <Link to="/soporte" onClick={() => setMenuOpen(false)}>Chat Soporte</Link>
             <Link to="/mensajes" onClick={() => setMenuOpen(false)}>Mensajes</Link>
             <Link to="/politica-privacidad" onClick={() => setMenuOpen(false)} className="user-menu-link">Política de privacidad y uso de datos</Link>

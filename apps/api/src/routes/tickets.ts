@@ -14,7 +14,7 @@ import {
   resolveAndStoreEventImage,
   shouldRefreshEventImage,
 } from '../lib/event-image-resolver.js';
-import { requireAuth, type AuthRequest } from '../middleware/auth.js';
+import { requireAuth, optionalAuth, type AuthRequest } from '../middleware/auth.js';
 import {
   createTicketListingSchema,
   nearbyEventsQuerySchema,
@@ -28,6 +28,7 @@ import {
 } from '../lib/settings.js';
 import { getRecommendedMarketplace, loadPublicMarketplaceItems } from './user-preferences.js';
 import { resolveEventCoordinates } from '../lib/listing-geo.js';
+import { getListingPurchaseAvailability } from '../lib/order-payments.js';
 
 /** PATCH /mine/:id — mismo criterio que en shared/schemas (evita import roto si no se pushea packages/shared). */
 const updateTicketListingSchema = createTicketListingSchema.partial().extend({
@@ -261,11 +262,18 @@ router.get('/event-image/preview', requireAuth, async (req: AuthRequest, res) =>
   res.json(preview);
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
   const doc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(req.params.id).get();
   if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
   const d = doc.data()!;
-  if (d.status !== 'DISPONIBLE') return res.status(404).json({ error: 'No encontrado' });
+  const listingStatus = String(d.status || '');
+  if (listingStatus === 'VENDIDO' || listingStatus === 'ELIMINADO') {
+    return res.status(404).json({ error: 'No encontrado' });
+  }
+  const availability = await getListingPurchaseAvailability(doc.id, req.user?.id ?? null);
+  if (listingStatus !== 'DISPONIBLE' && listingStatus !== 'PAUSADO') {
+    return res.status(404).json({ error: 'No encontrado' });
+  }
 
   const password = req.query.password as string | undefined;
   const pubPassword = d.publicationPassword;
@@ -295,6 +303,7 @@ router.get('/:id', async (req, res) => {
         }
       : null,
     showFull,
+    availability,
     createdAt: d.createdAt?.toDate?.() ?? d.createdAt,
     updatedAt: d.updatedAt?.toDate?.() ?? d.updatedAt,
     eventDate: d.eventDate?.toDate?.() ?? d.eventDate,

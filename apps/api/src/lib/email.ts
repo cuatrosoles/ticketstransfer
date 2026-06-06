@@ -148,6 +148,22 @@ export async function sendPaymentPendingBuyerEmail(
   return sendHtmlEmail(to, subject, html);
 }
 
+export async function sendBuyerConfirmedDeliveryAdminEmail(
+  to: string,
+  params: { orderId: string; eventName: string }
+): Promise<{ ok: boolean; error?: string }> {
+  const subject = `[Admin] Comprador confirmó ticket recibido - ${params.eventName}`;
+  const html = `
+    <div style="font-family: sans-serif; max-width: 420px; margin: 0 auto;">
+      <h2 style="color: #1e293b;">Ticket recibido — acción requerida</h2>
+      <p>El comprador confirmó haber recibido el ticket de <strong>${params.eventName}</strong>.</p>
+      <p style="color: #64748b; font-size: 14px;">Revisá la evidencia en el panel y marcá la orden como <strong>COMPLETADA</strong> para liberar el pago al vendedor.</p>
+      <p style="color: #64748b; font-size: 12px;">Orden: ${params.orderId}</p>
+    </div>
+  `;
+  return sendHtmlEmail(to, subject, html);
+}
+
 export async function sendNewSaleAdminEmail(
   to: string,
   params: PaymentEmailParams

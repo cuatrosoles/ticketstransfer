@@ -1,10 +1,10 @@
 /**
- * Pago de orden – Mercado Pago (misma ventana para volver con back_urls) + tarjetas adheridas.
+ * Pago de orden – Mercado Pago (checkout oficial).
  */
 
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
-import { api, getUserCards, removeUserCard, type CardItem } from '../lib/api';
+import { api } from '../lib/api';
 
 type Order = {
   id: string;
@@ -51,9 +51,6 @@ export function Pago() {
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(
     (location.state as { checkoutUrl?: string } | null)?.checkoutUrl ?? null
   );
-  const [cards, setCards] = useState<CardItem[]>([]);
-  const [cardsLoading, setCardsLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadOrder = useCallback(async () => {
     if (!id) return;
@@ -79,42 +76,10 @@ export function Pago() {
       .catch(() => {});
   }, [id, order?.status, checkoutUrl]);
 
-  useEffect(() => {
-    let cancelled = false;
-    setCardsLoading(true);
-    getUserCards()
-      .then((r) => {
-        if (!cancelled) setCards(r.cards || []);
-      })
-      .catch(() => {
-        if (!cancelled) setCards([]);
-      })
-      .finally(() => {
-        if (!cancelled) setCardsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, location.key]);
-
   const payWithMercadoPago = () => {
     if (checkoutUrl) {
       window.location.assign(checkoutUrl);
     }
-  };
-
-  const goAddCard = () => {
-    if (id) navigate('/tarjetas', { state: { returnTo: `/orden/${id}/pago` } });
-    else navigate('/tarjetas');
-  };
-
-  const handleRemoveCard = (card: CardItem) => {
-    if (!window.confirm('¿Eliminar esta tarjeta de tu cuenta?')) return;
-    setDeletingId(card.id);
-    removeUserCard(card.id)
-      .then(() => setCards((c) => c.filter((x) => x.id !== card.id)))
-      .catch((e) => window.alert(e instanceof Error ? e.message : 'Error'))
-      .finally(() => setDeletingId(null));
   };
 
   const searchParams = new URLSearchParams(location.search);
@@ -182,7 +147,7 @@ export function Pago() {
         )}
 
         <p className="text-muted" style={{ fontSize: '0.85rem', marginTop: 8 }}>
-          Podés usar tarjeta, débito o cuenta de Mercado Pago. Agregá tarjetas desde esta pantalla o desde Perfil. En el checkout de Mercado Pago también podés usar medios guardados en tu cuenta MP.
+          Pagá con tarjeta, débito o cuenta de Mercado Pago desde el checkout oficial. Podés usar medios guardados en tu cuenta de Mercado Pago al momento del pago.
         </p>
 
         {statusParam === 'success' && isPendingPayment && (
@@ -197,39 +162,11 @@ export function Pago() {
 
         {isPendingPayment && (
           <>
-            <div className="pago-cards-section">
-              <strong>Tarjetas adheridas</strong>
-              {cardsLoading ? (
-                <p className="text-muted">Cargando…</p>
-              ) : cards.length === 0 ? (
-                <p className="text-muted">No tenés tarjetas guardadas.</p>
-              ) : (
-                cards.map((c) => (
-                  <div key={c.id} className="pago-card-row">
-                    <span>
-                      {c.payment_method?.name || 'Tarjeta'} •••• {c.last_four_digits}
-                    </span>
-                    <button
-                      type="button"
-                      className="link-danger"
-                      disabled={deletingId === c.id}
-                      onClick={() => handleRemoveCard(c)}
-                    >
-                      {deletingId === c.id ? '…' : 'Eliminar'}
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-
             {checkoutUrl && (
               <button type="button" className="btn-primary mt-2" onClick={payWithMercadoPago}>
                 Pagar con Mercado Pago
               </button>
             )}
-            <button type="button" className="btn-secondary mt-2" onClick={goAddCard}>
-              + Agregar tarjeta
-            </button>
             {isPendingPayment && !checkoutUrl && (
               <p className="text-muted">Generando link de pago…</p>
             )}

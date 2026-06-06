@@ -33,9 +33,20 @@ const registerBase = z.object({
   city: z.string().optional(),
   province: z.string().optional(),
   postalCode: z.string().optional(),
+  cbuCvu: z.string().optional(),
+  bankAlias: z.string().optional(),
+  bankName: z.string().optional(),
   agreeTerms: z.boolean().refine((v) => v === true, 'Debes aceptar la política de privacidad'),
 });
 
 export const registerSchema = registerBase
   .refine((d) => d.email === d.repeatEmail, { message: 'Los emails no coinciden', path: ['repeatEmail'] })
-  .refine((d) => d.password === d.confirmPassword, { message: 'Las contraseñas no coinciden', path: ['confirmPassword'] });
+  .refine((d) => d.password === d.confirmPassword, { message: 'Las contraseñas no coinciden', path: ['confirmPassword'] })
+  .refine(
+    (d) => {
+      const cbu = (d.cbuCvu ?? '').replace(/\D/g, '');
+      const alias = (d.bankAlias ?? '').trim();
+      return cbu.length === 22 || (alias.length >= 3 && alias.length <= 20);
+    },
+    { message: 'Indicá CBU/CVU (22 dígitos) o alias bancario para recibir pagos', path: ['cbuCvu'] }
+  );

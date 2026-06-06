@@ -38,6 +38,12 @@ type TicketPreview = {
   captureOwnershipUrl?: string | null;
   showFull?: boolean;
   seller?: Seller;
+  availability?: {
+    canPurchase: boolean;
+    status: string;
+    message?: string;
+    reservedByCurrentUser?: boolean;
+  };
 };
 
 type LocationState = { listingId: string; password: string } | null;
@@ -129,12 +135,12 @@ export function ComprarTicketDetalle() {
         void recordListingInteraction(state.listingId, 'VIEW', res.category).catch(() => {});
         if (!res.showFull) setError('Necesitás la contraseña correcta para ver el ticket completo.');
       })
-      .catch(() => setError('No se pudo cargar la publicación.'))
+      .catch((e) => setError(e instanceof Error ? e.message : 'No se pudo cargar la publicación.'))
       .finally(() => setLoading(false));
   }, [state?.listingId, state?.password]);
 
   const deliveryOk = useMemo(() => hasAnyDeliveryData(deliveryForm, showOtherField), [deliveryForm, showOtherField]);
-  const canContinue = !payLoading && !!preview?.showFull && deliveryOk;
+  const canContinue = !payLoading && !!preview?.showFull && deliveryOk && !purchaseBlocked;
 
   const setField = (key: keyof DeliveryForm, value: string) => {
     setDeliveryForm((prev) => ({ ...prev, [key]: value }));
@@ -149,8 +155,15 @@ export function ComprarTicketDetalle() {
     });
   }, []);
 
+  const purchaseBlocked = preview?.availability && !preview.availability.canPurchase;
+  const pendingMessage = preview?.availability?.message;
+
   const handleContinue = async () => {
     if (!preview?.showFull) return;
+    if (purchaseBlocked) {
+      setError(pendingMessage || 'Este ticket está reservado por otro comprador. Volvé en unos minutos.');
+      return;
+    }
     void recordListingInteraction(preview.id, 'CLICK', preview.category).catch(() => {});
     if (!deliveryOk) {
       setError('Completá al menos uno de los datos o el campo «Otro» si lo activaste.');
@@ -360,9 +373,14 @@ export function ComprarTicketDetalle() {
             ) : null}
           </section>
 
+          {pendingMessage ? (
+            <p className={purchaseBlocked ? 'form-error' : 'text-muted'} style={{ marginBottom: 12 }}>
+              {pendingMessage}
+            </p>
+          ) : null}
           {error && <p className="form-error">{error}</p>}
           <button type="button" className="btn-primary" onClick={handleContinue} disabled={!canContinue}>
-            {payLoading ? 'Procesando…' : 'Continuar con la compra'}
+            {payLoading ? 'Procesando…' : purchaseBlocked ? 'Compra no disponible ahora' : 'Continuar con la compra'}
           </button>
         </>
       )}

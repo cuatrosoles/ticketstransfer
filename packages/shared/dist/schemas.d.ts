@@ -3,7 +3,7 @@
  * Ubicación: packages/shared/src/schemas.ts
  */
 import { z } from 'zod';
-export declare const registerSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
+export declare const registerSchema: z.ZodEffects<z.ZodEffects<z.ZodEffects<z.ZodObject<{
     email: z.ZodString;
     password: z.ZodString;
     confirmPassword: z.ZodString;
@@ -28,6 +28,10 @@ export declare const registerSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     agreeTerms: z.ZodEffects<z.ZodBoolean, boolean, boolean>;
     isAdmin: z.ZodOptional<z.ZodBoolean>;
     role: z.ZodOptional<z.ZodEnum<["user", "admin"]>>;
+    /** CBU/CVU (22 dígitos) o alias bancario — al menos uno requerido para recibir pagos */
+    cbuCvu: z.ZodOptional<z.ZodString>;
+    bankAlias: z.ZodOptional<z.ZodString>;
+    bankName: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     email: string;
     password: string;
@@ -52,6 +56,9 @@ export declare const registerSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     postalCode?: string | undefined;
     isAdmin?: boolean | undefined;
     role?: "user" | "admin" | undefined;
+    cbuCvu?: string | undefined;
+    bankAlias?: string | undefined;
+    bankName?: string | undefined;
 }, {
     email: string;
     password: string;
@@ -76,6 +83,9 @@ export declare const registerSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     postalCode?: string | undefined;
     isAdmin?: boolean | undefined;
     role?: "user" | "admin" | undefined;
+    cbuCvu?: string | undefined;
+    bankAlias?: string | undefined;
+    bankName?: string | undefined;
 }>, {
     email: string;
     password: string;
@@ -100,6 +110,9 @@ export declare const registerSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     postalCode?: string | undefined;
     isAdmin?: boolean | undefined;
     role?: "user" | "admin" | undefined;
+    cbuCvu?: string | undefined;
+    bankAlias?: string | undefined;
+    bankName?: string | undefined;
 }, {
     email: string;
     password: string;
@@ -124,6 +137,9 @@ export declare const registerSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     postalCode?: string | undefined;
     isAdmin?: boolean | undefined;
     role?: "user" | "admin" | undefined;
+    cbuCvu?: string | undefined;
+    bankAlias?: string | undefined;
+    bankName?: string | undefined;
 }>, {
     email: string;
     password: string;
@@ -148,6 +164,9 @@ export declare const registerSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     postalCode?: string | undefined;
     isAdmin?: boolean | undefined;
     role?: "user" | "admin" | undefined;
+    cbuCvu?: string | undefined;
+    bankAlias?: string | undefined;
+    bankName?: string | undefined;
 }, {
     email: string;
     password: string;
@@ -172,9 +191,66 @@ export declare const registerSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     postalCode?: string | undefined;
     isAdmin?: boolean | undefined;
     role?: "user" | "admin" | undefined;
+    cbuCvu?: string | undefined;
+    bankAlias?: string | undefined;
+    bankName?: string | undefined;
+}>, {
+    email: string;
+    password: string;
+    confirmPassword: string;
+    firstName: string;
+    lastName: string;
+    agreeTerms: boolean;
+    latitude?: number | undefined;
+    longitude?: number | undefined;
+    locationSource?: "gps" | "manual" | "geocode" | undefined;
+    username?: string | undefined;
+    country?: string | undefined;
+    tipoDocumento?: string | undefined;
+    documentNumber?: string | undefined;
+    sexo?: "FEM" | "MASC" | "X" | undefined;
+    phone?: string | undefined;
+    phoneAreaCode?: string | undefined;
+    phonePrefix?: string | undefined;
+    dateOfBirth?: string | undefined;
+    city?: string | undefined;
+    province?: string | undefined;
+    postalCode?: string | undefined;
+    isAdmin?: boolean | undefined;
+    role?: "user" | "admin" | undefined;
+    cbuCvu?: string | undefined;
+    bankAlias?: string | undefined;
+    bankName?: string | undefined;
+}, {
+    email: string;
+    password: string;
+    confirmPassword: string;
+    firstName: string;
+    lastName: string;
+    agreeTerms: boolean;
+    latitude?: unknown;
+    longitude?: unknown;
+    locationSource?: "gps" | "manual" | "geocode" | undefined;
+    username?: string | undefined;
+    country?: string | undefined;
+    tipoDocumento?: string | undefined;
+    documentNumber?: string | undefined;
+    sexo?: "FEM" | "MASC" | "X" | undefined;
+    phone?: string | undefined;
+    phoneAreaCode?: string | undefined;
+    phonePrefix?: string | undefined;
+    dateOfBirth?: string | undefined;
+    city?: string | undefined;
+    province?: string | undefined;
+    postalCode?: string | undefined;
+    isAdmin?: boolean | undefined;
+    role?: "user" | "admin" | undefined;
+    cbuCvu?: string | undefined;
+    bankAlias?: string | undefined;
+    bankName?: string | undefined;
 }>;
 /** Para API: sin confirmPassword ni agreeTerms */
-export declare const registerBodySchema: z.ZodEffects<z.ZodObject<Omit<{
+export declare const registerBodySchema: z.ZodEffects<z.ZodEffects<z.ZodObject<Omit<{
     email: z.ZodString;
     password: z.ZodString;
     confirmPassword: z.ZodString;
@@ -199,6 +275,10 @@ export declare const registerBodySchema: z.ZodEffects<z.ZodObject<Omit<{
     agreeTerms: z.ZodEffects<z.ZodBoolean, boolean, boolean>;
     isAdmin: z.ZodOptional<z.ZodBoolean>;
     role: z.ZodOptional<z.ZodEnum<["user", "admin"]>>;
+    /** CBU/CVU (22 dígitos) o alias bancario — al menos uno requerido para recibir pagos */
+    cbuCvu: z.ZodOptional<z.ZodString>;
+    bankAlias: z.ZodOptional<z.ZodString>;
+    bankName: z.ZodOptional<z.ZodString>;
 }, "confirmPassword" | "agreeTerms">, "strip", z.ZodTypeAny, {
     email: string;
     password: string;
@@ -221,6 +301,9 @@ export declare const registerBodySchema: z.ZodEffects<z.ZodObject<Omit<{
     postalCode?: string | undefined;
     isAdmin?: boolean | undefined;
     role?: "user" | "admin" | undefined;
+    cbuCvu?: string | undefined;
+    bankAlias?: string | undefined;
+    bankName?: string | undefined;
 }, {
     email: string;
     password: string;
@@ -243,6 +326,9 @@ export declare const registerBodySchema: z.ZodEffects<z.ZodObject<Omit<{
     postalCode?: string | undefined;
     isAdmin?: boolean | undefined;
     role?: "user" | "admin" | undefined;
+    cbuCvu?: string | undefined;
+    bankAlias?: string | undefined;
+    bankName?: string | undefined;
 }>, {
     email: string;
     password: string;
@@ -265,6 +351,9 @@ export declare const registerBodySchema: z.ZodEffects<z.ZodObject<Omit<{
     postalCode?: string | undefined;
     isAdmin?: boolean | undefined;
     role?: "user" | "admin" | undefined;
+    cbuCvu?: string | undefined;
+    bankAlias?: string | undefined;
+    bankName?: string | undefined;
 }, {
     email: string;
     password: string;
@@ -287,6 +376,59 @@ export declare const registerBodySchema: z.ZodEffects<z.ZodObject<Omit<{
     postalCode?: string | undefined;
     isAdmin?: boolean | undefined;
     role?: "user" | "admin" | undefined;
+    cbuCvu?: string | undefined;
+    bankAlias?: string | undefined;
+    bankName?: string | undefined;
+}>, {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    latitude?: number | undefined;
+    longitude?: number | undefined;
+    locationSource?: "gps" | "manual" | "geocode" | undefined;
+    username?: string | undefined;
+    country?: string | undefined;
+    tipoDocumento?: string | undefined;
+    documentNumber?: string | undefined;
+    sexo?: "FEM" | "MASC" | "X" | undefined;
+    phone?: string | undefined;
+    phoneAreaCode?: string | undefined;
+    phonePrefix?: string | undefined;
+    dateOfBirth?: string | undefined;
+    city?: string | undefined;
+    province?: string | undefined;
+    postalCode?: string | undefined;
+    isAdmin?: boolean | undefined;
+    role?: "user" | "admin" | undefined;
+    cbuCvu?: string | undefined;
+    bankAlias?: string | undefined;
+    bankName?: string | undefined;
+}, {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    latitude?: unknown;
+    longitude?: unknown;
+    locationSource?: "gps" | "manual" | "geocode" | undefined;
+    username?: string | undefined;
+    country?: string | undefined;
+    tipoDocumento?: string | undefined;
+    documentNumber?: string | undefined;
+    sexo?: "FEM" | "MASC" | "X" | undefined;
+    phone?: string | undefined;
+    phoneAreaCode?: string | undefined;
+    phonePrefix?: string | undefined;
+    dateOfBirth?: string | undefined;
+    city?: string | undefined;
+    province?: string | undefined;
+    postalCode?: string | undefined;
+    isAdmin?: boolean | undefined;
+    role?: "user" | "admin" | undefined;
+    cbuCvu?: string | undefined;
+    bankAlias?: string | undefined;
+    bankName?: string | undefined;
 }>;
 export declare const loginSchema: z.ZodObject<{
     email: z.ZodString;

@@ -8,7 +8,8 @@ import { api } from '../lib/api';
 import { Pencil, Trash2 } from 'lucide-react';
 
 const STATUS_OPTIONS = [
-  'PENDIENTE_PAGO', 'PAGADO', 'ESPERANDO_TRANSFERENCIA', 'COMPLETADA',
+  'PENDIENTE_PAGO', 'PAGADO', 'ESPERANDO_TRANSFERENCIA', 'TRANSFERIDO_VENDEDOR',
+  'ESPERANDO_CONFIRMACION_COMPRADOR', 'EVIDENCIA_SUBIDA', 'VERIFICANDO', 'COMPLETADA',
   'CANCELADA', 'EN_DISPUTA', 'DISPUTA_RESUELTA_COMPRADOR', 'DISPUTA_RESUELTA_VENDEDOR',
 ];
 
@@ -52,12 +53,18 @@ type OrderDetailType = {
     firstName?: string | null;
     lastName?: string | null;
     phone?: string | null;
+    cbuCvu?: string | null;
+    bankAlias?: string | null;
+    bankName?: string | null;
   } | null;
   dispute: {
     id: string;
     status: string;
     reason?: string | null;
   } | null;
+  buyerEvidenceUrl?: string | null;
+  sellerEvidenceUrl?: string | null;
+  buyerConfirmedAt?: string | Date | null;
 };
 
 export function OrderDetail() {
@@ -140,6 +147,25 @@ export function OrderDetail() {
   if (!order) return <p>Orden no encontrada.</p>;
 
   const canCancel = order.status !== 'COMPLETADA';
+  const canMarkCompleted = order.status === 'VERIFICANDO' || order.status === 'EVIDENCIA_SUBIDA';
+
+  const markCompleted = async () => {
+    if (!id || !window.confirm('¿Marcar la orden como COMPLETADA y liberar el pago al vendedor?')) return;
+    setSaving(true);
+    try {
+      const updated = await api<OrderDetailType>(`/api/admin/orders/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'COMPLETADA' }),
+      });
+      setOrder(updated);
+      setForm((f) => ({ ...f, status: 'COMPLETADA' }));
+      alert('Orden completada. Se inició el pago al vendedor (o quedó pendiente manual si no hay CBU).');
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Error al completar');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <>
@@ -150,6 +176,11 @@ export function OrderDetail() {
           <p style={{ color: 'var(--text-muted)', margin: '0.25rem 0 0' }}><code>{order.id}</code></p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {canMarkCompleted && (
+            <button type="button" className="btn btn-primary btn-sm" onClick={markCompleted} disabled={saving}>
+              Marcar COMPLETADA (pagar vendedor)
+            </button>
+          )}
           <button type="button" className="btn btn-primary btn-sm" onClick={() => setEditModal(true)}>
             <Pencil size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
             Editar
@@ -235,10 +266,38 @@ export function OrderDetail() {
               <dt>Email</dt><dd>{order.seller.email}</dd>
               <dt>Nombre</dt><dd>{[order.seller.firstName, order.seller.lastName].filter(Boolean).join(' ') || '—'}</dd>
               <dt>Teléfono</dt><dd>{order.seller.phone || '—'}</dd>
+              <dt>CBU/CVU</dt><dd>{order.seller.cbuCvu ? `****${order.seller.cbuCvu.slice(-4)}` : '—'}</dd>
+              <dt>Alias bancario</dt><dd>{order.seller.bankAlias || '—'}</dd>
+              <dt>Banco</dt><dd>{order.seller.bankName || '—'}</dd>
               <dt>ID</dt><dd><Link to={`/users/${order.seller.id}`} style={{ color: 'var(--primary)' }}>{order.seller.id}</Link></dd>
             </dl>
           ) : (
             <p className="text-muted">Vendedor no encontrado</p>
+          )}
+        </div>
+
+        <div className="card" style={{ gridColumn: '1 / -1' }}>
+          <h3 style={{ marginTop: 0, marginBottom: 12 }}>Evidencia y confirmación del comprador</h3>
+          <dl className="detail-dl">
+            <dt>Captura vendedor (transferencia ticket)</dt>
+            <dd>
+              {order.sellerEvidenceUrl ? (
+                <a href={order.sellerEvidenceUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)' }}>Ver captura</a>
+              ) : '—'}
+            </dd>
+            <dt>Captura comprador (ticket recibido)</dt>
+            <dd>
+              {order.buyerEvidenceUrl ? (
+                <a href={order.buyerEvidenceUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)' }}>Ver captura</a>
+              ) : '—'}
+            </dd>
+            <dt>Comprador confirmó recepción</dt>
+            <dd>{order.buyerConfirmedAt ? formatDate(order.buyerConfirmedAt) : '—'}</dd>
+          </dl>
+          {order.status === 'VERIFICANDO' && (
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>
+              El comprador confirmó haber recibido el ticket. Revisá las capturas y marcá la orden como COMPLETADA para liberar el pago al vendedor.
+            </p>
           )}
         </div>
 

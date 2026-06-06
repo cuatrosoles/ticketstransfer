@@ -30,6 +30,10 @@ const registerBase = z.object({
     agreeTerms: z.boolean().refine((v) => v === true, 'Debes aceptar la política de privacidad'),
     isAdmin: z.boolean().optional(),
     role: z.enum(['user', 'admin']).optional(),
+    /** CBU/CVU (22 dígitos) o alias bancario — al menos uno requerido para recibir pagos */
+    cbuCvu: z.string().optional(),
+    bankAlias: z.string().optional(),
+    bankName: z.string().optional(),
 });
 export const registerSchema = registerBase
     .refine((d) => d.password === d.confirmPassword, { message: 'Las contraseñas no coinciden', path: ['confirmPassword'] })
@@ -37,7 +41,12 @@ export const registerSchema = registerBase
     const hasLat = d.latitude != null;
     const hasLng = d.longitude != null;
     return hasLat === hasLng;
-}, { message: 'Indicá latitud y longitud juntas, o ninguna', path: ['longitude'] });
+}, { message: 'Indicá latitud y longitud juntas, o ninguna', path: ['longitude'] })
+    .refine((d) => {
+    const cbu = (d.cbuCvu ?? '').replace(/\D/g, '');
+    const alias = (d.bankAlias ?? '').trim();
+    return cbu.length === 22 || (alias.length >= 3 && alias.length <= 20);
+}, { message: 'Indicá CBU/CVU (22 dígitos) o alias bancario para recibir pagos', path: ['cbuCvu'] });
 /** Para API: sin confirmPassword ni agreeTerms */
 export const registerBodySchema = registerBase
     .omit({ confirmPassword: true, agreeTerms: true })
@@ -45,7 +54,12 @@ export const registerBodySchema = registerBase
     const hasLat = d.latitude != null;
     const hasLng = d.longitude != null;
     return hasLat === hasLng;
-}, { message: 'Indicá latitud y longitud juntas, o ninguna', path: ['longitude'] });
+}, { message: 'Indicá latitud y longitud juntas, o ninguna', path: ['longitude'] })
+    .refine((d) => {
+    const cbu = (d.cbuCvu ?? '').replace(/\D/g, '');
+    const alias = (d.bankAlias ?? '').trim();
+    return cbu.length === 22 || (alias.length >= 3 && alias.length <= 20);
+}, { message: 'Indicá CBU/CVU (22 dígitos) o alias bancario para recibir pagos', path: ['cbuCvu'] });
 export const loginSchema = z.object({
     email: z.string().min(1, 'Email o nombre de usuario requerido'),
     password: z.string().min(1, 'Contraseña requerida'),

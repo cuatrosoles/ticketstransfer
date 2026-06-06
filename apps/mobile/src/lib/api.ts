@@ -321,6 +321,7 @@ export type Profile = {
   reputationScore: number | null;
   profileImageUrl: string | null;
   cbuCvu: string | null;
+  bankAlias: string | null;
   bankName: string | null;
   kyc: { status: string; rejectionReason: string | null } | null;
   preferences?: UserPreferences;
@@ -337,6 +338,7 @@ export type ProfileUpdate = {
   address?: string;
   fcmToken?: string;
   cbuCvu?: string;
+  bankAlias?: string;
   bankName?: string;
 };
 
@@ -519,8 +521,18 @@ export async function markTransferDone(orderId: string): Promise<{ ok: boolean }
   return api<{ ok: boolean }>(`/api/orders/${encodeURIComponent(orderId)}/transfer-done`, { method: 'POST' });
 }
 
-export async function confirmOrderReceived(orderId: string): Promise<{ ok: boolean }> {
-  return api<{ ok: boolean }>(`/api/orders/${encodeURIComponent(orderId)}/confirm-received`, {
+export async function confirmOrderReceived(orderId: string): Promise<{
+  ok: boolean;
+  status?: string;
+  message?: string;
+  alreadyConfirmed?: boolean;
+}> {
+  return api<{
+    ok: boolean;
+    status?: string;
+    message?: string;
+    alreadyConfirmed?: boolean;
+  }>(`/api/orders/${encodeURIComponent(orderId)}/confirm-received`, {
     method: 'POST',
     body: JSON.stringify({ received: true }),
   });

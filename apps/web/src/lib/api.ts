@@ -91,6 +91,7 @@ export type Profile = {
   postalCode: string | null;
   address: string | null;
   cbuCvu: string | null;
+  bankAlias: string | null;
   bankName: string | null;
   reputationScore: number | null;
   kyc: { status: string; rejectionReason: string | null } | null;
@@ -175,6 +176,7 @@ export type ProfileUpdate = {
   postalCode?: string;
   address?: string;
   cbuCvu?: string;
+  bankAlias?: string;
   bankName?: string;
 };
 

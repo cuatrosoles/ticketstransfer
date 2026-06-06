@@ -86,6 +86,9 @@ export function RegisterScreen() {
   const [numero, setNumero] = useState('');
   const [piso, setPiso] = useState('');
   const [depto, setDepto] = useState('');
+  const [cbuCvu, setCbuCvu] = useState('');
+  const [bankAlias, setBankAlias] = useState('');
+  const [bankName, setBankName] = useState('');
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [locationAutoFilled, setLocationAutoFilled] = useState(false);
@@ -228,10 +231,14 @@ export function RegisterScreen() {
     }
   };
 
+  const bankOk =
+    cbuCvu.replace(/\D/g, '').length === 22 ||
+    (bankAlias.trim().length >= 3 && bankAlias.trim().length <= 20);
   const step3RequiredOk =
     !!firstName.trim() &&
     !!lastName.trim() &&
     !!username.trim() &&
+    bankOk &&
     (username.length < 2 || usernameStatus === 'available');
 
   const handleRegister = async () => {
@@ -263,6 +270,9 @@ export function RegisterScreen() {
       numero: numero || undefined,
       piso: piso || undefined,
       depto: depto || undefined,
+      cbuCvu: cbuCvu.trim() || undefined,
+      bankAlias: bankAlias.trim() || undefined,
+      bankName: bankName.trim() || undefined,
       isAdmin,
       role: isAdmin ? 'admin' : 'user',
     };
@@ -277,6 +287,7 @@ export function RegisterScreen() {
         (first.firstName && first.firstName[0]) ||
         (first.lastName && first.lastName[0]) ||
         (first.username && first.username[0]) ||
+        (first.cbuCvu && first.cbuCvu[0]) ||
         (first.agreeTerms && first.agreeTerms[0]) ||
         result.error.message;
       setError(msg ?? 'Revisá los datos');
@@ -536,7 +547,35 @@ export function RegisterScreen() {
       <TextInput style={styles.input} placeholder="Piso" placeholderTextColor={colors.textMuted} value={piso} onChangeText={setPiso} />
       <Text style={styles.label}>Depto</Text>
       <TextInput style={styles.input} placeholder="Depto" placeholderTextColor={colors.textMuted} value={depto} onChangeText={setDepto} />
-      <Text style={styles.hint}>Completá los campos obligatorios (Nombre, Apellido, Usuario y los del paso anterior) para registrar.</Text>
+      <Text style={styles.sectionTitle}>Datos bancarios para recibir pagos</Text>
+      <Text style={styles.fieldHint}>Indicá CBU/CVU (22 dígitos) o alias bancario. Podés editarlos después desde tu perfil.</Text>
+      <Text style={styles.label}>CBU/CVU</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="0000000000000000000000"
+        placeholderTextColor={colors.textMuted}
+        value={cbuCvu}
+        onChangeText={(t) => setCbuCvu(t.replace(/\D/g, '').slice(0, 22))}
+        keyboardType="number-pad"
+      />
+      <Text style={styles.label}>Alias bancario</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="mi.alias.mp"
+        placeholderTextColor={colors.textMuted}
+        value={bankAlias}
+        onChangeText={setBankAlias}
+        autoCapitalize="none"
+      />
+      <Text style={styles.label}>Banco (opcional)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Nombre del banco"
+        placeholderTextColor={colors.textMuted}
+        value={bankName}
+        onChangeText={setBankName}
+      />
+      <Text style={styles.hint}>Completá los campos obligatorios (Nombre, Apellido, Usuario, datos bancarios y los del paso anterior) para registrar.</Text>
       <View style={styles.actions}>
         <GradientButton title="VOLVER" variant="secondary" onPress={() => setStep(2)} style={styles.actionBtn} />
         <GradientButton
@@ -671,6 +710,7 @@ const styles = StyleSheet.create({
   },
   label: { fontSize: 14, fontWeight: '600', color: '#94a3b8', marginBottom: 8, marginTop: 16 },
   fieldHint: { fontSize: 11, color: '#64748b', marginBottom: 4, marginTop: -4, lineHeight: 16 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginTop: 16, marginBottom: 6 },
   input: {
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1,

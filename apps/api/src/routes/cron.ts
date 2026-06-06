@@ -2,13 +2,15 @@
  * Endpoints para tareas programadas (cron).
  * Protegidos con CRON_SECRET para evitar llamadas no autorizadas.
  *
- * Configurar en Vercel: vercel.json "crons" o servicio externo que llame a estas URLs
- * con header: Authorization: Bearer <CRON_SECRET>
+ * Programar en https://cron-job.org (u otro servicio externo):
+ * - Método GET, header: Authorization: Bearer <CRON_SECRET>
+ * - Ver apps/api/.env.example para URLs y frecuencias recomendadas.
  */
 
 import { Router, type Request, type Response } from 'express';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { retryTransfer } from '../lib/payouts.js';
+import { expireStalePaymentReservations } from '../lib/order-payments.js';
 
 const router = Router();
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -44,6 +46,15 @@ router.get('/retry-failed-transfers', async (req: Request, res: Response) => {
     processed: results.length,
     results,
   });
+});
+
+/** Libera tickets cuya reserva de pago venció (órdenes PENDIENTE_PAGO). Ejecutar cada 5-15 min. */
+router.get('/expire-payment-reservations', async (req: Request, res: Response) => {
+  if (!isAuthorized(req)) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  const released = await expireStalePaymentReservations(100);
+  res.json({ ok: true, released });
 });
 
 export const cronRouter = router;

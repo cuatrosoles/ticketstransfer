@@ -66,6 +66,7 @@ export function Perfil() {
     postalCode: '',
     address: '',
     cbuCvu: '',
+    bankAlias: '',
     bankName: '',
   });
 
@@ -89,6 +90,7 @@ export function Perfil() {
         postalCode: data.postalCode ?? '',
         address: data.address ?? '',
         cbuCvu: data.cbuCvu ?? '',
+        bankAlias: data.bankAlias ?? '',
         bankName: data.bankName ?? '',
       });
     } catch (e) {
@@ -116,6 +118,7 @@ export function Perfil() {
         postalCode: form.postalCode?.trim() || undefined,
         address: form.address?.trim() || undefined,
         cbuCvu: form.cbuCvu?.replace(/\D/g, '').slice(0, 22) || undefined,
+        bankAlias: form.bankAlias?.trim() || undefined,
         bankName: form.bankName?.trim() || undefined,
       });
       await loadProfile();
@@ -140,6 +143,7 @@ export function Perfil() {
         postalCode: profile.postalCode ?? '',
         address: profile.address ?? '',
         cbuCvu: profile.cbuCvu ?? '',
+        bankAlias: profile.bankAlias ?? '',
         bankName: profile.bankName ?? '',
       });
     }
@@ -266,6 +270,13 @@ export function Perfil() {
               <div>
                 <span className="perfil-field-label">CBU/CVU (para recibir pagos)</span>
                 <span className="perfil-field-value">{profile.cbuCvu ? `****${profile.cbuCvu.slice(-4)}` : '—'}</span>
+              </div>
+            </div>
+            <div className="perfil-field">
+              <CreditCard size={18} className="perfil-field-icon" />
+              <div>
+                <span className="perfil-field-label">Alias bancario</span>
+                <span className="perfil-field-value">{profile.bankAlias || '—'}</span>
               </div>
             </div>
             {profile.dateOfBirth ? (
@@ -410,6 +421,16 @@ export function Perfil() {
                 onChange={(e) => setForm((f) => ({ ...f, cbuCvu: e.target.value.replace(/\D/g, '').slice(0, 22) }))}
               />
               <p className="form-hint">Indispensable para recibir el dinero de tus ventas. Solo números.</p>
+            </div>
+            <div className="input-wrap">
+              <label>Alias bancario</label>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="mi.alias.mp"
+                value={form.bankAlias}
+                onChange={(e) => setForm((f) => ({ ...f, bankAlias: e.target.value }))}
+              />
             </div>
             <div className="input-wrap">
               <label>Nombre del banco (opcional)</label>

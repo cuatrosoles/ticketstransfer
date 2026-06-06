@@ -66,6 +66,12 @@ type TicketPreview = {
   captureOwnershipUrl?: string | null;
   showFull?: boolean;
   seller?: Seller;
+  availability?: {
+    canPurchase: boolean;
+    status: string;
+    message?: string;
+    reservedByCurrentUser?: boolean;
+  };
 };
 
 function FavoriteHeaderActions({ preview }: { preview: TicketPreview }) {
@@ -105,12 +111,19 @@ export function ComprarTicketDetalleScreen() {
         void recordListingInteraction(listingId, 'VIEW', res.category).catch(() => {});
         if (!res.showFull) setError('Necesitás la contraseña correcta para ver el ticket completo.');
       })
-      .catch(() => setError('No se pudo cargar la publicación.'))
+      .catch((e) => setError(e instanceof Error ? e.message : 'No se pudo cargar la publicación.'))
       .finally(() => setLoading(false));
   }, [listingId, password]);
 
+  const purchaseBlocked = preview?.availability && !preview.availability.canPurchase;
+  const pendingMessage = preview?.availability?.message;
+
   const handleContinue = () => {
     if (!preview?.showFull) return;
+    if (purchaseBlocked) {
+      setError(pendingMessage || 'Este ticket está reservado por otro comprador. Volvé en unos minutos.');
+      return;
+    }
     void recordListingInteraction(preview.id, 'CLICK', preview.category).catch(() => {});
     navigation.navigate('OrderPurchaseDetails', { listingId: preview.id, password: password || '' });
   };
@@ -146,6 +159,9 @@ export function ComprarTicketDetalleScreen() {
           rightSlot={<FavoriteHeaderActions preview={preview} />}
         />
         {error && !preview.showFull ? <Text style={styles.error}>{error}</Text> : null}
+        {pendingMessage ? (
+          <Text style={[styles.error, purchaseBlocked ? styles.pendingWarn : styles.pendingInfo]}>{pendingMessage}</Text>
+        ) : null}
 
         <EventCoverImage
           eventImageUrl={preview.eventImageUrl}
@@ -201,8 +217,14 @@ export function ComprarTicketDetalleScreen() {
         {preview.showFull ? (
           <>
             {error ? <Text style={styles.error}>{error}</Text> : null}
-            <TouchableOpacity style={styles.primaryButton} onPress={handleContinue}>
-              <Text style={styles.primaryButtonText}>CONTINUAR CON LA COMPRA</Text>
+            <TouchableOpacity
+              style={[styles.primaryButton, purchaseBlocked && styles.primaryButtonDisabled]}
+              onPress={handleContinue}
+              disabled={purchaseBlocked}
+            >
+              <Text style={styles.primaryButtonText}>
+                {purchaseBlocked ? 'COMPRA NO DISPONIBLE AHORA' : 'CONTINUAR CON LA COMPRA'}
+              </Text>
             </TouchableOpacity>
           </>
         ) : null}
@@ -277,8 +299,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.sm,
   },
+  primaryButtonDisabled: { opacity: 0.55 },
   primaryButtonText: { color: colors.white, fontWeight: '600', fontSize: 16 },
   error: { color: '#ef4444', marginTop: spacing.sm },
+  pendingWarn: { color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.12)', padding: 12, borderRadius: 10 },
+  pendingInfo: { color: '#93c5fd', backgroundColor: 'rgba(59,130,246,0.15)', padding: 12, borderRadius: 10 },
   imageModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.9)',

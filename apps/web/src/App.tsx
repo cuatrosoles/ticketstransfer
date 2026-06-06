@@ -15,7 +15,6 @@ import { PreferencesOnboarding } from './pages/PreferencesOnboarding';
 import { ComprarTicket } from './pages/ComprarTicket';
 import { ComprarTicketDetalle } from './pages/ComprarTicketDetalle';
 import { MiPublicacion } from './pages/MiPublicacion';
-import { Tarjetas } from './pages/Tarjetas';
 import { Pago } from './pages/Pago';
 import { PagoResultado } from './pages/PagoResultado';
 import { Acerca } from './pages/Acerca';
@@ -61,7 +60,6 @@ export function App() {
       <Route path="/mis-ventas/publicacion/:id" element={<ProtectedRoute><Layout><MiPublicacion /></Layout></ProtectedRoute>} />
       <Route path="/perfil" element={<ProtectedRoute><Layout><Perfil /></Layout></ProtectedRoute>} />
       <Route path="/tickets" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Tickets</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />
-      <Route path="/tarjetas" element={<ProtectedRoute><Layout><Tarjetas /></Layout></ProtectedRoute>} />
       <Route path="/soporte" element={<ProtectedRoute><Layout><Soporte /></Layout></ProtectedRoute>} />
       <Route path="/mensajes" element={<ProtectedRoute><Layout><div className="page-content"><h1 className="page-title">Mensajes</h1><p className="text-muted">Próximamente.</p></div></Layout></ProtectedRoute>} />
       <Route path="/acerca" element={<ProtectedRoute><Layout><Acerca /></Layout></ProtectedRoute>} />

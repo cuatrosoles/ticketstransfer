@@ -54,6 +54,9 @@ router.post('/register', async (req, res) => {
     latitude,
     longitude,
     locationSource,
+    cbuCvu,
+    bankAlias,
+    bankName,
   } = parsed.data;
 
   const auth = getAuth();
@@ -150,6 +153,12 @@ router.post('/register', async (req, res) => {
     emailVerified: emailVerified || false,
     reputationScore: 0,
     profileImageUrl: null,
+    cbuCvu: (() => {
+      const digits = (cbuCvu ?? '').replace(/\D/g, '');
+      return digits.length === 22 ? digits : null;
+    })(),
+    bankAlias: bankAlias?.trim() || null,
+    bankName: bankName?.trim() || null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

@@ -3,6 +3,7 @@
  */
 
 import { FieldValue } from 'firebase-admin/firestore';
+import { MINUTOS_RESERVA_PAGO } from '@tickets-transfer/shared';
 import { db, COLLECTIONS } from './firestore.js';
 import {
   getPaymentById,
@@ -15,6 +16,7 @@ import {
   sendPaymentFailedBuyerEmail,
   sendPaymentPendingBuyerEmail,
   sendNewSaleAdminEmail,
+  sendBuyerConfirmedDeliveryAdminEmail,
 } from './email.js';
 import { sendPushNotification } from './firebase-messaging.js';
 
@@ -32,6 +34,143 @@ function paymentMatchesOrder(payment: PaymentInfo, expectedTotal: number | null,
     Math.abs(payment.transaction_amount - expectedTotal) <= 0.02;
   const currencyOk = orderCurrency === payCurrency;
   return amountOk && currencyOk;
+}
+
+function paymentReservationExpiresAt(from: Date = new Date()): Date {
+  const expires = new Date(from);
+  expires.setMinutes(expires.getMinutes() + MINUTOS_RESERVA_PAGO);
+  return expires;
+}
+
+function orderReservationExpired(order: Record<string, unknown>): boolean {
+  const expires = order.paymentReservationExpiresAt;
+  if (!expires) return false;
+  const d =
+    expires instanceof Date
+      ? expires
+      : typeof (expires as { toDate?: () => Date }).toDate === 'function'
+        ? (expires as { toDate: () => Date }).toDate()
+        : new Date(String(expires));
+  return !Number.isNaN(d.getTime()) && d.getTime() < Date.now();
+}
+
+/** Libera reservas de pago vencidas (órdenes PENDIENTE_PAGO sin acreditar). */
+export async function expireStalePaymentReservations(limit = 50): Promise<number> {
+  const snap = await db()
+    .collection(COLLECTIONS.ORDERS)
+    .where('status', '==', 'PENDIENTE_PAGO')
+    .orderBy('createdAt', 'asc')
+    .limit(limit)
+    .get();
+
+  let released = 0;
+  for (const doc of snap.docs) {
+    const d = doc.data();
+    if (!orderReservationExpired(d)) continue;
+    await doc.ref.update({
+      status: 'CANCELADA',
+      cancelReason: 'Pago no concretado dentro del plazo de reserva',
+      updatedAt: new Date(),
+    });
+    const listingId = d.ticketListingId ? String(d.ticketListingId) : '';
+    if (listingId) {
+      await releaseListingReservation(listingId, doc.id);
+    }
+    released += 1;
+  }
+  return released;
+}
+
+export type ListingPurchaseAvailability = {
+  canPurchase: boolean;
+  status: 'AVAILABLE' | 'PENDING_PAYMENT' | 'UNAVAILABLE';
+  message?: string;
+  reservationExpiresAt?: Date | null;
+  reservedOrderId?: string | null;
+  reservedByCurrentUser?: boolean;
+};
+
+/** Evalúa si un listing puede iniciar una nueva compra (libera reservas vencidas). */
+export async function getListingPurchaseAvailability(
+  listingId: string,
+  buyerId?: string | null
+): Promise<ListingPurchaseAvailability> {
+  await expireStalePaymentReservations(20);
+
+  const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(listingId).get();
+  if (!listingDoc.exists) {
+    return { canPurchase: false, status: 'UNAVAILABLE', message: 'Publicación no encontrada' };
+  }
+  const listing = listingDoc.data()!;
+  const status = String(listing.status || '');
+
+  if (status === 'VENDIDO' || status === 'ELIMINADO') {
+    return { canPurchase: false, status: 'UNAVAILABLE', message: 'Este ticket ya no está disponible' };
+  }
+  if (status === 'DISPONIBLE') {
+    return { canPurchase: true, status: 'AVAILABLE' };
+  }
+  if (status !== 'PAUSADO') {
+    return { canPurchase: false, status: 'UNAVAILABLE', message: 'Ticket no disponible' };
+  }
+
+  const reservedOrderId = listing.reservedOrderId ? String(listing.reservedOrderId) : null;
+  if (!reservedOrderId) {
+    await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(listingId).update({
+      status: 'DISPONIBLE',
+      updatedAt: new Date(),
+    });
+    return { canPurchase: true, status: 'AVAILABLE' };
+  }
+
+  const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(reservedOrderId).get();
+  if (!orderDoc.exists) {
+    await releaseListingReservation(listingId, reservedOrderId);
+    return { canPurchase: true, status: 'AVAILABLE' };
+  }
+  const order = orderDoc.data()!;
+  if (order.status !== 'PENDIENTE_PAGO' || orderReservationExpired(order)) {
+    await db().collection(COLLECTIONS.ORDERS).doc(reservedOrderId).update({
+      status: 'CANCELADA',
+      cancelReason: 'Pago no concretado dentro del plazo de reserva',
+      updatedAt: new Date(),
+    });
+    await releaseListingReservation(listingId, reservedOrderId);
+    return { canPurchase: true, status: 'AVAILABLE' };
+  }
+
+  const reservedByCurrentUser = Boolean(buyerId && String(order.buyerId) === buyerId);
+  const expiresRaw = order.paymentReservationExpiresAt;
+  const reservationExpiresAt =
+    expiresRaw instanceof Date
+      ? expiresRaw
+      : typeof (expiresRaw as { toDate?: () => Date })?.toDate === 'function'
+        ? (expiresRaw as { toDate: () => Date }).toDate()
+        : null;
+
+  if (reservedByCurrentUser) {
+    return {
+      canPurchase: true,
+      status: 'PENDING_PAYMENT',
+      message: 'Tenés una compra en curso. Podés continuar con el pago.',
+      reservationExpiresAt,
+      reservedOrderId,
+      reservedByCurrentUser: true,
+    };
+  }
+
+  const minutesLeft = reservationExpiresAt
+    ? Math.max(1, Math.ceil((reservationExpiresAt.getTime() - Date.now()) / 60000))
+    : MINUTOS_RESERVA_PAGO;
+
+  return {
+    canPurchase: false,
+    status: 'PENDING_PAYMENT',
+    message: `Otro usuario está procesando el pago de este ticket. Volvé a intentar en unos ${minutesLeft} minuto${minutesLeft === 1 ? '' : 's'}.`,
+    reservationExpiresAt,
+    reservedOrderId,
+    reservedByCurrentUser: false,
+  };
 }
 
 /** Pausa el listing mientras hay una orden pendiente de pago. */
@@ -310,6 +449,28 @@ export async function applyMercadoPagoPaymentToOrder(
   }
 
   return { applied: false, orderStatus: currentStatus, paymentStatus: payment.status };
+}
+
+/** Notifica a administradores que el comprador confirmó haber recibido el ticket. */
+export async function notifyBuyerConfirmedDelivery(params: {
+  orderId: string;
+  eventName: string;
+  buyerId: string;
+}): Promise<void> {
+  const admins = await getAdminRecipients();
+  for (const admin of admins) {
+    void sendBuyerConfirmedDeliveryAdminEmail(admin.email, {
+      orderId: params.orderId,
+      eventName: params.eventName,
+    });
+    void sendPushSafe(
+      admin.id,
+      admin.fcmToken,
+      'Ticket recibido — revisar orden',
+      `El comprador confirmó la recepción de "${params.eventName}". Marcá la orden como COMPLETADA para pagar al vendedor.`,
+      { type: 'order_delivery', orderId: params.orderId, status: 'VERIFICANDO' }
+    );
+  }
 }
 
 /**

@@ -170,7 +170,11 @@ export function OrderPurchaseDetailsScreen() {
       if (showOtherField) {
         body.deliveryOther = trimOrUndef(form.deliveryOther);
       }
-      const res = await api<{ order: { id: string }; checkoutUrl?: string }>('/api/orders', {
+      const res = await api<{
+        order: { id: string };
+        checkoutUrl?: string;
+        resumed?: boolean;
+      }>('/api/orders', {
         method: 'POST',
         body: JSON.stringify(body),
       });

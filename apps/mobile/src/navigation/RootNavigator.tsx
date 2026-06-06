@@ -4,6 +4,7 @@
  */
 
 import * as React from 'react';
+import { Modal, StyleSheet, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { UserMenuModal } from '../components/UserMenuModal';
 import { useAuth } from '../context/AuthContext';
@@ -22,8 +23,6 @@ import { ComprarTicketDetalleScreen } from '../screens/ComprarTicketDetalleScree
 import { MyListingDetailScreen } from '../screens/MyListingDetailScreen';
 import { MyPurchasesScreen } from '../screens/MyPurchasesScreen';
 import { MySalesScreen } from '../screens/MySalesScreen';
-import { TarjetasAdheridasScreen } from '../screens/TarjetasAdheridasScreen';
-import { CardFormWebViewScreen } from '../screens/CardFormWebViewScreen';
 import { ChatSoporteScreen } from '../screens/ChatSoporteScreen';
 import { MensajesScreen } from '../screens/MensajesScreen';
 import { MensajesConversationScreen } from '../screens/MensajesConversationScreen';
@@ -49,28 +48,10 @@ export function RootNavigator() {
   const brand = useBranding();
   const [unlocking, setUnlocking] = React.useState(false);
 
+  const showLockOverlay = Boolean(user && biometricEnabled && !isAppUnlocked);
+
   if (loading) {
     return null;
-  }
-
-  if (user && biometricEnabled && !isAppUnlocked) {
-    return (
-      <AppLockScreen
-        unlocking={unlocking}
-        onUnlock={async () => {
-          if (unlocking) return;
-          setUnlocking(true);
-          try {
-            await unlockWithBiometrics();
-          } finally {
-            setUnlocking(false);
-          }
-        }}
-        onLogout={() => {
-          void logout();
-        }}
-      />
-    );
   }
 
   return (
@@ -103,8 +84,6 @@ export function RootNavigator() {
           <Stack.Screen name="MyPurchases" component={MyPurchasesScreen} options={NO_HEADER} />
           <Stack.Screen name="MySales" component={MySalesScreen} options={NO_HEADER} />
           <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={NO_HEADER} />
-          <Stack.Screen name="TarjetasAdheridas" component={TarjetasAdheridasScreen} options={NO_HEADER} />
-          <Stack.Screen name="CardFormWebView" component={CardFormWebViewScreen} options={NO_HEADER} />
           <Stack.Screen name="ChatSoporte" component={ChatSoporteScreen} options={NO_HEADER} />
           <Stack.Screen name="Mensajes" component={MensajesScreen} options={NO_HEADER} />
           <Stack.Screen name="MensajesConversation" component={MensajesConversationScreen} options={NO_HEADER} />
@@ -120,6 +99,29 @@ export function RootNavigator() {
       )}
       </Stack.Navigator>
       {user && <UserMenuModal />}
+      <Modal visible={showLockOverlay} animationType="fade" transparent={false} statusBarTranslucent>
+        <View style={styles.lockOverlay}>
+          <AppLockScreen
+            unlocking={unlocking}
+            onUnlock={async () => {
+              if (unlocking) return;
+              setUnlocking(true);
+              try {
+                await unlockWithBiometrics();
+              } finally {
+                setUnlocking(false);
+              }
+            }}
+            onLogout={() => {
+              void logout();
+            }}
+          />
+        </View>
+      </Modal>
     </UserMenuProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  lockOverlay: { flex: 1 },
+});
