@@ -23,6 +23,7 @@ import { BiometricActivationModal } from '../components/BiometricActivationModal
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { GradientButton } from '../components/GradientButton';
+import { SocialIcons } from '../components/SocialIcons';
 import { useBranding } from '../context/BrandingContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
@@ -113,6 +114,9 @@ export function LoginScreen() {
 
             <GradientButton title="Ingresar" onPress={handleLogin} loading={loading} style={styles.submitBtn} />
 
+            <Text style={styles.socialTitle}>Seguinos en nuestras redes</Text>
+            <SocialIcons />
+
             <TouchableOpacity onPress={() => navigation.navigate('Register')} style={styles.registerLink}>
               <Text style={styles.registerText}>¿Aún no tienes una cuenta? </Text>
               <Text style={styles.registerLinkText}>Registrar aquí</Text>
@@ -162,7 +166,15 @@ const styles = StyleSheet.create({
   forgotLinkText: { color: '#60a5fa', fontSize: 14, textDecorationLine: 'underline' },
   error: { color: '#ef4444', marginBottom: 8, fontSize: 14 },
   submitBtn: { width: '100%', marginTop: 8 },
-  registerLink: { marginTop: 24, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
+  socialTitle: {
+    textAlign: 'center',
+    marginTop: 24,
+    marginBottom: 12,
+    fontWeight: '700',
+    fontSize: 16,
+    color: '#f8fafc',
+  },
+  registerLink: { marginTop: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
   registerText: { color: '#94a3b8', fontSize: 15 },
   registerLinkText: { color: '#60a5fa', fontWeight: '600', fontSize: 15 },
 });

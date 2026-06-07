@@ -105,7 +105,7 @@ p, span, label, input, textarea, select, button, li, a {
   border: 2px solid rgba(255,255,255,0.25);
 }
 .social-icons .social-icon:hover { transform: scale(1.08); text-decoration: none; }
-.social-icons .social-icon svg { width: 26px; height: 26px; }
+.social-icons .social-icon-img { width: 28px; height: 28px; object-fit: contain; display: block; }
 .social-icon-fb { background: #1877f2; }
 .social-icon-ig { background: linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
 .social-icon-wa { background: #25d366; }
