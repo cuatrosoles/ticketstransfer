@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Fondo del icono adaptativo: blanco para que el inset del foreground deje margen visible (como Expo/launchers típicos). Si fuera el mismo azul que el PNG, el “padding” no se nota. -->
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <color name="ic_launcher_background">#000000</color>
 </resources>

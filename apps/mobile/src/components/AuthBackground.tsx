@@ -1,10 +1,11 @@
 /**
- * Fondo global autenticado – degradado cósmico + partículas (Cap07).
+ * Contenedor transparente: el fondo fluido vive en App.tsx (una sola instancia).
  */
 
 import * as React from 'react';
-import { CosmicBackground } from './CosmicBackground';
+import { View } from 'react-native';
+import { screenRoot } from '../theme';
 
 export function AuthBackground({ children }: { children: React.ReactNode }) {
-  return <CosmicBackground>{children}</CosmicBackground>;
+  return <View style={screenRoot}>{children}</View>;
 }

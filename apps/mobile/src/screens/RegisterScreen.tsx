@@ -357,13 +357,14 @@ export function RegisterScreen() {
       </TouchableOpacity>
       <Text style={styles.hint}>Completá todos los campos correctamente para continuar.</Text>
       <View style={styles.actions}>
-        <GradientButton title="VOLVER" variant="secondary" onPress={() => navigation.goBack()} style={styles.actionBtn} />
+        <GradientButton title="VOLVER" variant="secondary" onPress={() => navigation.goBack()} style={styles.actionBtn} textStyle={styles.actionBtnText} />
         <GradientButton
-          title={step1Valid ? 'SIGUIENTE >' : 'Completá todos los campos correctamente para continuar.'}
+          title={step1Valid ? 'SIGUIENTE >' : 'Completá todos los campos para continuar.'}
           onPress={handleNextStep}
           disabled={!step1Valid}
           loading={loading}
           style={StyleSheet.flatten([styles.actionBtn, !step1Valid && styles.actionBtnDisabled])}
+          textStyle={styles.actionBtnText}
         />
       </View>
     </>
@@ -394,8 +395,8 @@ export function RegisterScreen() {
         </Text>
       </TouchableOpacity>
       <View style={styles.actions}>
-        <GradientButton title="VOLVER" variant="secondary" onPress={() => setStep(1)} style={styles.actionBtn} />
-        <GradientButton title="CONFIRMAR" onPress={handleConfirmCode} loading={loading} style={styles.actionBtn} />
+        <GradientButton title="VOLVER" variant="secondary" onPress={() => setStep(1)} style={styles.actionBtn} textStyle={styles.actionBtnText} />
+        <GradientButton title="CONFIRMAR" onPress={handleConfirmCode} loading={loading} style={styles.actionBtn} textStyle={styles.actionBtnText} />
       </View>
     </>
   );
@@ -577,13 +578,14 @@ export function RegisterScreen() {
       />
       <Text style={styles.hint}>Completá los campos obligatorios (Nombre, Apellido, Usuario, datos bancarios y los del paso anterior) para registrar.</Text>
       <View style={styles.actions}>
-        <GradientButton title="VOLVER" variant="secondary" onPress={() => setStep(2)} style={styles.actionBtn} />
+        <GradientButton title="VOLVER" variant="secondary" onPress={() => setStep(2)} style={styles.actionBtn} textStyle={styles.actionBtnText} />
         <GradientButton
           title="Crear cuenta"
           onPress={handleRegister}
           disabled={!step3RequiredOk}
           loading={loading}
           style={StyleSheet.flatten([styles.actionBtn, !step3RequiredOk && styles.actionBtnDisabled])}
+          textStyle={styles.actionBtnText}
         />
       </View>
     </>
@@ -745,6 +747,7 @@ const styles = StyleSheet.create({
   error: { color: '#ef4444', marginTop: 8, marginBottom: 8 },
   actions: { flexDirection: 'row', gap: 12, marginTop: 24 },
   actionBtn: { flex: 1 },
+  actionBtnText: { fontSize: 12, fontWeight: '500', paddingVertical: 4, paddingHorizontal: 4 },
   actionBtnDisabled: { opacity: 0.6 },
   verifyTitle: { fontSize: 18, fontWeight: '700', color: '#f8fafc', textAlign: 'center', marginBottom: 8 },
   verifySubtitle: { fontSize: 14, color: '#94a3b8', textAlign: 'center', marginBottom: 16 },

@@ -7,7 +7,7 @@ import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { ensureImageUrl } from '../lib/api';
 import { headerEdgePadding, headerTopPadding } from '../theme';
-import { neonGlow } from '../lib/neonStyles';
+import { NEON, neonGlow } from '../lib/neonStyles';
 
 type Props = {
   profileImageUri: string | null;
@@ -22,7 +22,7 @@ export function HomeHeroHeader({ profileImageUri, onOpenMenu, onBell, onAvatar }
   return (
     <View style={styles.row}>
       <TouchableOpacity
-        style={[styles.menuBtn, neonGlow('#38bdf8', 'soft')]}
+        style={[styles.menuBtn, neonGlow('rgba(56, 189, 248, 0.99)', 'strong')]}
         onPress={onOpenMenu}
         accessibilityLabel="Menú"
       >
@@ -57,14 +57,15 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     gap: 6,
     minHeight: 48,
+    backgroundColor: 'black',
   },
   menuBtn: {
     width: 44,
     height: 44,
     borderRadius: 14,
     backgroundColor: 'rgba(15, 23, 42, 0.85)',
-    borderWidth: 1,
-    borderColor: 'rgba(96, 165, 250, 0.55)',
+    borderWidth: 3,
+    borderColor: NEON.colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,

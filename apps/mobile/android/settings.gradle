@@ -8,7 +8,7 @@ def nodeModulesDirs = [
 ]
 def nodeModules = nodeModulesDirs.find { new File(it, nativeModulesGradle).exists() }
 if (nodeModules == null) {
-  throw new GradleException(
+  throw new IllegalStateException(
     'No se encontró ' + nativeModulesGradle +
       '. ¿Corriste `pnpm install` en la carpeta apps/mobile y en la raíz v2?'
   )

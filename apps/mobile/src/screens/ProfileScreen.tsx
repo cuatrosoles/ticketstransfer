@@ -40,12 +40,26 @@ import {
   type UserPreferences,
 } from '../lib/api';
 import { EventPreferencesEditor } from '../components/EventPreferencesEditor';
-import { PROVINCIAS_ARGENTINA, CIUDADES_POR_PROVINCIA } from '../data/provinciasArgentina';
+import { LocationCaptureButton } from '../components/LocationCaptureButton';
+import {
+  addressFieldsFromReverseGeocode,
+  provinceDisplayLabel,
+  reverseGeocodeFromApi,
+} from '../lib/addressGeocode';
+import { formatCoordinates } from '@tickets-transfer/shared';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { useBranding } from '../context/BrandingContext';
 import { colors, spacing, radius, glassCard } from '../theme';
+
+type ProfileFormState = ProfileUpdate & {
+  username: string;
+  direccion: string;
+  numero: string;
+  piso: string;
+  depto: string;
+};
 
 function formatDate(value: string | null): string {
   if (!value) return '—';
@@ -96,7 +110,10 @@ export function ProfileScreen() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [pickerModal, setPickerModal] = useState<'province' | 'city' | null>(null);
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [locationAutoFilled, setLocationAutoFilled] = useState(false);
+  const [locationBusy, setLocationBusy] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [phoneVerifyModal, setPhoneVerifyModal] = useState(false);
   const [phoneVerifyStep, setPhoneVerifyStep] = useState<'phone' | 'code'>('phone');
@@ -104,7 +121,7 @@ export function ProfileScreen() {
   const [phoneVerifyCode, setPhoneVerifyCode] = useState('');
   const [phoneVerifyLoading, setPhoneVerifyLoading] = useState(false);
   const [phoneVerifyError, setPhoneVerifyError] = useState('');
-  const [form, setForm] = useState<ProfileUpdate & { username: string }>({
+  const [form, setForm] = useState<ProfileFormState>({
     username: '',
     firstName: '',
     lastName: '',
@@ -113,6 +130,10 @@ export function ProfileScreen() {
     province: '',
     postalCode: '',
     address: '',
+    direccion: '',
+    numero: '',
+    piso: '',
+    depto: '',
     cbuCvu: '',
     bankAlias: '',
     bankName: '',
@@ -128,6 +149,9 @@ export function ProfileScreen() {
       ]);
       setProfile(data);
       setPreferences(prefs ?? data.preferences ?? null);
+      setLatitude(data.latitude ?? null);
+      setLongitude(data.longitude ?? null);
+      setLocationAutoFilled(false);
       setForm({
         username: data.username ?? '',
         firstName: data.firstName ?? '',
@@ -137,6 +161,10 @@ export function ProfileScreen() {
         province: data.province ?? '',
         postalCode: data.postalCode ?? '',
         address: data.address ?? '',
+        direccion: data.address ?? '',
+        numero: '',
+        piso: '',
+        depto: '',
         cbuCvu: data.cbuCvu ?? '',
         bankAlias: data.bankAlias ?? '',
         bankName: data.bankName ?? '',
@@ -152,19 +180,87 @@ export function ProfileScreen() {
     loadProfile();
   }, []);
 
+  const buildAddressLine = () => {
+    const parts = [
+      form.direccion?.trim(),
+      form.numero?.trim(),
+      form.piso?.trim() ? `Piso ${form.piso.trim()}` : '',
+      form.depto?.trim() ? `Depto ${form.depto.trim()}` : '',
+    ].filter(Boolean);
+    return parts.join(' ').trim();
+  };
+
+  const clearGpsLocation = () => {
+    setLatitude(null);
+    setLongitude(null);
+    if (locationAutoFilled) {
+      setForm((f) => ({
+        ...f,
+        province: '',
+        city: '',
+        postalCode: '',
+        direccion: '',
+        numero: '',
+        piso: '',
+        depto: '',
+        address: '',
+      }));
+      setLocationAutoFilled(false);
+    }
+  };
+
+  const applyGpsLocation = async (coords: { latitude: number; longitude: number }) => {
+    setLatitude(coords.latitude);
+    setLongitude(coords.longitude);
+    setLocationBusy(true);
+    setError('');
+    try {
+      const geo = await reverseGeocodeFromApi(coords.latitude, coords.longitude);
+      const fields = addressFieldsFromReverseGeocode(geo);
+      const line = [fields.direccion, fields.numero].filter(Boolean).join(' ').trim();
+      setForm((f) => ({
+        ...f,
+        province: fields.province,
+        city: fields.city,
+        postalCode: fields.postalCode,
+        direccion: fields.direccion,
+        numero: fields.numero,
+        address: line,
+      }));
+      setLocationAutoFilled(true);
+    } catch {
+      setLocationAutoFilled(false);
+      setError(
+        'Ubicación GPS guardada. Completá provincia y ciudad manualmente si los campos quedaron vacíos.'
+      );
+    } finally {
+      setLocationBusy(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError('');
     try {
+      const addressLine = buildAddressLine();
       const payload: ProfileUpdate = {
         username: form.username.trim(),
         firstName: form.firstName?.trim() || undefined,
         lastName: form.lastName?.trim() || undefined,
         phone: form.phone?.trim() || undefined,
         city: form.city?.trim() || undefined,
-        province: form.province || undefined,
+        province: form.province?.trim() || undefined,
         postalCode: form.postalCode?.trim() || undefined,
-        address: form.address?.trim() || undefined,
+        address: addressLine || undefined,
+        ...(latitude != null && longitude != null
+          ? {
+              latitude,
+              longitude,
+              locationSource: (locationAutoFilled ? 'gps' : 'manual') as ProfileUpdate['locationSource'],
+            }
+          : profile?.latitude != null || profile?.longitude != null
+            ? { latitude: null, longitude: null, locationSource: null }
+            : {}),
         cbuCvu: form.cbuCvu?.replace(/\D/g, '').slice(0, 22) || undefined,
         bankAlias: form.bankAlias?.trim() || undefined,
         bankName: form.bankName?.trim() || undefined,
@@ -182,6 +278,9 @@ export function ProfileScreen() {
 
   const handleCancel = () => {
     if (profile) {
+      setLatitude(profile.latitude ?? null);
+      setLongitude(profile.longitude ?? null);
+      setLocationAutoFilled(false);
       setForm({
         username: profile.username ?? '',
         firstName: profile.firstName ?? '',
@@ -191,6 +290,10 @@ export function ProfileScreen() {
         province: profile.province ?? '',
         postalCode: profile.postalCode ?? '',
         address: profile.address ?? '',
+        direccion: profile.address ?? '',
+        numero: '',
+        piso: '',
+        depto: '',
         cbuCvu: profile.cbuCvu ?? '',
         bankAlias: profile.bankAlias ?? '',
         bankName: profile.bankName ?? '',
@@ -276,7 +379,6 @@ export function ProfileScreen() {
     await enableBiometrics();
   };
 
-  const cities = form.province ? (CIUDADES_POR_PROVINCIA[form.province] ?? []) : [];
   const labelBiometric = biometricAvailability?.type === 'FaceID' ? 'Face ID' : biometricAvailability?.type === 'TouchID' ? 'Touch ID' : 'Huella dactilar';
 
   if (loading) {
@@ -399,13 +501,15 @@ export function ProfileScreen() {
             <ProfileField label="CBU/CVU (para recibir pagos)" value={profile.cbuCvu ? `****${profile.cbuCvu.slice(-4)}` : '—'} />
             <ProfileField label="Alias bancario" value={profile.bankAlias || '—'} />
             <ProfileField label="Banco" value={profile.bankName || '—'} />
-            <ProfileField label="Domicilio" value={profile.address || '—'} />
+            <ProfileField label="Ubicación (eventos cercanos)" value={
+              profile.latitude != null && profile.longitude != null
+                ? `${formatCoordinates(profile.latitude, profile.longitude)}${profile.locationSource ? ` (${profile.locationSource})` : ''}`
+                : 'Sin coordenadas — configurá tu ubicación al editar'
+            } />
+            <ProfileField label="Provincia" value={provinceDisplayLabel(profile.province)} />
             <ProfileField label="Ciudad" value={profile.city || '—'} />
-            <ProfileField
-              label="Provincia"
-              value={profile.province ? (PROVINCIAS_ARGENTINA.find((p) => p.id === profile!.province)?.nombre ?? profile.province) : '—'}
-            />
             <ProfileField label="Código postal" value={profile.postalCode || '—'} />
+            <ProfileField label="Domicilio" value={profile.address || '—'} />
             <ProfileField
               label="Fecha de nacimiento"
               value={profile.dateOfBirth ? formatDate(profile.dateOfBirth) : '—'}
@@ -457,27 +561,44 @@ export function ProfileScreen() {
               onChangeText={(t) => setForm((f) => ({ ...f, phone: t }))}
               keyboardType="phone-pad"
             />
+            <Text style={styles.label}>Tu ubicación</Text>
+            <Text style={styles.hint}>
+              Detectamos tu ubicación para el filtro de eventos cercanos. Si preferís no usar GPS, completá la dirección manualmente.
+            </Text>
+            <LocationCaptureButton
+              latitude={latitude}
+              longitude={longitude}
+              loading={locationBusy}
+              onCapture={applyGpsLocation}
+              onClear={clearGpsLocation}
+              emptyHint={null}
+              capturedHint={
+                latitude != null && longitude != null
+                  ? 'Dirección completada desde GPS. Revisá y ajustá los campos si hace falta.'
+                  : null
+              }
+            />
             <Text style={styles.label}>Provincia</Text>
-            <TouchableOpacity style={styles.input} onPress={() => setPickerModal('province')}>
-              <Text style={styles.pickerValue}>
-                {form.province ? PROVINCIAS_ARGENTINA.find((p) => p.id === form.province)?.nombre ?? form.province : 'Seleccionar provincia'}
-              </Text>
-            </TouchableOpacity>
-            <Text style={styles.label}>Ciudad</Text>
-            <TouchableOpacity
-              style={[styles.input, !form.province && styles.inputDisabled]}
-              onPress={() => form.province && setPickerModal('city')}
-              disabled={!form.province}
-            >
-              <Text style={styles.pickerValue}>{form.city || (form.province ? 'Seleccionar ciudad' : 'Primero elegí una provincia')}</Text>
-            </TouchableOpacity>
-            <Text style={styles.label}>Domicilio (calle y número)</Text>
             <TextInput
               style={styles.input}
-              placeholder="Ej: Av. Corrientes 1234"
+              placeholder="Provincia"
               placeholderTextColor={colors.textMuted}
-              value={form.address}
-              onChangeText={(t) => setForm((f) => ({ ...f, address: t }))}
+              value={form.province}
+              onChangeText={(t) => {
+                setLocationAutoFilled(false);
+                setForm((f) => ({ ...f, province: t }));
+              }}
+            />
+            <Text style={styles.label}>Ciudad</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ciudad"
+              placeholderTextColor={colors.textMuted}
+              value={form.city}
+              onChangeText={(t) => {
+                setLocationAutoFilled(false);
+                setForm((f) => ({ ...f, city: t }));
+              }}
             />
             <Text style={styles.label}>Código postal</Text>
             <TextInput
@@ -485,7 +606,48 @@ export function ProfileScreen() {
               placeholder="Código postal"
               placeholderTextColor={colors.textMuted}
               value={form.postalCode}
-              onChangeText={(t) => setForm((f) => ({ ...f, postalCode: t }))}
+              onChangeText={(t) => {
+                setLocationAutoFilled(false);
+                setForm((f) => ({ ...f, postalCode: t }));
+              }}
+            />
+            <Text style={styles.label}>Dirección (calle)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Calle"
+              placeholderTextColor={colors.textMuted}
+              value={form.direccion}
+              onChangeText={(t) => {
+                setLocationAutoFilled(false);
+                setForm((f) => ({ ...f, direccion: t }));
+              }}
+            />
+            <Text style={styles.label}>Número</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Número"
+              placeholderTextColor={colors.textMuted}
+              value={form.numero}
+              onChangeText={(t) => {
+                setLocationAutoFilled(false);
+                setForm((f) => ({ ...f, numero: t }));
+              }}
+            />
+            <Text style={styles.label}>Piso</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Piso"
+              placeholderTextColor={colors.textMuted}
+              value={form.piso}
+              onChangeText={(t) => setForm((f) => ({ ...f, piso: t }))}
+            />
+            <Text style={styles.label}>Depto</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Depto"
+              placeholderTextColor={colors.textMuted}
+              value={form.depto}
+              onChangeText={(t) => setForm((f) => ({ ...f, depto: t }))}
             />
             <Text style={styles.label}>CBU/CVU (22 dígitos, para recibir pagos)</Text>
             <TextInput
@@ -603,40 +765,6 @@ export function ProfileScreen() {
           </Pressable>
         </Modal>
 
-        <Modal visible={pickerModal !== null} transparent animationType="slide">
-        <Pressable style={styles.modalOverlay} onPress={() => setPickerModal(null)}>
-          <View style={styles.pickerModal}>
-            <ScrollView style={styles.pickerList}>
-              {pickerModal === 'province' &&
-                PROVINCIAS_ARGENTINA.map((p) => (
-                  <TouchableOpacity
-                    key={p.id}
-                    style={styles.pickerItem}
-                    onPress={() => {
-                      setForm((f) => ({ ...f, province: p.id, city: '' }));
-                      setPickerModal(null);
-                    }}
-                  >
-                    <Text style={styles.pickerItemText}>{p.nombre}</Text>
-                  </TouchableOpacity>
-                ))}
-              {pickerModal === 'city' &&
-                cities.map((c) => (
-                  <TouchableOpacity
-                    key={c}
-                    style={styles.pickerItem}
-                    onPress={() => {
-                      setForm((f) => ({ ...f, city: c }));
-                      setPickerModal(null);
-                    }}
-                  >
-                    <Text style={styles.pickerItemText}>{c}</Text>
-                  </TouchableOpacity>
-                ))}
-            </ScrollView>
-          </View>
-        </Pressable>
-      </Modal>
     </ScrollView>
     </AuthBackground>
   );
@@ -653,7 +781,7 @@ function ProfileField({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  content: { paddingTop: 14, paddingHorizontal: spacing.lg, paddingBottom: 100 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   card: {
     padding: spacing.lg,

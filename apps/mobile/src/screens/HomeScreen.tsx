@@ -31,7 +31,7 @@ import { useFavorites } from '../context/FavoritesContext';
 import { getMarketplaceRecommended, getMarketplaceNearby, recordListingInteraction, type MarketplacePublicItem } from '../lib/api';
 import { DEFAULT_NEARBY_RADIUS_KM } from '@tickets-transfer/shared';
 import { formatDateTime } from '../lib/datetime';
-import { colors, spacing } from '../theme';
+import { colors, spacing, screenRoot, screenScroll } from '../theme';
 
 const HERO_IMAGE = require('../assets/images/TIENDA-1920x1054.png');
 
@@ -202,12 +202,20 @@ export function HomeScreen() {
           </View>
 
           <TouchableOpacity activeOpacity={0.92} onPress={goTienda}>
-            <HeroImageBanner source={HERO_IMAGE} aspectRatio={0.52}>
+            <HeroImageBanner
+              source={HERO_IMAGE}
+              aspectRatio={0.52}
+              edgeFadeTop={{ heightPx: 0 }}
+              edgeFadeBottom={{ heightPx: 34 }}
+            >
+              {/*
               <Text style={styles.heroTitle}>Viví los mejores eventos</Text>
               <Text style={styles.heroSub}>Tickets 100% verificados</Text>
               <View style={styles.heroBtnWrap}>
-                <GradientButton title="Ir a la tienda" onPress={goTienda} style={styles.heroBtn} />
+                <GradientButton title="Ir a la tienda" onPress={goTienda} size="compact" />
               </View>
+              */}
+         
             </HeroImageBanner>
           </TouchableOpacity>
 
@@ -276,7 +284,7 @@ export function HomeScreen() {
                 <GradientButton
                   title="Ir a mi perfil"
                   onPress={() => navigation.navigate('Profile')}
-                  style={{ alignSelf: 'flex-start' }}
+                  size="compact"
                 />
               </View>
             ) : nearby.length > 0 ? (
@@ -318,10 +326,10 @@ export function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  scroll: { flex: 1 },
+  safe: screenRoot,
+  scroll: screenScroll,
   content: { paddingBottom: 100 },
-  headerShell: { width: '100%', marginBottom: spacing.xs },
+  headerShell: { width: '100%', marginBottom: 0 },
   body: { paddingHorizontal: spacing.lg },
   heroTitle: {
     fontSize: 24,
@@ -337,8 +345,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 12,
   },
-  heroBtnWrap: { alignSelf: 'flex-start', maxWidth: 200 },
-  heroBtn: { height: 46, borderRadius: 14 },
+  heroBtnWrap: { alignSelf: 'flex-start', maxWidth: 240 },
   sectionHead: {
     flexDirection: 'row',
     justifyContent: 'space-between',

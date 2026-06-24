@@ -63,6 +63,15 @@ export async function reverseGeocodeFromApi(
   return api<ReverseGeocodeResult>(`/api/geocode/reverse?${q.toString()}`, { token: null });
 }
 
+/** Etiqueta legible para provincia guardada (id o nombre). */
+export function provinceDisplayLabel(idOrName: string | null | undefined): string {
+  if (!idOrName) return '—';
+  const found = PROVINCIAS_ARGENTINA.find(
+    (p) => p.id === idOrName || p.nombre === idOrName
+  );
+  return found?.nombre ?? idOrName;
+}
+
 export function addressFieldsFromReverseGeocode(data: ReverseGeocodeResult): AddressFromGps {
   const province = mapProvinceIdFromGeocode(data.province);
   const city = matchCityForProvince(province, data.city);

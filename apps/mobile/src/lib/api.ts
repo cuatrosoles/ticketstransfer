@@ -336,6 +336,9 @@ export type ProfileUpdate = {
   province?: string;
   postalCode?: string;
   address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  locationSource?: 'gps' | 'manual' | 'geocode' | null;
   fcmToken?: string;
   cbuCvu?: string;
   bankAlias?: string;

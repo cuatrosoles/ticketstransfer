@@ -8,14 +8,28 @@ import LinearGradient from 'react-native-linear-gradient';
 import { useBranding } from '../context/BrandingContext';
 import { neonGlow } from '../lib/neonStyles';
 
+type ButtonSize = 'default' | 'compact';
+
 type Props = {
   title: string;
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
   variant?: 'primary' | 'secondary';
+  size?: ButtonSize;
   style?: StyleProp<ViewStyle>;
   textStyle?: TextStyle;
+};
+
+const SIZE = {
+  default: {
+    wrap: { height: 52, borderRadius: 12, paddingHorizontal: 24 },
+    text: { fontSize: 16, fontWeight: '600' as const },
+  },
+  compact: {
+    wrap: { height: 46, borderRadius: 14, paddingHorizontal: 22 },
+    text: { fontSize: 14, fontWeight: '700' as const, letterSpacing: 0.2 },
+  },
 };
 
 export function GradientButton({
@@ -24,14 +38,17 @@ export function GradientButton({
   disabled,
   loading,
   variant = 'primary',
+  size = 'default',
   style,
   textStyle,
 }: Props) {
   const { primaryGradient, primaryLight } = useBranding();
+  const sizing = SIZE[size];
+
   if (variant === 'secondary') {
     return (
       <TouchableOpacity
-        style={[styles.secondary, { borderColor: primaryLight }, style]}
+        style={[styles.secondary, sizing.wrap, { borderColor: primaryLight }, style]}
         onPress={onPress}
         disabled={disabled}
         activeOpacity={0.8}
@@ -39,7 +56,7 @@ export function GradientButton({
         {loading ? (
           <ActivityIndicator color="#ffffff" />
         ) : (
-          <Text style={[styles.secondaryText, { color: '#ffffff' }, textStyle]}>{title}</Text>
+          <Text style={[styles.secondaryText, sizing.text, { color: '#ffffff' }, textStyle]}>{title}</Text>
         )}
       </TouchableOpacity>
     );
@@ -47,7 +64,7 @@ export function GradientButton({
 
   return (
     <TouchableOpacity
-      style={[styles.primaryWrap, { shadowColor: primaryGradient[1] }, style]}
+      style={[styles.primaryWrap, sizing.wrap, { shadowColor: primaryGradient[1] }, style]}
       onPress={onPress}
       disabled={disabled}
       activeOpacity={0.9}
@@ -62,7 +79,7 @@ export function GradientButton({
       {loading ? (
         <ActivityIndicator color="#ffffff" />
       ) : (
-        <Text style={[styles.primaryText, textStyle]}>{title}</Text>
+        <Text style={[styles.primaryText, sizing.text, textStyle]}>{title}</Text>
       )}
     </TouchableOpacity>
   );
@@ -70,8 +87,6 @@ export function GradientButton({
 
 const styles = StyleSheet.create({
   primaryWrap: {
-    height: 52,
-    borderRadius: 12,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
@@ -80,15 +95,13 @@ const styles = StyleSheet.create({
     ...neonGlow('#3b82f6', 'strong'),
   },
   gradient: { ...StyleSheet.absoluteFillObject },
-  primaryText: { color: '#ffffff', fontWeight: '600', fontSize: 16 },
+  primaryText: { color: '#ffffff', textAlign: 'center' },
   secondary: {
-    height: 52,
-    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     backgroundColor: 'transparent',
     ...neonGlow('#60a5fa', 'soft'),
   },
-  secondaryText: { fontWeight: '600', fontSize: 16 },
+  secondaryText: { textAlign: 'center' },
 });

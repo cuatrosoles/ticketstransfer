@@ -13,10 +13,10 @@ const DEFAULT_LOGO = require('../assets/images/LogoTT-1920x1036.png');
 export const BRAND_LOGO_ASPECT = 1920 / 1036;
 
 /** Altura compacta para cabeceras de pantalla */
-export const BRAND_LOGO_HEIGHT_COMPACT = 60;
+export const BRAND_LOGO_HEIGHT_COMPACT = 40;
 
 /** Altura para pantallas auth (login/registro) */
-export const BRAND_LOGO_HEIGHT_AUTH = 66;
+export const BRAND_LOGO_HEIGHT_AUTH = 46;
 
 type Props = {
   style?: StyleProp<ImageStyle>;

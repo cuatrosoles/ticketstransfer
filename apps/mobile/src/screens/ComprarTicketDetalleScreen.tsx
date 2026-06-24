@@ -156,7 +156,7 @@ export function ComprarTicketDetalleScreen() {
           title="Comprar Ticket"
           showBack
           onBack={() => navigation.goBack()}
-          rightSlot={<FavoriteHeaderActions preview={preview} />}
+          rightSlot={<UserMenuButton />}
         />
         {error && !preview.showFull ? <Text style={styles.error}>{error}</Text> : null}
         {pendingMessage ? (
@@ -263,8 +263,13 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', alignItems: 'center' },
   favHeaderHit: { marginRight: 12 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  eventCover: { borderRadius: 14, marginBottom: spacing.lg },
-  ticketWrap: { marginBottom: spacing.lg },
+  eventCover: { 
+    borderTopLeftRadius: 14, 
+    borderTopRightRadius: 14, 
+    borderBottomLeftRadius: 0, 
+    borderBottomRightRadius: 0, 
+    marginBottom: 0 },
+  ticketWrap: { marginBottom: spacing.lg, marginTop: -30 },
   ticketInner: {
     paddingTop: spacing.xl,
     paddingHorizontal: spacing.xl,

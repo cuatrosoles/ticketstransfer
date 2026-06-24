@@ -19,6 +19,10 @@ export const colors = {
 export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };
 export const radius = 12;
 
+/** Contenedor raíz / scroll: transparente para que se vea el video de fondo global */
+export const screenRoot = { flex: 1, backgroundColor: 'transparent' as const };
+export const screenScroll = screenRoot;
+
 /** Padding mínimo del header respecto al borde de pantalla (izquierda/derecha) */
 export const headerEdgePadding = 6;
 
@@ -34,7 +38,7 @@ export const headerTopPadding = 8;
  * Valor anterior ~6px en pantallas internas; duplicado = 12.
  * Modificá solo este número para cambiar todas las cabeceras.
  */
-export const headerBottomPadding = 4;
+export const headerBottomPadding = 14;
 
 /** Margen negativo para compensar padding del scroll y dejar solo headerEdgePadding al borde */
 export function headerBleedMargin(parentHorizontalPadding: number = spacing.lg): number {
@@ -45,6 +49,6 @@ export function headerBleedMargin(parentHorizontalPadding: number = spacing.lg):
 export const glassCard = {
   backgroundColor: 'rgba(13, 36, 82, 0.72)' as const,
   borderRadius: 20 as const,
-  borderWidth: 1 as const,
+  borderWidth: 2 as const,
   borderColor: 'rgba(96, 165, 250, 0.55)' as const,
 };

@@ -6,6 +6,7 @@ import * as React from 'react';
 import { createContext, useCallback, useContext, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { TopLoadingBar } from '../components/TopLoadingBar';
+import { screenRoot } from '../theme';
 
 type Ctx = {
   startPostPublishLoading: () => void;
@@ -35,7 +36,7 @@ export function PostPublishLoadingProvider({ children }: { children: React.React
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
+  root: screenRoot,
 });
 
 export function usePostPublishLoading(): Ctx {

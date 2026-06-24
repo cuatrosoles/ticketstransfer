@@ -18,21 +18,21 @@ const SOCIAL_LINKS: Array<{
     label: 'Facebook',
     uri: 'https://www.facebook.com/profile.php?id=61562829737223',
     source: require('../assets/images/FACE.png'),
-    bg: '#1877f2',
+    bg: 'transparent',
   },
   {
     id: 'instagram',
     label: 'Instagram',
     uri: 'https://www.instagram.com/ticketstransfer.01/?ref=xav_igxfb_comet_ig_bookmark_mega_menu_launch',
     source: require('../assets/images/INSTA.png'),
-    bg: '#c13584',
+    bg: 'transparent',
   },
   {
     id: 'whatsapp',
     label: 'WhatsApp',
     uri: 'https://wa.me/+5491176675436',
     source: require('../assets/images/WHATS.png'),
-    bg: '#25d366',
+    bg: 'transparent',
   },
 ];
 
@@ -72,11 +72,11 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 0,
     borderColor: 'rgba(255, 255, 255, 0.25)',
   },
   iconImg: {
-    width: 28,
-    height: 28,
+    width: 66,
+    height: 66,
   },
 });

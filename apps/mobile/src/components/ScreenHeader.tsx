@@ -3,9 +3,11 @@
  */
 
 import * as React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { BrandLogo, BRAND_LOGO_HEIGHT_COMPACT } from './BrandLogo';
 import { headerBleedMargin, headerBottomPadding, headerEdgePadding, headerTopPadding, spacing } from '../theme';
+
+const LOGO_MAX_WIDTH = 140;
 
 type Props = {
   title: string;
@@ -29,10 +31,6 @@ export function ScreenHeader({
   logoUri,
   parentContentPadding = spacing.lg,
 }: Props) {
-  const { width: screenW } = useWindowDimensions();
-  const sideW = 40 + 40 + 12;
-  const logoMaxWidth = Math.max(100, screenW - headerEdgePadding * 2 - sideW);
-
   return (
     <View
       style={[
@@ -46,14 +44,16 @@ export function ScreenHeader({
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
         ) : (
-          <View style={styles.backSpacer} />
+          <View style={styles.sideSlot} />
         )}
-        <BrandLogo
-          uri={logoUri}
-          height={BRAND_LOGO_HEIGHT_COMPACT}
-          style={[styles.logo, { maxWidth: logoMaxWidth }]}
-        />
-        {rightSlot ? <View style={styles.rightSlot}>{rightSlot}</View> : <View style={styles.backSpacer} />}
+        <View style={styles.logoCenter} pointerEvents="box-none">
+          <BrandLogo
+            uri={logoUri}
+            height={BRAND_LOGO_HEIGHT_COMPACT}
+            style={[styles.logo, { maxWidth: LOGO_MAX_WIDTH, width: LOGO_MAX_WIDTH }]}
+          />
+        </View>
+        {rightSlot ? <View style={styles.sideSlot}>{rightSlot}</View> : <View style={styles.sideSlot} />}
       </View>
       <View style={styles.titleRow}>
         <Text style={[styles.title, titleRight ? styles.titleWithExtra : undefined]} numberOfLines={1}>
@@ -76,10 +76,24 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
     minHeight: 44,
+    position: 'relative',
   },
-  backSpacer: { width: 40, height: 40 },
+  sideSlot: {
+    width: 40,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+    flexShrink: 0,
+  },
+  logoCenter: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 0,
+  },
   backBtn: {
     width: 40,
     height: 40,
@@ -88,21 +102,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 1,
     borderWidth: 1,
     borderColor: 'rgba(96, 165, 250, 0.35)',
   },
-  rightSlot: { flexShrink: 0 },
   backIcon: { fontSize: 22, color: '#f8fafc' },
   logo: {
-    flex: 1,
-    minWidth: 0,
-    width: '100%',
+    height: BRAND_LOGO_HEIGHT_COMPACT,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
+    marginTop: 12,
     gap: 10,
     paddingHorizontal: 2,
   },

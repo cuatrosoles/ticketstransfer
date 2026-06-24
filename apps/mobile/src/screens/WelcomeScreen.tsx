@@ -18,7 +18,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import type { RootStackParamList } from '../navigation/types';
 import { GradientButton } from '../components/GradientButton';
+import { ImageEdgeFade } from '../components/ImageEdgeFade';
 import { neonGlassPanel } from '../lib/neonStyles';
+import {
+  WELCOME_BACKGROUND_COLOR,
+  IMAGE_EDGE_FADE_BOTTOM_SIZE,
+  IMAGE_EDGE_FADE_TOP_SIZE,
+} from '../lib/imageEdgeFade';
 
 const HERO_IMAGE = require('../assets/images/INICIO-1080x1920.png');
 
@@ -48,7 +54,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList, 'Welcome'>;
 export function WelcomeScreen() {
   const navigation = useNavigation<Nav>();
   const { width, height } = useWindowDimensions();
-  const heroHeight = Math.min(height * 0.52, width * 1.35);
+  const heroHeight = Math.min(height * 1.00, width * 1.60);
 
   return (
     <View style={styles.root}>
@@ -56,17 +62,17 @@ export function WelcomeScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={[styles.hero, { height: heroHeight }]}>
-            <Image
-              source={HERO_IMAGE}
+            <ImageEdgeFade
+              top={{ size: IMAGE_EDGE_FADE_TOP_SIZE, color: WELCOME_BACKGROUND_COLOR }}
+              bottom={{ size: IMAGE_EDGE_FADE_BOTTOM_SIZE, color: WELCOME_BACKGROUND_COLOR }}
               style={{ width, height: heroHeight }}
-              resizeMode="cover"
-            />
-            <LinearGradient
-              colors={['transparent', 'rgba(2, 6, 23, 0.4)', 'rgba(2, 6, 23, 0.92)', '#020617']}
-              locations={[0, 0.55, 0.82, 1]}
-              style={styles.heroFade}
-              pointerEvents="none"
-            />
+            >
+              <Image
+                source={HERO_IMAGE}
+                style={{ width, height: heroHeight }}
+                resizeMode="cover"
+              />
+            </ImageEdgeFade>
           </View>
 
           <View style={[styles.aboutCard, neonGlassPanel]}>
@@ -101,29 +107,22 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { flex: 1 },
   content: {
-    paddingHorizontal: 22,
+    paddingHorizontal: 0,
     paddingBottom: 36,
     alignItems: 'center',
   },
   hero: {
     width: '100%',
-    marginHorizontal: -22,
+    marginHorizontal: 0,
     marginBottom: 0,
     overflow: 'hidden',
   },
-  heroFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '55%',
-  },
   aboutCard: {
-    width: '100%',
+    width: '86%',
     maxWidth: 440,
     paddingVertical: 20,
     paddingHorizontal: 18,
-    marginTop: 8,
+    marginTop: -38,
     marginBottom: 28,
   },
   aboutTitle: {
@@ -180,7 +179,7 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   buttonsWrap: {
-    width: '100%',
+    width: '86%',
     maxWidth: 360,
     gap: 14,
     flexDirection: 'column',

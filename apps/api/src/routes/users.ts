@@ -347,7 +347,12 @@ router.patch('/profile', async (req: AuthRequest, res) => {
     updateData.bankAlias = alias;
   }
   if (bankName !== undefined) updateData.bankName = typeof bankName === 'string' ? bankName.trim() || null : null;
-  if (latitude !== undefined && longitude !== undefined) {
+  if (latitude === null && longitude === null) {
+    updateData.latitude = null;
+    updateData.longitude = null;
+    updateData.locationSource = null;
+    updateData.locationUpdatedAt = null;
+  } else if (latitude !== undefined && longitude !== undefined) {
     const lat = typeof latitude === 'number' ? latitude : Number(latitude);
     const lng = typeof longitude === 'number' ? longitude : Number(longitude);
     if (!Number.isNaN(lat) && !Number.isNaN(lng)) {

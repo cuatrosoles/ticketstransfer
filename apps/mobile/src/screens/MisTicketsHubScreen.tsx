@@ -82,7 +82,7 @@ export function MisTicketsHubScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  content: { paddingTop: 14, paddingHorizontal: spacing.lg, paddingBottom: 100 },
   card: {
     padding: spacing.lg,
     marginBottom: spacing.md,

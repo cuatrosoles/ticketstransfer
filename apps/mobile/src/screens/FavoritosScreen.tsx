@@ -79,7 +79,7 @@ export function FavoritosScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  content: { paddingTop: 14, paddingHorizontal: spacing.lg, paddingBottom: 100 },
   loader: {
     minHeight: 200,
     justifyContent: 'center',
