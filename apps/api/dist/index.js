@@ -4492,6 +4492,71 @@ var init_publish_stages = __esm({
   }
 });
 
+// ../../packages/shared/src/notification-preferences.ts
+function mergeNotificationPreferences(raw) {
+  if (!raw || typeof raw !== "object") return { ...DEFAULT_NOTIFICATION_PREFERENCES };
+  const out = { ...DEFAULT_NOTIFICATION_PREFERENCES };
+  for (const key of NOTIFICATION_PREFERENCE_KEYS) {
+    if (typeof raw[key] === "boolean") out[key] = raw[key];
+  }
+  return out;
+}
+function pushTypeToPreferenceKey(type) {
+  switch (type) {
+    case "order_payment":
+    case "order_refund":
+    case "order_delivery":
+      return "transactions";
+    case "new_message":
+      return "messages";
+    case "nearby_events":
+      return "nearbyEvents";
+    case "recommendation":
+      return "recommendations";
+    case "admin_broadcast":
+    case "admin_test":
+      return "promotions";
+    default:
+      return null;
+  }
+}
+function allowsPushType(preferences, type) {
+  if (!type) return true;
+  const key = pushTypeToPreferenceKey(type);
+  if (!key) return true;
+  return preferences[key];
+}
+var NOTIFICATION_PREFERENCE_KEYS, DEFAULT_NOTIFICATION_PREFERENCES, notificationPreferencesPatchSchema;
+var init_notification_preferences = __esm({
+  "../../packages/shared/src/notification-preferences.ts"() {
+    "use strict";
+    init_zod();
+    NOTIFICATION_PREFERENCE_KEYS = [
+      "transactions",
+      "messages",
+      "nearbyEvents",
+      "recommendations",
+      "promotions"
+    ];
+    DEFAULT_NOTIFICATION_PREFERENCES = {
+      transactions: true,
+      messages: true,
+      nearbyEvents: true,
+      recommendations: true,
+      promotions: true
+    };
+    notificationPreferencesPatchSchema = external_exports.object({
+      transactions: external_exports.boolean().optional(),
+      messages: external_exports.boolean().optional(),
+      nearbyEvents: external_exports.boolean().optional(),
+      recommendations: external_exports.boolean().optional(),
+      promotions: external_exports.boolean().optional()
+    }).refine((d) => Object.values(d).some((v) => v !== void 0), {
+      message: "Indic\xE1 al menos una preferencia"
+    });
+  }
+});
+
 // ../../packages/shared/src/schemas.ts
 function normalizeEventDate(val) {
   const s = String(val ?? "").trim();
@@ -4507,6 +4572,8 @@ var init_schemas = __esm({
     init_zod();
     init_event_datetime();
     init_geo();
+    init_notification_preferences();
+    init_notification_preferences();
     registerBase = external_exports.object({
       email: external_exports.string().email("Email inv\xE1lido"),
       password: external_exports.string().min(8, "M\xEDnimo 8 caracteres").regex(/[a-z]/, "Al menos una min\xFAscula").regex(/[A-Z]/, "Al menos una may\xFAscula").regex(/[0-9]/, "Al menos un n\xFAmero"),
@@ -4641,7 +4708,7 @@ var init_schemas = __esm({
     });
     createOrderSchema = external_exports.object({
       ticketListingId: external_exports.string().min(1, "ID de publicaci\xF3n requerido"),
-      paymentMethod: external_exports.enum(["mercadopago", "stripe"]),
+      paymentMethod: external_exports.enum(["mercadopago", "stripe", "bank_transfer"]),
       /** Medio principal donde el comprador recibirá la transferencia del ticket */
       deliveryMethod: external_exports.enum(["usuario", "id", "email", "telefono", "otro"]).optional(),
       deliveryUsername: external_exports.string().max(400).optional().transform((s) => s != null && String(s).trim() ? String(s).trim() : void 0),
@@ -4681,6 +4748,7 @@ var init_src = __esm({
     init_event_location_display();
     init_geo();
     init_publish_stages();
+    init_notification_preferences();
     init_schemas();
   }
 });
@@ -18147,6 +18215,20 @@ var init_email = __esm({
   }
 });
 
+// src/lib/notification-preferences.ts
+function notificationPreferencesFromUserData(data) {
+  const raw = data?.notificationPreferences;
+  return mergeNotificationPreferences(
+    raw && typeof raw === "object" ? raw : null
+  );
+}
+var init_notification_preferences2 = __esm({
+  "src/lib/notification-preferences.ts"() {
+    "use strict";
+    init_src();
+  }
+});
+
 // src/lib/settings.ts
 function parseBooleanSetting(value, fallback) {
   if (value === true || value === false) return value;
@@ -18542,6 +18624,47 @@ async function sendPushNotification(fcmToken, title, body, data) {
     return { success: false };
   }
 }
+function buildDataPayload(data) {
+  if (!data) return void 0;
+  return Object.fromEntries(
+    Object.entries(data).map(([k, v]) => [k, v === void 0 || v === null ? "" : String(v)])
+  );
+}
+function buildMessage(token, title, body, data) {
+  return {
+    token,
+    notification: { title, body },
+    data: buildDataPayload(data) || {},
+    android: { priority: "high" },
+    apns: {
+      headers: { "apns-priority": "10" },
+      payload: { aps: { sound: "default", badge: 1 } }
+    }
+  };
+}
+async function sendPushBatch(items) {
+  if (!items.length) return { sent: 0, failed: 0, invalidTokens: [] };
+  const messaging = getMessaging();
+  const invalidTokens = [];
+  let sent = 0;
+  let failed = 0;
+  const chunkSize = 500;
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunk = items.slice(i, i + chunkSize);
+    const messages = chunk.map((item) => buildMessage(item.token, item.title, item.body, item.data));
+    const response = await messaging.sendEach(messages);
+    sent += response.successCount;
+    failed += response.failureCount;
+    response.responses.forEach((result, index) => {
+      if (result.success) return;
+      const code = result.error?.code;
+      if (code && INVALID_TOKEN_CODES.includes(code)) {
+        invalidTokens.push(chunk[index].token);
+      }
+    });
+  }
+  return { sent, failed, invalidTokens };
+}
 var INVALID_TOKEN_CODES;
 var init_firebase_messaging = __esm({
   "src/lib/firebase-messaging.ts"() {
@@ -18554,6 +18677,29 @@ var init_firebase_messaging = __esm({
   }
 });
 
+// src/lib/push-to-user.ts
+import { FieldValue } from "firebase-admin/firestore";
+async function sendPushToUser(userId, fcmToken, title, body, data, preferences) {
+  if (!fcmToken) return;
+  const prefs = mergeNotificationPreferences(preferences);
+  if (!allowsPushType(prefs, data.type)) return;
+  const result = await sendPushNotification(fcmToken, title, body, data);
+  if (result.tokenInvalid) {
+    await db().collection(COLLECTIONS.USERS).doc(userId).update({
+      fcmToken: FieldValue.delete(),
+      updatedAt: /* @__PURE__ */ new Date()
+    });
+  }
+}
+var init_push_to_user = __esm({
+  "src/lib/push-to-user.ts"() {
+    "use strict";
+    init_firestore();
+    init_firebase_messaging();
+    init_notification_preferences2();
+  }
+});
+
 // src/lib/order-payments.ts
 var order_payments_exports = {};
 __export(order_payments_exports, {
@@ -18562,6 +18708,7 @@ __export(order_payments_exports, {
   getListingPurchaseAvailability: () => getListingPurchaseAvailability,
   markListingSold: () => markListingSold,
   notifyBuyerConfirmedDelivery: () => notifyBuyerConfirmedDelivery,
+  notifyOrderRefunded: () => notifyOrderRefunded,
   notifyPaymentApproved: () => notifyPaymentApproved,
   notifyPaymentFailed: () => notifyPaymentFailed,
   notifyPaymentPending: () => notifyPaymentPending,
@@ -18569,7 +18716,7 @@ __export(order_payments_exports, {
   reserveListingForOrder: () => reserveListingForOrder,
   syncOrderPaymentFromMercadoPago: () => syncOrderPaymentFromMercadoPago
 });
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue as FieldValue2 } from "firebase-admin/firestore";
 function paymentMatchesOrder(payment, expectedTotal, orderCurrency) {
   const payCurrency = (payment.currency_id || "ARS").toUpperCase();
   const amountOk = payment.transaction_amount == null || expectedTotal == null || Math.abs(payment.transaction_amount - expectedTotal) <= 0.02;
@@ -18679,7 +18826,7 @@ async function reserveListingForOrder(listingId, orderId) {
 async function markListingSold(listingId) {
   await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(listingId).update({
     status: "VENDIDO",
-    reservedOrderId: FieldValue.delete(),
+    reservedOrderId: FieldValue2.delete(),
     updatedAt: /* @__PURE__ */ new Date()
   });
 }
@@ -18692,7 +18839,7 @@ async function releaseListingReservation(listingId, orderId) {
   if (d.status === "VENDIDO") return;
   await ref.update({
     status: "DISPONIBLE",
-    reservedOrderId: FieldValue.delete(),
+    reservedOrderId: FieldValue2.delete(),
     updatedAt: /* @__PURE__ */ new Date()
   });
 }
@@ -18707,7 +18854,7 @@ async function getAdminRecipients() {
     const d = doc.data();
     const email = typeof d.email === "string" ? d.email.trim() : "";
     if (!email) continue;
-    const row = { id: doc.id, email };
+    const row = { id: doc.id, email, userData: d };
     if (typeof d.fcmToken === "string" && d.fcmToken.length > 0) {
       row.fcmToken = d.fcmToken;
     }
@@ -18715,15 +18862,37 @@ async function getAdminRecipients() {
   }
   return recipients;
 }
-async function sendPushSafe(userId, fcmToken, title, body, data) {
-  if (!fcmToken) return;
-  const result = await sendPushNotification(fcmToken, title, body, data);
-  if (result.tokenInvalid) {
-    await db().collection(COLLECTIONS.USERS).doc(userId).update({
-      fcmToken: FieldValue.delete(),
-      updatedAt: /* @__PURE__ */ new Date()
-    });
-  }
+async function sendPushSafe(userId, fcmToken, title, body, data, userData) {
+  await sendPushToUser(
+    userId,
+    fcmToken,
+    title,
+    body,
+    data,
+    notificationPreferencesFromUserData(userData)
+  );
+}
+async function notifyOrderRefunded(params) {
+  const [buyerDoc, sellerDoc] = await Promise.all([
+    db().collection(COLLECTIONS.USERS).doc(params.buyerId).get(),
+    db().collection(COLLECTIONS.USERS).doc(params.sellerId).get()
+  ]);
+  void sendPushSafe(
+    params.buyerId,
+    buyerDoc.data()?.fcmToken,
+    PUSH_REFUND_TITLE,
+    PUSH_REFUND_BODY,
+    { type: "order_refund", orderId: params.orderId, role: "buyer", status: "refunded" },
+    buyerDoc.data()
+  );
+  void sendPushSafe(
+    params.sellerId,
+    sellerDoc.data()?.fcmToken,
+    "Reembolso de tu venta",
+    PUSH_REFUND_BODY,
+    { type: "order_refund", orderId: params.orderId, role: "seller", status: "refunded" },
+    sellerDoc.data()
+  );
 }
 async function notifyPaymentApproved(params) {
   const [buyerDoc, sellerDoc] = await Promise.all([
@@ -18752,16 +18921,18 @@ async function notifyPaymentApproved(params) {
   void sendPushSafe(
     params.buyerId,
     buyerToken,
-    "Pago confirmado",
-    `Tu compra de "${params.eventName}" fue acreditada. El vendedor debe transferirte el ticket.`,
-    { type: "order_payment", orderId: params.orderId, status: "approved" }
+    PUSH_BUYER_PURCHASE_TITLE,
+    PUSH_BUYER_PURCHASE_BODY,
+    { type: "order_payment", orderId: params.orderId, status: "approved", role: "buyer" },
+    buyerDoc.data()
   );
   void sendPushSafe(
     params.sellerId,
     sellerToken,
-    "\xA1Nueva venta!",
-    `Pagaron tu ticket "${params.eventName}". Transfer\xED el ticket al comprador.`,
-    { type: "order_payment", orderId: params.orderId, status: "approved" }
+    PUSH_SOLD_SELLER_TITLE,
+    PUSH_SOLD_SELLER_BODY,
+    { type: "order_payment", orderId: params.orderId, status: "approved", role: "seller" },
+    sellerDoc.data()
   );
   const admins = await getAdminRecipients();
   for (const admin2 of admins) {
@@ -18775,7 +18946,8 @@ async function notifyPaymentApproved(params) {
       admin2.fcmToken,
       "Nueva venta pagada",
       `${params.eventName} \u2014 ${amountLabel}. Revis\xE1 la orden en el panel.`,
-      { type: "order_payment", orderId: params.orderId, status: "approved" }
+      { type: "order_payment", orderId: params.orderId, status: "approved", role: "admin" },
+      admin2.userData
     );
   }
 }
@@ -18791,7 +18963,8 @@ async function notifyPaymentFailed(params) {
     buyerToken,
     "Pago no completado",
     `No se acredit\xF3 el pago de "${params.eventName}". Pod\xE9s reintentar desde la app.`,
-    { type: "order_payment", orderId: params.orderId, status: "failure" }
+    { type: "order_payment", orderId: params.orderId, status: "failure", role: "buyer" },
+    buyerDoc.data()
   );
 }
 async function notifyPaymentPending(params) {
@@ -18806,7 +18979,8 @@ async function notifyPaymentPending(params) {
     buyerToken,
     "Pago pendiente",
     `Tu pago de "${params.eventName}" est\xE1 en proceso. Te avisaremos cuando se acredite.`,
-    { type: "order_payment", orderId: params.orderId, status: "pending" }
+    { type: "order_payment", orderId: params.orderId, status: "pending", role: "buyer" },
+    buyerDoc.data()
   );
 }
 async function applyMercadoPagoPaymentToOrder(orderId, payment, options) {
@@ -18871,6 +19045,24 @@ async function applyMercadoPagoPaymentToOrder(orderId, payment, options) {
     return { applied: true, orderStatus: currentStatus, paymentStatus: payment.status };
   }
   const rejected = ["rejected", "cancelled", "refunded", "charged_back"].includes(payment.status);
+  const isRefund = payment.status === "refunded" || payment.status === "charged_back";
+  if (isRefund && currentStatus !== "PENDIENTE_PAGO" && currentStatus !== "CANCELADA") {
+    if (!ord.refundNotifiedAt && notify) {
+      await orderRef.update({
+        mercadopagoPaymentId: payment.id,
+        mercadopagoPaymentStatus: payment.status,
+        refundNotifiedAt: /* @__PURE__ */ new Date(),
+        updatedAt: /* @__PURE__ */ new Date()
+      });
+      await notifyOrderRefunded({
+        orderId,
+        eventName,
+        buyerId: String(ord.buyerId),
+        sellerId: String(ord.sellerId)
+      });
+    }
+    return { applied: true, orderStatus: currentStatus, paymentStatus: payment.status };
+  }
   if (rejected && currentStatus === "PENDIENTE_PAGO") {
     await orderRef.update({
       mercadopagoPaymentId: payment.id,
@@ -18901,7 +19093,8 @@ async function notifyBuyerConfirmedDelivery(params) {
       admin2.fcmToken,
       "Ticket recibido \u2014 revisar orden",
       `El comprador confirm\xF3 la recepci\xF3n de "${params.eventName}". Marc\xE1 la orden como COMPLETADA para pagar al vendedor.`,
-      { type: "order_delivery", orderId: params.orderId, status: "VERIFICANDO" }
+      { type: "order_delivery", orderId: params.orderId, status: "VERIFICANDO" },
+      admin2.userData
     );
   }
 }
@@ -18939,6 +19132,7 @@ async function syncOrderPaymentFromMercadoPago(orderId) {
     synced: result.applied
   };
 }
+var PUSH_SOLD_SELLER_TITLE, PUSH_SOLD_SELLER_BODY, PUSH_REFUND_TITLE, PUSH_REFUND_BODY, PUSH_BUYER_PURCHASE_TITLE, PUSH_BUYER_PURCHASE_BODY;
 var init_order_payments = __esm({
   "src/lib/order-payments.ts"() {
     "use strict";
@@ -18946,7 +19140,14 @@ var init_order_payments = __esm({
     init_firestore();
     init_mercadopago();
     init_email();
-    init_firebase_messaging();
+    init_push_to_user();
+    init_notification_preferences2();
+    PUSH_SOLD_SELLER_TITLE = "Tu entrada fue comprada";
+    PUSH_SOLD_SELLER_BODY = "Entra para ver m\xE1s detalles.";
+    PUSH_REFUND_TITLE = "Tu entrada fue reembolsada";
+    PUSH_REFUND_BODY = "Entra para ver m\xE1s detalles.";
+    PUSH_BUYER_PURCHASE_TITLE = "Compra confirmada";
+    PUSH_BUYER_PURCHASE_BODY = "Entra para ver m\xE1s detalles.";
   }
 });
 
@@ -19403,6 +19604,7 @@ async function uploadFile(filePath, buffer, contentType) {
 
 // src/routes/users.ts
 init_src();
+init_notification_preferences2();
 
 // src/lib/didit.ts
 var DIDIT_BASE = "https://verification.didit.me";
@@ -19806,6 +20008,26 @@ router2.patch("/security/biometric-preference", async (req, res) => {
     biometricMethod: enabled ? normalizedMethod : null
   });
 });
+router2.get("/security/notification-preferences", async (req, res) => {
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
+  if (!userDoc.exists) return res.status(404).json({ error: "No encontrado" });
+  res.json(mergeNotificationPreferences(userDoc.data()?.notificationPreferences));
+});
+router2.patch("/security/notification-preferences", async (req, res) => {
+  const parsed = notificationPreferencesPatchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Datos inv\xE1lidos", details: parsed.error.flatten() });
+  }
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user.id).get();
+  if (!userDoc.exists) return res.status(404).json({ error: "No encontrado" });
+  const current = mergeNotificationPreferences(userDoc.data()?.notificationPreferences);
+  const next = { ...current, ...parsed.data };
+  await db().collection(COLLECTIONS.USERS).doc(req.user.id).update({
+    notificationPreferences: next,
+    updatedAt: /* @__PURE__ */ new Date()
+  });
+  res.json(next);
+});
 router2.get("/profile", async (req, res) => {
   const userId = req.user.id;
   const [userDoc, kycDoc, firebaseUser] = await Promise.all([
@@ -19852,7 +20074,8 @@ router2.get("/profile", async (req, res) => {
     bankAlias: data.bankAlias ?? null,
     bankName: data.bankName ?? null,
     kyc: kyc ? { status: kyc.status, rejectionReason: kyc.rejectionReason ?? null } : { status: "PENDIENTE", rejectionReason: null },
-    preferences: preferencesToApi(userPrefs)
+    preferences: preferencesToApi(userPrefs),
+    notificationPreferences: mergeNotificationPreferences(data.notificationPreferences)
   });
 });
 router2.post("/phone/verify-request", async (req, res) => {
@@ -19985,7 +20208,12 @@ router2.patch("/profile", async (req, res) => {
     updateData.bankAlias = alias;
   }
   if (bankName !== void 0) updateData.bankName = typeof bankName === "string" ? bankName.trim() || null : null;
-  if (latitude !== void 0 && longitude !== void 0) {
+  if (latitude === null && longitude === null) {
+    updateData.latitude = null;
+    updateData.longitude = null;
+    updateData.locationSource = null;
+    updateData.locationUpdatedAt = null;
+  } else if (latitude !== void 0 && longitude !== void 0) {
     const lat = typeof latitude === "number" ? latitude : Number(latitude);
     const lng = typeof longitude === "number" ? longitude : Number(longitude);
     if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
@@ -22206,6 +22434,15 @@ async function resolveEventCoordinates(input) {
 
 // src/routes/tickets.ts
 init_order_payments();
+
+// src/lib/seller-stats.ts
+init_firestore();
+async function getSellerCompletedSalesCount(sellerId) {
+  const snap = await db().collection(COLLECTIONS.ORDERS).where("sellerId", "==", sellerId).get();
+  return snap.docs.filter((doc) => doc.data().status === "COMPLETADA").length;
+}
+
+// src/routes/tickets.ts
 var updateTicketListingSchema2 = createTicketListingSchema.partial().extend({
   publicationPassword: external_exports.string().nullable().optional().transform((s) => s === "" ? null : s),
   ticketeraOtra: external_exports.string().optional().transform((s) => s === "" ? void 0 : s),
@@ -22398,6 +22635,7 @@ router4.get("/:id", optionalAuth, async (req, res) => {
   const sellerDoc = await db().collection(COLLECTIONS.USERS).doc(d.sellerId).get();
   const sellerData = sellerDoc.data();
   const kycDoc = sellerDoc.exists ? await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(d.sellerId).get() : null;
+  const completedSalesCount = sellerDoc.exists ? await getSellerCompletedSalesCount(d.sellerId) : 0;
   const out = {
     id: doc.id,
     ...d,
@@ -22409,7 +22647,8 @@ router4.get("/:id", optionalAuth, async (req, res) => {
       reputationScore: sellerData.reputationScore ?? 0,
       phoneVerified: sellerData.phoneVerified ?? false,
       emailVerified: sellerData.emailVerified ?? false,
-      kyc: kycDoc?.exists ? { status: kycDoc.data()?.status } : { status: "PENDIENTE" }
+      kyc: kycDoc?.exists ? { status: kycDoc.data()?.status } : { status: "PENDIENTE" },
+      completedSalesCount
     } : null,
     showFull,
     availability,
@@ -23217,7 +23456,51 @@ router5.post("/:id/confirm-payment", async (req, res) => {
       error: "El pago se confirma al completar el checkout de Mercado Pago. Us\xE1 el bot\xF3n \xABPagar con Mercado Pago\xBB o el pago con tarjeta."
     });
   }
+  if (d.paymentMethod === "bank_transfer" && !d.bankTransferProofUrl) {
+    return res.status(400).json({ error: "Adjunt\xE1 el comprobante de transferencia antes de continuar." });
+  }
   await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({ status: "ESPERANDO_TRANSFERENCIA", updatedAt: /* @__PURE__ */ new Date() });
+  res.json({ ok: true, status: "ESPERANDO_TRANSFERENCIA" });
+});
+router5.post("/:id/bank-transfer", upload3.single("proof"), async (req, res) => {
+  const orderId = req.params.id;
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
+  if (!doc.exists) return res.status(404).json({ error: "No encontrado" });
+  const d = doc.data();
+  if (d.buyerId !== req.user.id) return res.status(404).json({ error: "No encontrado" });
+  if (d.status !== "PENDIENTE_PAGO") {
+    return res.status(400).json({ error: "La orden ya no est\xE1 pendiente de pago" });
+  }
+  const file = req.file;
+  if (!file) {
+    return res.status(400).json({ error: "Adjunt\xE1 el comprobante de transferencia" });
+  }
+  const proofUrl = await uploadFile(
+    `payment-proof/${orderId}/${Date.now()}.jpg`,
+    file.buffer,
+    file.mimetype || "image/jpeg"
+  );
+  const listingId = String(d.ticketListingId || "");
+  const listingDoc = listingId ? await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(listingId).get() : null;
+  const eventName = listingDoc?.exists ? String(listingDoc.data()?.eventName || "Ticket") : "Ticket";
+  const expectedTotal = typeof d.totalAmount === "number" ? d.totalAmount : 0;
+  const orderCurrency = String(d.currency || "ARS").toUpperCase();
+  await db().collection(COLLECTIONS.ORDERS).doc(orderId).update({
+    paymentMethod: "bank_transfer",
+    bankTransferProofUrl: proofUrl,
+    status: "ESPERANDO_TRANSFERENCIA",
+    paidAt: /* @__PURE__ */ new Date(),
+    updatedAt: /* @__PURE__ */ new Date()
+  });
+  if (listingId) await markListingSold(listingId);
+  void notifyPaymentApproved({
+    orderId,
+    eventName,
+    totalAmount: expectedTotal,
+    currency: orderCurrency,
+    buyerId: String(d.buyerId),
+    sellerId: String(d.sellerId)
+  });
   res.json({ ok: true, status: "ESPERANDO_TRANSFERENCIA" });
 });
 router5.post("/:id/transfer-done", async (req, res) => {
@@ -23491,8 +23774,7 @@ var disputesRouter = router6;
 // src/routes/messages.ts
 init_firestore();
 import { Router as Router7 } from "express";
-import { FieldValue as FieldValue2 } from "firebase-admin/firestore";
-init_firebase_messaging();
+init_push_to_user();
 var router7 = Router7();
 router7.use(requireAuth);
 router7.use((_req, res, next) => {
@@ -23743,16 +24025,18 @@ router7.post("/conversations/:id/messages", async (req, res) => {
   const senderDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
   const sender = senderDoc.data();
   const recipientDoc = await db().collection(COLLECTIONS.USERS).doc(recipientId).get();
-  const fcmToken = recipientDoc.data()?.fcmToken;
+  const recipientData = recipientDoc.data();
+  const fcmToken = recipientData?.fcmToken;
   if (fcmToken) {
     const senderName = [sender?.firstName, sender?.lastName].filter(Boolean).join(" ") || sender?.email || "Alguien";
-    const pushResult = await sendPushNotification(fcmToken, "Nuevo mensaje", `${senderName}: ${content.trim().slice(0, 50)}`, {
-      type: "new_message",
-      conversationId: convId
-    });
-    if (pushResult.tokenInvalid) {
-      await db().collection(COLLECTIONS.USERS).doc(recipientId).update({ fcmToken: FieldValue2.delete() });
-    }
+    await sendPushToUser(
+      recipientId,
+      fcmToken,
+      "Nuevo mensaje",
+      `${senderName}: ${content.trim().slice(0, 50)}`,
+      { type: "new_message", conversationId: convId },
+      recipientData?.notificationPreferences
+    );
   }
   res.status(201).json({
     id: messageId,
@@ -23801,8 +24085,8 @@ async function createPayoutToSeller(params) {
   });
   const cbuCvu = params.cbuCvu.replace(/\D/g, "");
   if (!cbuCvu || cbuCvu.length !== 22) {
-    await updateTransferStatus(transferId, "PENDIENTE_MANUAL", null, "Vendedor sin CBU/CVU registrado");
-    return { success: false, transferId, error: "Vendedor sin CBU/CVU. Realizar transferencia manual." };
+    await updateTransferStatus(transferId, "PENDIENTE_MANUAL", null, "Vendedor sin CBU/CVU registrado (ver alias en perfil)");
+    return { success: false, transferId, error: "Vendedor sin CBU/CVU. Realizar transferencia manual usando CBU o alias del perfil." };
   }
   try {
     const settings = await getPlatformSettings();
@@ -23913,7 +24197,241 @@ async function retryTransfer(transferId) {
 
 // src/routes/admin.ts
 init_firebase_messaging();
+
+// src/lib/push-digests.ts
+init_src();
+init_firestore();
+init_settings();
+init_firebase_messaging();
 import { FieldValue as FieldValue3 } from "firebase-admin/firestore";
+init_notification_preferences2();
+var NEARBY_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1e3;
+var RECOMMENDED_COOLDOWN_MS = 3 * 24 * 60 * 60 * 1e3;
+var USER_BATCH = 400;
+function toDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value.toDate === "function") {
+    return value.toDate();
+  }
+  const d = new Date(String(value));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+function cooldownOk(last, cooldownMs) {
+  const d = toDate(last);
+  if (!d) return true;
+  return Date.now() - d.getTime() >= cooldownMs;
+}
+async function loadUsersWithPushToken(limit = USER_BATCH) {
+  const snap = await db().collection(COLLECTIONS.USERS).limit(limit).get();
+  const rows = [];
+  for (const doc of snap.docs) {
+    const d = doc.data();
+    const token = typeof d.fcmToken === "string" ? d.fcmToken.trim() : "";
+    if (token.length < 10) continue;
+    rows.push({
+      id: doc.id,
+      fcmToken: token,
+      latitude: d.latitude,
+      longitude: d.longitude,
+      pushDigestMeta: d.pushDigestMeta,
+      notificationPreferences: d.notificationPreferences && typeof d.notificationPreferences === "object" ? d.notificationPreferences : void 0
+    });
+  }
+  return rows;
+}
+async function clearInvalidUserTokens(userIds) {
+  if (!userIds.length) return;
+  const unique = [...new Set(userIds)];
+  const batch = db().batch();
+  for (const userId of unique) {
+    batch.update(db().collection(COLLECTIONS.USERS).doc(userId), {
+      fcmToken: FieldValue3.delete(),
+      updatedAt: /* @__PURE__ */ new Date()
+    });
+  }
+  await batch.commit();
+}
+function digestTexts(settings) {
+  const n = settings.notifications ?? {};
+  return {
+    nearbyTitle: String(n.nearbyTitle || "Nuevos eventos cerca de ti"),
+    nearbyBody: String(n.nearbyBody || "Enterate de m\xE1s en la app."),
+    recommendedTitle: String(n.recommendedTitle || "Nuevos recomendados para vos"),
+    recommendedBody: String(
+      n.recommendedBody || "\xBFQu\xE9 esperas? Entr\xE1 y viv\xED tu experiencia Tickets Transfer."
+    )
+  };
+}
+async function sendNearbyEventsDigest(limit = USER_BATCH) {
+  const [users, settings, radiusKm, pool] = await Promise.all([
+    loadUsersWithPushToken(limit),
+    getPlatformSettings(),
+    getMarketplaceNearbyRadiusKm(),
+    loadPublicMarketplaceItems(80)
+  ]);
+  const texts = digestTexts(settings);
+  const items = [];
+  const userIdsToUpdate = [];
+  const tokenOwners = [];
+  let skipped = 0;
+  for (const user of users) {
+    const prefs = mergeNotificationPreferences(user.notificationPreferences);
+    if (!allowsPushType(prefs, "nearby_events")) {
+      skipped += 1;
+      continue;
+    }
+    if (!cooldownOk(user.pushDigestMeta?.nearbySentAt, NEARBY_COOLDOWN_MS)) {
+      skipped += 1;
+      continue;
+    }
+    if (!hasValidCoordinates(user.latitude, user.longitude)) {
+      skipped += 1;
+      continue;
+    }
+    const nearby = filterAndSortByDistance(pool, user.latitude, user.longitude, radiusKm);
+    if (!nearby.length) {
+      skipped += 1;
+      continue;
+    }
+    const top = nearby[0];
+    items.push({
+      token: user.fcmToken,
+      title: texts.nearbyTitle,
+      body: texts.nearbyBody,
+      data: {
+        type: "nearby_events",
+        listingId: top.id,
+        eventName: top.eventName?.slice(0, 80) || ""
+      }
+    });
+    tokenOwners.push(user.id);
+    userIdsToUpdate.push(user.id);
+  }
+  if (!items.length) {
+    return { candidates: users.length, sent: 0, skipped };
+  }
+  const result = await sendPushBatch(items);
+  const now = /* @__PURE__ */ new Date();
+  await Promise.all(
+    userIdsToUpdate.map(
+      (userId) => db().collection(COLLECTIONS.USERS).doc(userId).set({ pushDigestMeta: { nearbySentAt: now }, updatedAt: now }, { merge: true })
+    )
+  );
+  const invalidUserIds = result.invalidTokens.map((token) => {
+    const idx = items.findIndex((item) => item.token === token);
+    return idx >= 0 ? tokenOwners[idx] : null;
+  }).filter((id) => Boolean(id));
+  await clearInvalidUserTokens(invalidUserIds);
+  return { candidates: users.length, sent: result.sent, skipped };
+}
+async function sendRecommendationsDigest(limit = USER_BATCH) {
+  const [users, settings, pool] = await Promise.all([
+    loadUsersWithPushToken(limit),
+    getPlatformSettings(),
+    loadPublicMarketplaceItems(80)
+  ]);
+  const texts = digestTexts(settings);
+  const featuredSkip = pool.slice(2);
+  const items = [];
+  const userIdsToUpdate = [];
+  const tokenOwners = [];
+  let skipped = 0;
+  for (const user of users) {
+    const pushPrefs = mergeNotificationPreferences(user.notificationPreferences);
+    if (!allowsPushType(pushPrefs, "recommendation")) {
+      skipped += 1;
+      continue;
+    }
+    if (!cooldownOk(user.pushDigestMeta?.recommendedSentAt, RECOMMENDED_COOLDOWN_MS)) {
+      skipped += 1;
+      continue;
+    }
+    const userPrefs = await getUserPreferences(user.id);
+    const hasPrefs = Boolean(userPrefs?.tasteOnboardingCompletedAt) || (userPrefs?.eventPreferences?.length ?? 0) > 0 || Object.keys(userPrefs?.categoryScores ?? {}).length > 0;
+    if (!hasPrefs) {
+      skipped += 1;
+      continue;
+    }
+    const recommended = rankListingsByPreferences(featuredSkip, userPrefs, 1);
+    if (!recommended.length) {
+      skipped += 1;
+      continue;
+    }
+    const top = recommended[0];
+    items.push({
+      token: user.fcmToken,
+      title: texts.recommendedTitle,
+      body: texts.recommendedBody,
+      data: {
+        type: "recommendation",
+        listingId: top.id,
+        eventName: top.eventName?.slice(0, 80) || ""
+      }
+    });
+    tokenOwners.push(user.id);
+    userIdsToUpdate.push(user.id);
+  }
+  if (!items.length) {
+    return { candidates: users.length, sent: 0, skipped };
+  }
+  const result = await sendPushBatch(items);
+  const now = /* @__PURE__ */ new Date();
+  await Promise.all(
+    userIdsToUpdate.map(
+      (userId) => db().collection(COLLECTIONS.USERS).doc(userId).set({ pushDigestMeta: { recommendedSentAt: now }, updatedAt: now }, { merge: true })
+    )
+  );
+  const invalidUserIds = result.invalidTokens.map((token) => {
+    const idx = items.findIndex((item) => item.token === token);
+    return idx >= 0 ? tokenOwners[idx] : null;
+  }).filter((id) => Boolean(id));
+  await clearInvalidUserTokens(invalidUserIds);
+  return { candidates: users.length, sent: result.sent, skipped };
+}
+async function sendAdminBroadcast(params) {
+  const limit = Math.min(params.limit ?? USER_BATCH, 1e3);
+  const snap = await db().collection(COLLECTIONS.USERS).limit(limit).get();
+  const items = [];
+  for (const doc of snap.docs) {
+    const d = doc.data();
+    const token = typeof d.fcmToken === "string" ? d.fcmToken.trim() : "";
+    if (token.length < 10) continue;
+    const audience = params.audience ?? "all";
+    if (audience === "with_location" && !hasValidCoordinates(d.latitude, d.longitude)) continue;
+    if (audience === "sellers") {
+      const sales = typeof d.completedSalesCount === "number" ? d.completedSalesCount : 0;
+      if (sales <= 0 && d.role !== "seller") continue;
+    }
+    if (audience === "buyers" && d.role === "admin") continue;
+    const prefs = mergeNotificationPreferences(d.notificationPreferences);
+    if (!allowsPushType(prefs, "admin_broadcast")) continue;
+    items.push({
+      userId: doc.id,
+      token,
+      title: params.title,
+      body: params.body,
+      data: {
+        type: "admin_broadcast",
+        campaignId: params.campaignId || `admin-${Date.now()}`
+      }
+    });
+  }
+  if (!items.length) {
+    return { targeted: 0, sent: 0, failed: 0 };
+  }
+  const result = await sendPushBatch(
+    items.map(({ token, title, body, data }) => ({ token, title, body, data }))
+  );
+  const invalidUserIds = result.invalidTokens.map((token) => items.find((item) => item.token === token)?.userId ?? null).filter((id) => Boolean(id));
+  await clearInvalidUserTokens(invalidUserIds);
+  return { targeted: items.length, sent: result.sent, failed: result.failed };
+}
+
+// src/routes/admin.ts
+init_order_payments();
+init_notification_preferences2();
+import { FieldValue as FieldValue4 } from "firebase-admin/firestore";
 var router8 = Router8();
 var eventImageUpload = multer4({
   storage: multer4.memoryStorage(),
@@ -24486,6 +25004,25 @@ router8.patch("/disputes/:id/resolve", async (req, res) => {
     updatedAt: /* @__PURE__ */ new Date()
   });
   await db().collection(COLLECTIONS.ORDERS).doc(dispute.orderId).update({ status: orderStatus, updatedAt: /* @__PURE__ */ new Date() });
+  if (resolution === "RESUELTA_FAVOR_COMPRADOR") {
+    const orderDoc2 = await db().collection(COLLECTIONS.ORDERS).doc(dispute.orderId).get();
+    if (orderDoc2.exists) {
+      const order = orderDoc2.data();
+      let eventName = "Ticket";
+      if (order.ticketListingId) {
+        const listingDoc = await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(String(order.ticketListingId)).get();
+        if (listingDoc.exists) {
+          eventName = String(listingDoc.data()?.eventName || eventName);
+        }
+      }
+      void notifyOrderRefunded({
+        orderId: dispute.orderId,
+        eventName,
+        buyerId: String(order.buyerId),
+        sellerId: String(order.sellerId)
+      });
+    }
+  }
   const updatedDoc = await db().collection(COLLECTIONS.DISPUTES).doc(id).get();
   const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(dispute.orderId).get();
   res.json({
@@ -25247,7 +25784,7 @@ router8.delete("/users/:userId/push", async (req, res) => {
   const userDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
   if (!userDoc.exists) return res.status(404).json({ error: "Usuario no encontrado" });
   await db().collection(COLLECTIONS.USERS).doc(userId).update({
-    fcmToken: FieldValue3.delete(),
+    fcmToken: FieldValue4.delete(),
     updatedAt: /* @__PURE__ */ new Date()
   });
   res.json({ ok: true });
@@ -25263,18 +25800,42 @@ router8.post("/users/:userId/push-test", async (req, res) => {
   }
   const pushTitle = typeof title === "string" && title.trim() ? title.trim().slice(0, 80) : "Mensaje de administraci\xF3n";
   const pushBody = typeof body === "string" && body.trim() ? body.trim().slice(0, 200) : "Prueba de notificaci\xF3n";
+  const prefs = mergeNotificationPreferences(userDoc.data()?.notificationPreferences);
+  if (!allowsPushType(prefs, "admin_test")) {
+    return res.status(400).json({
+      error: "El usuario desactiv\xF3 \xABPromociones y novedades\xBB en la app. No se envi\xF3 la prueba."
+    });
+  }
   const result = await sendPushNotification(fcmToken, pushTitle, pushBody, {
     type: "admin_test",
     ...data && typeof data === "object" ? data : {}
   });
   if (result.tokenInvalid) {
-    await db().collection(COLLECTIONS.USERS).doc(userId).update({ fcmToken: FieldValue3.delete(), updatedAt: /* @__PURE__ */ new Date() });
+    await db().collection(COLLECTIONS.USERS).doc(userId).update({ fcmToken: FieldValue4.delete(), updatedAt: /* @__PURE__ */ new Date() });
     return res.status(410).json({ error: "Token inv\xE1lido; se elimin\xF3 del usuario" });
   }
   if (!result.success) {
     return res.status(502).json({ error: "No se pudo enviar la notificaci\xF3n" });
   }
   res.json({ ok: true, sent: true });
+});
+router8.post("/push/broadcast", async (req, res) => {
+  const { title, body, audience, campaignId } = req.body;
+  const settings = await getPlatformSettings();
+  const defaults = settings.notifications ?? {};
+  const pushTitle = typeof title === "string" && title.trim() ? title.trim().slice(0, 80) : String(defaults.defaultTitle || "Tickets Transfer");
+  const pushBody = typeof body === "string" && body.trim() ? body.trim().slice(0, 200) : String(
+    defaults.defaultBodyPrefix || "\xBFQu\xE9 esper\xE1s para encontrar tu entrada ideal?"
+  );
+  const allowed = /* @__PURE__ */ new Set(["all", "buyers", "sellers", "with_location"]);
+  const aud = allowed.has(audience || "") ? audience : "all";
+  const result = await sendAdminBroadcast({
+    title: pushTitle,
+    body: pushBody,
+    audience: aud,
+    campaignId: typeof campaignId === "string" ? campaignId.slice(0, 64) : void 0
+  });
+  res.json({ ok: true, ...result, title: pushTitle, body: pushBody, audience: aud });
 });
 var adminRouter = router8;
 
@@ -25553,6 +26114,20 @@ router12.get("/expire-payment-reservations", async (req, res) => {
   }
   const released = await expireStalePaymentReservations(100);
   res.json({ ok: true, released });
+});
+router12.get("/nearby-events-push", async (req, res) => {
+  if (!isAuthorized(req)) {
+    return res.status(401).json({ error: "No autorizado" });
+  }
+  const result = await sendNearbyEventsDigest(400);
+  res.json({ ok: true, ...result });
+});
+router12.get("/recommendations-push", async (req, res) => {
+  if (!isAuthorized(req)) {
+    return res.status(401).json({ error: "No autorizado" });
+  }
+  const result = await sendRecommendationsDigest(400);
+  res.json({ ok: true, ...result });
 });
 var cronRouter = router12;
 

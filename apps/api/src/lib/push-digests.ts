@@ -189,8 +189,8 @@ export async function sendRecommendationsDigest(limit = USER_BATCH): Promise<{
   let skipped = 0;
 
   for (const user of users) {
-    const prefs = mergeNotificationPreferences(user.notificationPreferences);
-    if (!allowsPushType(prefs, 'recommendation')) {
+    const pushPrefs = mergeNotificationPreferences(user.notificationPreferences);
+    if (!allowsPushType(pushPrefs, 'recommendation')) {
       skipped += 1;
       continue;
     }
@@ -198,16 +198,16 @@ export async function sendRecommendationsDigest(limit = USER_BATCH): Promise<{
       skipped += 1;
       continue;
     }
-    const prefs = await getUserPreferences(user.id);
+    const userPrefs = await getUserPreferences(user.id);
     const hasPrefs =
-      Boolean(prefs?.tasteOnboardingCompletedAt) ||
-      (prefs?.eventPreferences?.length ?? 0) > 0 ||
-      Object.keys(prefs?.categoryScores ?? {}).length > 0;
+      Boolean(userPrefs?.tasteOnboardingCompletedAt) ||
+      (userPrefs?.eventPreferences?.length ?? 0) > 0 ||
+      Object.keys(userPrefs?.categoryScores ?? {}).length > 0;
     if (!hasPrefs) {
       skipped += 1;
       continue;
     }
-    const recommended = rankListingsByPreferences(featuredSkip, prefs, 1);
+    const recommended = rankListingsByPreferences(featuredSkip, userPrefs, 1);
     if (!recommended.length) {
       skipped += 1;
       continue;
