@@ -18,10 +18,10 @@ import {
 } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { TicketStubBackground } from '../components/TicketStubBackground';
+import { EventDetailsPanel } from '../components/EventDetailsPanel';
+import { EventCoverImage } from '../components/EventCoverImage';
 import { UserMenuButton } from '../components/UserMenuButton';
-import { colors, radius, spacing } from '../theme';
-import { formatDate } from '../lib/datetime';
+import { colors, radius, spacing, stackScreenContent } from '../theme';
 
 type Route = RouteProp<RootStackParamList, 'OrderDetail'>;
 type Nav = NativeStackNavigationProp<RootStackParamList, 'OrderDetail'>;
@@ -273,29 +273,44 @@ export function OrderDetailScreen() {
           <Text style={styles.error}>{error || 'No se encontró la orden.'}</Text>
         ) : (
           <>
-            <TicketStubBackground backgroundOrientation="portrait" style={styles.ticketWrap} contentStyle={styles.ticketInner}>
-              <Text style={styles.lineTitle}>{order.ticketListing?.eventName || 'Ticket'}</Text>
-              <Text style={styles.line}>
-                {order.currency} {Number(order.totalAmount).toLocaleString('es-AR')}
-              </Text>
-              <Text style={[styles.badge, badgeToneStyle]}>
-                {meta.label}
-              </Text>
-              {order.ticketListing?.eventDate ? (
-                <Text style={styles.line}>Fecha: {formatDate(order.ticketListing.eventDate)}</Text>
-              ) : null}
-              {order.ticketListing?.eventPlace ? <Text style={styles.line}>Lugar: {order.ticketListing.eventPlace}</Text> : null}
+            {order.ticketListing?.eventImageUrl || order.ticketListing?.category ? (
+              <EventCoverImage
+                eventImageUrl={order.ticketListing.eventImageUrl}
+                category={order.ticketListing.category}
+                height={140}
+                showGlyph={false}
+                style={styles.eventCover}
+              />
+            ) : null}
+
+            <EventDetailsPanel
+              data={{
+                listingId: order.ticketListing?.id,
+                eventName: order.ticketListing?.eventName || 'Ticket',
+                eventDate: order.ticketListing?.eventDate,
+                eventPlace: order.ticketListing?.eventPlace,
+                sector: order.ticketListing?.sector,
+                row: order.ticketListing?.row,
+                seat: order.ticketListing?.seat,
+                quantityEntries: order.ticketListing?.quantityEntries,
+                price: order.totalAmount,
+                currency: order.currency,
+              }}
+            />
+
+            <View style={styles.statusBox}>
+              <Text style={[styles.badge, badgeToneStyle]}>{meta.label}</Text>
               {isBuyerView ? (
-                <Text style={styles.line}>Vendedor: {order.seller?.email || '—'}</Text>
+                <Text style={styles.partyLine}>Vendedor: {order.seller?.email || '—'}</Text>
               ) : (
-                <Text style={styles.line}>Comprador: {order.buyer?.email || '—'}</Text>
+                <Text style={styles.partyLine}>Comprador: {order.buyer?.email || '—'}</Text>
               )}
               {showReason ? (
                 <Text style={styles.reason}>
                   Motivo: {order.cancelReason || order.cancelNote || 'Se detectó inconveniente y quedó bajo revisión.'}
                 </Text>
               ) : null}
-            </TicketStubBackground>
+            </View>
 
             {orderHasDeliveryInfo(order) ? (
               <View style={styles.deliveryBox}>
@@ -459,10 +474,18 @@ export function OrderDetailScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: stackScreenContent,
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  ticketWrap: { marginBottom: spacing.md },
-  ticketInner: { padding: spacing.lg, minHeight: 360 },
+  eventCover: { borderRadius: 14, marginBottom: spacing.md },
+  statusBox: {
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius,
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.35)',
+    backgroundColor: 'rgba(30, 58, 138, 0.2)',
+    gap: 6,
+  },
   deliveryBox: {
     marginBottom: spacing.md,
     padding: spacing.md,
@@ -473,9 +496,8 @@ const styles = StyleSheet.create({
   },
   deliveryTitle: { color: colors.text, fontWeight: '700', fontSize: 15, marginBottom: spacing.sm },
   deliveryLine: { color: colors.textMuted, fontSize: 13, marginBottom: 4, lineHeight: 19 },
-  lineTitle: { color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 6 },
-  line: { color: colors.textMuted, fontSize: 14, marginBottom: 6 },
-  badge: { fontSize: 13, fontWeight: '700', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start', marginBottom: 8 },
+  badge: { fontSize: 13, fontWeight: '700', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start' },
+  partyLine: { color: colors.textMuted, fontSize: 14 },
   toneWarning: { backgroundColor: 'rgba(234,179,8,0.2)', color: '#ca8a04' },
   toneSuccess: { backgroundColor: 'rgba(34,197,94,0.2)', color: '#16a34a' },
   toneDanger: { backgroundColor: 'rgba(239,68,68,0.2)', color: '#ef4444' },

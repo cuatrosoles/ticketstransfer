@@ -22,7 +22,7 @@ import { WebView } from 'react-native-webview';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
-import { colors, spacing } from '../theme';
+import { colors, spacing, stackScreenContent } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'KycWebView'>;
 type KycWebViewRoute = RouteProp<RootStackParamList, 'KycWebView'>;
@@ -104,7 +104,7 @@ export function KycWebViewScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 80 },
+  scrollContent: { ...stackScreenContent, paddingBottom: 80 },
   webviewWrap: { width: '100%' },
   webview: { width: '100%', height: 600, backgroundColor: 'transparent' },
   loading: {

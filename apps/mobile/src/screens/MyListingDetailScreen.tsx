@@ -23,10 +23,10 @@ import type { RootStackParamList } from '../navigation/types';
 import { getMyListingDetail, ensureImageUrl, type MyListingDetail as Listing } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { TicketStubBackground } from '../components/TicketStubBackground';
+import { EventDetailsPanel } from '../components/EventDetailsPanel';
+import { EventCoverImage } from '../components/EventCoverImage';
 import { UserMenuButton } from '../components/UserMenuButton';
-import { colors, spacing, radius } from '../theme';
-import { formatDate } from '../lib/datetime';
+import { colors, spacing, radius, stackScreenContent } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'MyListingDetail'>;
 type Route = RouteProp<RootStackParamList, 'MyListingDetail'>;
@@ -73,33 +73,37 @@ export function MyListingDetailScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <ScreenHeader title="Mi publicación" showBack onBack={() => navigation.goBack()} rightSlot={<UserMenuButton />} />
 
-        <TicketStubBackground
-          backgroundOrientation="portrait"
-          style={styles.ticketWrap}
-          contentStyle={styles.ticketInner}
-        >
-          <Text style={styles.ticketId}>TICKET ID N°: {listing.id}</Text>
-          <View style={styles.perforation} />
-          <Text style={styles.row}>
-            VISIBILIDAD:{' '}
-            {listing.visibility === 'PUBLIC' ? 'Pública (marketplace)' : 'Privada (ID + contraseña)'}
+        <EventCoverImage
+          eventImageUrl={listing.eventImageUrl}
+          category={listing.category}
+          height={160}
+          showGlyph={false}
+          style={styles.eventCover}
+        />
+
+        <EventDetailsPanel
+          data={{
+            listingId: listing.id,
+            eventName: listing.eventName,
+            eventDate: listing.eventDate,
+            eventPlace: listing.eventPlace,
+            sector: listing.sector,
+            row: listing.row,
+            seat: listing.seat,
+            quantityEntries: listing.quantityEntries,
+            price: listing.price,
+            currency: listing.currency,
+            ticketera: listing.ticketera,
+            appBoletos: listing.appBoletos,
+            orderRef: listing.orderRef,
+          }}
+        />
+
+        <View style={styles.visibilityBox}>
+          <Text style={styles.visibilityText}>
+            VISIBILIDAD: {listing.visibility === 'PUBLIC' ? 'Pública (marketplace)' : 'Privada (ID + contraseña)'}
           </Text>
-          <Text style={styles.row}>EVENTO: {listing.eventName}</Text>
-          <Text style={styles.row}>
-            FECHA: {formatDate(listing.eventDate)}
-          </Text>
-          <Text style={styles.row}>LUGAR: {listing.eventPlace || '—'}</Text>
-          {listing.sector ? <Text style={styles.row}>SECTOR: {listing.sector}</Text> : null}
-          <Text style={styles.row}>CANTIDAD: {listing.quantityEntries || '—'}</Text>
-          {listing.seat ? <Text style={styles.row}>BUTACA-ASIENTO: {listing.seat}</Text> : null}
-          {listing.row ? <Text style={styles.row}>FILA: {listing.row}</Text> : null}
-          <Text style={styles.row}>
-            PRECIO: {listing.currency} ${Number(listing.price).toLocaleString('es-AR')}
-          </Text>
-          {listing.ticketera ? <Text style={styles.row}>TICKETERA: {listing.ticketera}</Text> : null}
-          {listing.appBoletos ? <Text style={styles.row}>APP DE BOLETOS: {listing.appBoletos}</Text> : null}
-          {listing.orderRef ? <Text style={styles.row}>CODIGO DE ORDEN: {listing.orderRef}</Text> : null}
-        </TicketStubBackground>
+        </View>
 
         <View style={styles.previewButtons}>
           {listing.captureTicketUrl && (
@@ -182,23 +186,18 @@ export function MyListingDetailScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: stackScreenContent,
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  ticketWrap: { marginBottom: spacing.lg },
-  ticketInner: {
-    paddingTop: spacing.xl * 2,
-    paddingHorizontal: spacing.xl,
-    paddingBottom: 148,
-    minHeight: 440,
+  eventCover: { borderRadius: 14, marginBottom: spacing.md },
+  visibilityBox: {
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius,
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.35)',
+    backgroundColor: 'rgba(30, 58, 138, 0.2)',
   },
-  perforation: {
-    borderStyle: 'dashed',
-    borderBottomWidth: 1,
-    borderColor: 'rgba(147, 197, 253, 0.4)',
-    marginVertical: spacing.sm,
-  },
-  ticketId: { fontSize: 12, color: colors.primaryLight, marginBottom: spacing.xs },
-  row: { fontSize: 14, color: colors.text, marginBottom: spacing.sm },
+  visibilityText: { fontSize: 13, color: colors.textMuted },
   previewButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
   previewBtn: {
     flex: 1,

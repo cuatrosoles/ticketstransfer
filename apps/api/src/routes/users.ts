@@ -9,7 +9,8 @@ import { db, COLLECTIONS } from '../lib/firestore.js';
 import { getAuth } from '../lib/firebase-admin.js';
 import { uploadFile } from '../lib/firebase-storage.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
-import { onboardingSchema, userLocationUpdateSchema } from '@tickets-transfer/shared';
+import { onboardingSchema, userLocationUpdateSchema, notificationPreferencesPatchSchema } from '@tickets-transfer/shared';
+import { mergeNotificationPreferences } from '../lib/notification-preferences.js';
 import { createDiditSession } from '../lib/didit.js';
 import {
   getOrCreateCustomer,
@@ -148,6 +149,28 @@ router.patch('/security/biometric-preference', async (req: AuthRequest, res) => 
   });
 });
 
+router.get('/security/notification-preferences', async (req: AuthRequest, res) => {
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
+  if (!userDoc.exists) return res.status(404).json({ error: 'No encontrado' });
+  res.json(mergeNotificationPreferences(userDoc.data()?.notificationPreferences));
+});
+
+router.patch('/security/notification-preferences', async (req: AuthRequest, res) => {
+  const parsed = notificationPreferencesPatchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Datos inválidos', details: parsed.error.flatten() });
+  }
+  const userDoc = await db().collection(COLLECTIONS.USERS).doc(req.user!.id).get();
+  if (!userDoc.exists) return res.status(404).json({ error: 'No encontrado' });
+  const current = mergeNotificationPreferences(userDoc.data()?.notificationPreferences);
+  const next = { ...current, ...parsed.data };
+  await db().collection(COLLECTIONS.USERS).doc(req.user!.id).update({
+    notificationPreferences: next,
+    updatedAt: new Date(),
+  });
+  res.json(next);
+});
+
 router.get('/profile', async (req: AuthRequest, res) => {
   const userId = req.user!.id;
   const [userDoc, kycDoc, firebaseUser] = await Promise.all([
@@ -198,6 +221,7 @@ router.get('/profile', async (req: AuthRequest, res) => {
     bankName: data.bankName ?? null,
     kyc: kyc ? { status: kyc.status, rejectionReason: kyc.rejectionReason ?? null } : { status: 'PENDIENTE', rejectionReason: null },
     preferences: preferencesToApi(userPrefs),
+    notificationPreferences: mergeNotificationPreferences(data.notificationPreferences),
   });
 });
 

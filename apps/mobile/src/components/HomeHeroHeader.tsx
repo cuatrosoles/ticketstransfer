@@ -8,7 +8,6 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { ensureImageUrl } from '../lib/api';
 import { headerEdgePadding, headerTopPadding } from '../theme';
 import { NEON, neonGlow } from '../lib/neonStyles';
-
 type Props = {
   profileImageUri: string | null;
   onOpenMenu: () => void;
@@ -57,7 +56,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     gap: 6,
     minHeight: 48,
-    backgroundColor: 'black',
+    backgroundColor: 'transparent',
   },
   menuBtn: {
     width: 44,

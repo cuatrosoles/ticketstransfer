@@ -25,6 +25,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { GradientButton } from '../components/GradientButton';
 import { SocialIcons } from '../components/SocialIcons';
 import { useBranding } from '../context/BrandingContext';
+import { stackScreenContent } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -138,7 +139,7 @@ export function LoginScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 24, paddingBottom: 48, paddingHorizontal: 24, flexGrow: 1, alignItems: 'center' },
+  content: { ...stackScreenContent, flexGrow: 1, alignItems: 'center' },
   glassWrap: { width: '100%', maxWidth: 420 },
   glassPanel: {
     backgroundColor: 'rgba(13, 36, 82, 0.72)',

@@ -4,10 +4,9 @@
  */
 
 import { Router } from 'express';
-import { FieldValue } from 'firebase-admin/firestore';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
-import { sendPushNotification } from '../lib/firebase-messaging.js';
+import { sendPushToUser } from '../lib/push-to-user.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -335,16 +334,18 @@ router.post('/conversations/:id/messages', async (req: AuthRequest, res) => {
   const senderDoc = await db().collection(COLLECTIONS.USERS).doc(userId).get();
   const sender = senderDoc.data();
   const recipientDoc = await db().collection(COLLECTIONS.USERS).doc(recipientId).get();
-  const fcmToken = recipientDoc.data()?.fcmToken;
+  const recipientData = recipientDoc.data();
+  const fcmToken = recipientData?.fcmToken;
   if (fcmToken) {
     const senderName = [sender?.firstName, sender?.lastName].filter(Boolean).join(' ') || sender?.email || 'Alguien';
-    const pushResult = await sendPushNotification(fcmToken, 'Nuevo mensaje', `${senderName}: ${content.trim().slice(0, 50)}`, {
-      type: 'new_message',
-      conversationId: convId,
-    });
-    if (pushResult.tokenInvalid) {
-      await db().collection(COLLECTIONS.USERS).doc(recipientId).update({ fcmToken: FieldValue.delete() });
-    }
+    await sendPushToUser(
+      recipientId,
+      fcmToken,
+      'Nuevo mensaje',
+      `${senderName}: ${content.trim().slice(0, 50)}`,
+      { type: 'new_message', conversationId: convId },
+      recipientData?.notificationPreferences as Record<string, unknown> | undefined
+    );
   }
 
   res.status(201).json({

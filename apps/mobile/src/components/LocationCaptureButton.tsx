@@ -14,6 +14,8 @@ type Props = {
   longitude: number | null;
   onCapture: (coords: { latitude: number; longitude: number }) => void | Promise<void>;
   onClear?: () => void;
+  /** Abre el mapa para ajustar la ubicación ya capturada */
+  onEdit?: () => void;
   disabled?: boolean;
   /** Texto bajo el botón cuando aún no hay coords; null = ocultar */
   emptyHint?: string | null;
@@ -29,6 +31,7 @@ export function LocationCaptureButton({
   longitude,
   onCapture,
   onClear,
+  onEdit,
   disabled,
   emptyHint = null,
   capturedHint = null,
@@ -71,11 +74,18 @@ export function LocationCaptureButton({
           <Text style={styles.coordsText}>
             {formatCoordinates(latitude!, longitude!)}
           </Text>
-          {onClear ? (
-            <TouchableOpacity onPress={onClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.clearText}>Quitar</Text>
-            </TouchableOpacity>
-          ) : null}
+          <View style={styles.coordsActions}>
+            {onEdit ? (
+              <TouchableOpacity onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.editText}>Editar</Text>
+              </TouchableOpacity>
+            ) : null}
+            {onClear ? (
+              <TouchableOpacity onPress={onClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.clearText}>Quitar</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
       ) : emptyHint ? (
         <Text style={styles.hint}>{emptyHint}</Text>
@@ -99,6 +109,8 @@ const styles = StyleSheet.create({
   btnText: { color: colors.primaryLight, fontWeight: '600', fontSize: 14 },
   coordsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
   coordsText: { color: colors.textMuted, fontSize: 12, flex: 1 },
+  coordsActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  editText: { color: colors.primaryLight, fontSize: 12, fontWeight: '600' },
   clearText: { color: colors.accent, fontSize: 12 },
   hint: { color: colors.textMuted, fontSize: 12, marginTop: 6 },
 });

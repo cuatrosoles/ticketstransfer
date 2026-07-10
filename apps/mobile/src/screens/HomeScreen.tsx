@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MainTabParamList, TabCompositeNavigationProp } from '../navigation/types';
 import { useAuth } from '../context/AuthContext';
 import { BiometricActivationModal } from '../components/BiometricActivationModal';
@@ -24,6 +24,7 @@ import { HomeHeroHeader } from '../components/HomeHeroHeader';
 import { HeroImageBanner } from '../components/HeroImageBanner';
 import { HomeEventCard, HOME_CARD_WIDTHS } from '../components/HomeEventCard';
 import { GradientButton } from '../components/GradientButton';
+import { SocialIcons } from '../components/SocialIcons';
 import { useBranding } from '../context/BrandingContext';
 import { useUserMenu } from '../context/UserMenuContext';
 import { useProfileImage } from '../context/ProfileImageContext';
@@ -65,6 +66,7 @@ export function HomeScreen() {
   const { openMenu } = useUserMenu();
   const { profileImageUrl } = useProfileImage();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const nearbyCardWidth = Math.round(Math.min(HOME_CARD_WIDTHS.nearby, width * 0.48));
   const recommendedCardWidth = Math.round(Math.min(HOME_CARD_WIDTHS.recommended, width * 0.38));
   const nearbyRadius = brand.data?.marketplaceNearbyRadiusKm ?? DEFAULT_NEARBY_RADIUS_KM;
@@ -190,34 +192,26 @@ export function HomeScreen() {
 
   return (
     <AuthBackground>
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <SafeAreaView style={styles.safe} edges={[]}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.headerShell}>
-            <HomeHeroHeader
-              profileImageUri={profileImageUrl}
-              onOpenMenu={openMenu}
-              onBell={() => navigation.navigate('Mensajes')}
-              onAvatar={() => navigation.navigate('Profile')}
-            />
+          <View style={styles.heroSection}>
+            <TouchableOpacity activeOpacity={0.92} onPress={goTienda}>
+              <HeroImageBanner
+                source={HERO_IMAGE}
+                aspectRatio={0.58}
+                edgeFadeTop={{ heightPx: 0 }}
+                edgeFadeBottom={{ heightPx: 34 }}
+              />
+            </TouchableOpacity>
+            <View style={[styles.headerOverlay, { paddingTop: insets.top }]}>
+              <HomeHeroHeader
+                profileImageUri={profileImageUrl}
+                onOpenMenu={openMenu}
+                onBell={() => navigation.navigate('Mensajes')}
+                onAvatar={() => navigation.navigate('Profile')}
+              />
+            </View>
           </View>
-
-          <TouchableOpacity activeOpacity={0.92} onPress={goTienda}>
-            <HeroImageBanner
-              source={HERO_IMAGE}
-              aspectRatio={0.52}
-              edgeFadeTop={{ heightPx: 0 }}
-              edgeFadeBottom={{ heightPx: 34 }}
-            >
-              {/*
-              <Text style={styles.heroTitle}>Viví los mejores eventos</Text>
-              <Text style={styles.heroSub}>Tickets 100% verificados</Text>
-              <View style={styles.heroBtnWrap}>
-                <GradientButton title="Ir a la tienda" onPress={goTienda} size="compact" />
-              </View>
-              */}
-         
-            </HeroImageBanner>
-          </TouchableOpacity>
 
           <View style={styles.body}>
             <View style={styles.sectionHead}>
@@ -310,6 +304,9 @@ export function HomeScreen() {
             {!marketplaceLoading && recommended.length > 0
               ? renderCarousel(recommended, 'recommended', 'rec', recommendedCardWidth)
               : null}
+
+            <Text style={styles.socialTitle}>Seguinos en nuestras redes</Text>
+            <SocialIcons />
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -329,7 +326,17 @@ const styles = StyleSheet.create({
   safe: screenRoot,
   scroll: screenScroll,
   content: { paddingBottom: 100 },
-  headerShell: { width: '100%', marginBottom: 0 },
+  heroSection: {
+    position: 'relative',
+    width: '100%',
+  },
+  headerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+  },
   body: { paddingHorizontal: spacing.lg },
   heroTitle: {
     fontSize: 24,
@@ -406,4 +413,12 @@ const styles = StyleSheet.create({
   },
   err: { color: '#f87171', textAlign: 'center', fontSize: 14 },
   hint: { color: colors.textMuted, textAlign: 'center', fontSize: 14 },
+  socialTitle: {
+    textAlign: 'center',
+    marginTop: spacing.lg,
+    marginBottom: 12,
+    fontWeight: '700',
+    fontSize: 16,
+    color: '#f8fafc',
+  },
 });

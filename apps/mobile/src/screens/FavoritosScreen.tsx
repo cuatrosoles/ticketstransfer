@@ -14,7 +14,7 @@ import { useBranding } from '../context/BrandingContext';
 import { useFavorites } from '../context/FavoritesContext';
 import type { TabCompositeNavigationProp } from '../navigation/types';
 import { formatDateTime } from '../lib/datetime';
-import { colors, spacing } from '../theme';
+import { colors, spacing, tabScreenContent } from '../theme';
 
 type Nav = TabCompositeNavigationProp<'Favoritos'>;
 
@@ -79,7 +79,7 @@ export function FavoritosScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 14, paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  content: tabScreenContent,
   loader: {
     minHeight: 200,
     justifyContent: 'center',

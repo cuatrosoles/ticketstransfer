@@ -325,7 +325,29 @@ export type Profile = {
   bankName: string | null;
   kyc: { status: string; rejectionReason: string | null } | null;
   preferences?: UserPreferences;
+  notificationPreferences?: NotificationPreferences;
 };
+
+export type NotificationPreferences = {
+  transactions: boolean;
+  messages: boolean;
+  nearbyEvents: boolean;
+  recommendations: boolean;
+  promotions: boolean;
+};
+
+export async function getNotificationPreferences(): Promise<NotificationPreferences> {
+  return api<NotificationPreferences>('/api/users/security/notification-preferences');
+}
+
+export async function updateNotificationPreferences(
+  data: Partial<NotificationPreferences>
+): Promise<NotificationPreferences> {
+  return api<NotificationPreferences>('/api/users/security/notification-preferences', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
 
 export type ProfileUpdate = {
   username?: string;
@@ -485,6 +507,8 @@ export type OrderItem = {
     eventName: string;
     eventDate?: string;
     eventPlace?: string;
+    eventImageUrl?: string | null;
+    category?: string | null;
     sector?: string;
     row?: string;
     seat?: string;
@@ -515,6 +539,22 @@ export async function uploadOrderEvidence(orderId: string, image: {
     type: image.type || 'image/jpeg',
   } as never);
   return api<{ ok: boolean; status: string }>(`/api/orders/${encodeURIComponent(orderId)}/evidence`, {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+export async function submitBankTransferPayment(
+  orderId: string,
+  image: { uri: string; name?: string; type?: string }
+): Promise<{ ok: boolean; status: string }> {
+  const formData = new FormData();
+  formData.append('proof', {
+    uri: image.uri,
+    name: image.name || `transfer-proof-${Date.now()}.jpg`,
+    type: image.type || 'image/jpeg',
+  } as never);
+  return api<{ ok: boolean; status: string }>(`/api/orders/${encodeURIComponent(orderId)}/bank-transfer`, {
     method: 'POST',
     body: formData,
   });
@@ -576,6 +616,8 @@ export type TicketListingItem = {
   eventName: string;
   eventDate: string;
   eventPlace: string | null;
+  eventImageUrl?: string | null;
+  category?: string | null;
   sector: string | null;
   tipoEntrada: string;
   price: number;

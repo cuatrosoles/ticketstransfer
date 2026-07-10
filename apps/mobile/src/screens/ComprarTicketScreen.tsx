@@ -19,10 +19,10 @@ import type { RootStackParamList } from '../navigation/types';
 import { api } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { TicketStubBackground } from '../components/TicketStubBackground';
+import { EventDetailsPanel } from '../components/EventDetailsPanel';
+import { SellerInfoBlock } from '../components/SellerInfoBlock';
 import { UserMenuButton } from '../components/UserMenuButton';
-import { colors, spacing, radius } from '../theme';
-import { formatDate } from '../lib/datetime';
+import { colors, spacing, radius, stackScreenContent } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ComprarTicket'>;
 
@@ -35,6 +35,7 @@ type Seller = {
   phoneVerified?: boolean;
   emailVerified?: boolean;
   kyc?: { status: string } | null;
+  completedSalesCount?: number | null;
 };
 
 type TicketPreview = {
@@ -112,11 +113,7 @@ export function ComprarTicketScreen() {
   };
 
   const seller = preview?.seller;
-  const sellerName = seller
-    ? [seller.firstName, seller.lastName].filter(Boolean).join(' ') || seller.username || '—'
-    : '—';
   const needsPassword = preview && !preview.showFull && preview.id;
-  const salesCount = 0;
 
   return (
     <AuthBackground>
@@ -156,37 +153,19 @@ export function ComprarTicketScreen() {
         {preview && (
           <View style={styles.preview}>
             <Text style={styles.previewTitle}>Comprar Ticket</Text>
-            <TicketStubBackground style={styles.ticketStubWrap} contentStyle={styles.ticketInner}>
-              <Text style={styles.ticketId}>TICKET ID N°: {preview.id}</Text>
-              <View style={styles.perforation} />
-              <Text style={styles.previewRow}>EVENTO: {preview.eventName}</Text>
-              <Text style={styles.previewRow}>
-                FECHA: {formatDate(preview.eventDate)}
-              </Text>
-              <Text style={styles.previewRow}>LUGAR: {preview.eventPlace || '—'}</Text>
-              {preview.sector ? <Text style={styles.previewRow}>SECTOR: {preview.sector}</Text> : null}
-              <Text style={styles.previewRow}>
-                CANTIDAD DE ENTRADAS: {preview.quantityEntries || '—'}
-              </Text>
-            </TicketStubBackground>
+            <EventDetailsPanel
+              data={{
+                listingId: preview.id,
+                eventName: preview.eventName,
+                eventDate: preview.eventDate,
+                eventPlace: preview.eventPlace,
+                sector: preview.sector,
+                quantityEntries: preview.quantityEntries,
+              }}
+              showFull={false}
+            />
 
-            {seller && (
-              <View style={styles.sellerInfo}>
-                <Text style={styles.sellerLabel}>VENDEDOR: {sellerName.toUpperCase()}</Text>
-                <Text style={styles.previewRow}>USUARIO: {seller.username || '—'}</Text>
-                <Text style={styles.previewRow}>REPUTACIÓN: {seller.reputationScore ?? 0} PTS</Text>
-                <Text style={styles.previewRow}>
-                  VERIFICACION KYC: {seller.kyc?.status === 'APROBADO' ? '✓ Verificado' : 'Sin verificar'}
-                </Text>
-                <Text style={styles.previewRow}>
-                  VERIFICACION EMAIL: {seller.emailVerified ? '✓ Verificado' : 'Sin verificar'}
-                </Text>
-                <Text style={styles.previewRow}>
-                  VERIFICACION TELEFONO: {seller.phoneVerified ? '✓ Verificado' : 'Sin verificar'}
-                </Text>
-                <Text style={styles.previewRow}>VENTAS CONCRETADAS: {salesCount}</Text>
-              </View>
-            )}
+            {seller ? <SellerInfoBlock seller={seller} /> : null}
 
             {needsPassword ? (
               <>
@@ -234,7 +213,7 @@ export function ComprarTicketScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: stackScreenContent,
   subtitle: { fontSize: 14, color: colors.textMuted, marginBottom: spacing.sm },
   linkPurchases: {
     marginBottom: spacing.lg,
@@ -287,16 +266,4 @@ const styles = StyleSheet.create({
   hint: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.md },
   preview: { marginTop: spacing.lg * 2 },
   previewTitle: { fontSize: 18, fontWeight: '700', color: colors.white, marginBottom: spacing.md },
-  ticketStubWrap: { marginBottom: spacing.md },
-  ticketInner: { padding: spacing.lg },
-  ticketId: { fontSize: 12, color: colors.primaryLight, marginTop: spacing.lg, marginBottom: spacing.xs },
-  perforation: {
-    borderStyle: 'dashed',
-    borderBottomWidth: 1,
-    borderColor: 'rgba(147, 197, 253, 0.4)',
-    marginVertical: spacing.sm,
-  },
-  previewRow: { fontSize: 14, color: colors.text, marginBottom: spacing.sm },
-  sellerInfo: { marginBottom: spacing.lg, padding: spacing.md },
-  sellerLabel: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
 });

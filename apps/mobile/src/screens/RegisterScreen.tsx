@@ -6,7 +6,7 @@
  */
 
 import * as React from 'react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -26,12 +26,13 @@ import { sendEmailVerificationCode, verifyEmailCode, checkUsername } from '../li
 import { registerSchema, SEXO_OPCIONES, TIPO_DOCUMENTO, PREFIJO_TELEFONO_DEFAULT } from '../lib/registerConstants';
 import { PROVINCIAS_ARGENTINA, CIUDADES_POR_PROVINCIA } from '../data/provinciasArgentina';
 import { LocationCaptureButton } from '../components/LocationCaptureButton';
+import { AddressMapConfirmModal } from '../components/AddressMapConfirmModal';
 import { addressFieldsFromReverseGeocode, reverseGeocodeFromApi } from '../lib/addressGeocode';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { GradientButton } from '../components/GradientButton';
 import { useBranding } from '../context/BrandingContext';
-import { colors } from '../theme';
+import { colors, stackScreenContent } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Register'>;
 
@@ -39,6 +40,8 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN = 8;
 const PASSWORD_HINT = 'Mínimo 8 caracteres, con mayúsculas, minúsculas y números.';
 const RESEND_COOLDOWN_SEC = 30;
+/** Tiempo visible al pulsar el ojo antes de volver a ocultar la contraseña. */
+const PASSWORD_PEEK_MS = 4000;
 
 function validateStep1(
   email: string,
@@ -65,6 +68,10 @@ export function RegisterScreen() {
   const [repeatEmail, setRepeatEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const passwordPeekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const confirmPasswordPeekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -93,6 +100,8 @@ export function RegisterScreen() {
   const [longitude, setLongitude] = useState<number | null>(null);
   const [locationAutoFilled, setLocationAutoFilled] = useState(false);
   const [locationBusy, setLocationBusy] = useState(false);
+  const [mapModalVisible, setMapModalVisible] = useState(false);
+  const [mapCoords, setMapCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [pickerModal, setPickerModal] = useState<'province' | 'city' | 'date' | null>(null);
@@ -107,6 +116,45 @@ export function RegisterScreen() {
   useEffect(() => {
     if (!province) setCity('');
   }, [province]);
+
+  useEffect(
+    () => () => {
+      if (passwordPeekTimer.current) clearTimeout(passwordPeekTimer.current);
+      if (confirmPasswordPeekTimer.current) clearTimeout(confirmPasswordPeekTimer.current);
+    },
+    []
+  );
+
+  const schedulePasswordHide = (
+    setter: (v: boolean) => void,
+    timerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
+  ) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setter(false);
+      timerRef.current = null;
+    }, PASSWORD_PEEK_MS);
+  };
+
+  const togglePasswordPeek = () => {
+    if (showPassword) {
+      if (passwordPeekTimer.current) clearTimeout(passwordPeekTimer.current);
+      setShowPassword(false);
+      return;
+    }
+    setShowPassword(true);
+    schedulePasswordHide(setShowPassword, passwordPeekTimer);
+  };
+
+  const toggleConfirmPasswordPeek = () => {
+    if (showConfirmPassword) {
+      if (confirmPasswordPeekTimer.current) clearTimeout(confirmPasswordPeekTimer.current);
+      setShowConfirmPassword(false);
+      return;
+    }
+    setShowConfirmPassword(true);
+    schedulePasswordHide(setShowConfirmPassword, confirmPasswordPeekTimer);
+  };
 
   useEffect(() => {
     if (!username.trim() || username.length < 2) {
@@ -193,6 +241,8 @@ export function RegisterScreen() {
   };
 
   const clearGpsLocation = () => {
+    setMapModalVisible(false);
+    setMapCoords(null);
     setLatitude(null);
     setLongitude(null);
     if (locationAutoFilled) {
@@ -207,7 +257,7 @@ export function RegisterScreen() {
     }
   };
 
-  const applyGpsLocation = async (coords: { latitude: number; longitude: number }) => {
+  const applyAddressFromCoords = async (coords: { latitude: number; longitude: number }) => {
     setLatitude(coords.latitude);
     setLongitude(coords.longitude);
     setLocationBusy(true);
@@ -224,11 +274,38 @@ export function RegisterScreen() {
     } catch {
       setLocationAutoFilled(false);
       setError(
-        'Ubicación GPS obtenida. Completá provincia y ciudad manualmente si los campos quedaron vacíos.'
+        'Ubicación confirmada en el mapa. Completá provincia, ciudad y dirección manualmente si los campos quedaron vacíos.'
       );
     } finally {
       setLocationBusy(false);
     }
+  };
+
+  const openMapConfirm = (coords: { latitude: number; longitude: number }) => {
+    setMapCoords(coords);
+    setMapModalVisible(true);
+  };
+
+  const handleGpsCapture = async (coords: { latitude: number; longitude: number }) => {
+    setLatitude(coords.latitude);
+    setLongitude(coords.longitude);
+    openMapConfirm(coords);
+  };
+
+  const handleMapConfirm = async (coords: { latitude: number; longitude: number }) => {
+    setMapModalVisible(false);
+    setMapCoords(null);
+    await applyAddressFromCoords(coords);
+  };
+
+  const handleMapCancel = () => {
+    setMapModalVisible(false);
+    setMapCoords(null);
+  };
+
+  const handleEditLocationOnMap = () => {
+    if (latitude == null || longitude == null) return;
+    openMapConfirm({ latitude, longitude });
   };
 
   const bankOk =
@@ -265,7 +342,8 @@ export function RegisterScreen() {
       postalCode: postalCode || undefined,
       latitude: latitude ?? undefined,
       longitude: longitude ?? undefined,
-      locationSource: latitude != null && longitude != null ? 'gps' : undefined,
+      locationSource:
+        latitude != null && longitude != null ? (locationAutoFilled ? 'geocode' : 'gps') : undefined,
       direccion: direccion || undefined,
       numero: numero || undefined,
       piso: piso || undefined,
@@ -326,24 +404,60 @@ export function RegisterScreen() {
         keyboardType="email-address"
       />
       <Text style={styles.label}>Contraseña</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="••••••••"
-        placeholderTextColor={colors.textMuted}
-        value={password}
-        onChangeText={(t) => { setPassword(t); setError(''); }}
-        secureTextEntry
-      />
+      <View style={styles.inputRow}>
+        <TextInput
+          style={[styles.input, styles.inputFlex]}
+          placeholder="••••••••"
+          placeholderTextColor={colors.textMuted}
+          value={password}
+          onChangeText={(t) => {
+            setPassword(t);
+            setError('');
+            setShowPassword(false);
+            if (passwordPeekTimer.current) clearTimeout(passwordPeekTimer.current);
+          }}
+          secureTextEntry={!showPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        <TouchableOpacity
+          style={styles.eyeBtn}
+          onPress={togglePasswordPeek}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={showPassword ? 'Ocultar contraseña' : 'Ver contraseña por un momento'}
+        >
+          <Text style={styles.eyeBtnText}>{showPassword ? '🙈' : '👁'}</Text>
+        </TouchableOpacity>
+      </View>
       <Text style={styles.fieldHint}>{PASSWORD_HINT}</Text>
       <Text style={styles.label}>Repetir Contraseña</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="••••••••"
-        placeholderTextColor={colors.textMuted}
-        value={confirmPassword}
-        onChangeText={(t) => { setConfirmPassword(t); setError(''); }}
-        secureTextEntry
-      />
+      <View style={styles.inputRow}>
+        <TextInput
+          style={[styles.input, styles.inputFlex]}
+          placeholder="••••••••"
+          placeholderTextColor={colors.textMuted}
+          value={confirmPassword}
+          onChangeText={(t) => {
+            setConfirmPassword(t);
+            setError('');
+            setShowConfirmPassword(false);
+            if (confirmPasswordPeekTimer.current) clearTimeout(confirmPasswordPeekTimer.current);
+          }}
+          secureTextEntry={!showConfirmPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        <TouchableOpacity
+          style={styles.eyeBtn}
+          onPress={toggleConfirmPasswordPeek}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={showConfirmPassword ? 'Ocultar contraseña' : 'Ver contraseña por un momento'}
+        >
+          <Text style={styles.eyeBtnText}>{showConfirmPassword ? '🙈' : '👁'}</Text>
+        </TouchableOpacity>
+      </View>
       <Text style={styles.fieldHint}>{PASSWORD_HINT}</Text>
       <TouchableOpacity onPress={() => navigation.navigate('PoliticaPrivacidad')}>
         <Text style={styles.legalLink}>Política de Privacidad y uso de datos</Text>
@@ -511,18 +625,21 @@ export function RegisterScreen() {
       </View>
       <Text style={styles.label}>Tu ubicación</Text>
       <Text style={styles.fieldHint}>
-        Detectamos tu ubicación para mostrarte eventos cercanos. Si preferís no usar GPS, completá la dirección manualmente.
+        Detectamos tu ubicación para mostrarte eventos cercanos. Confirmá en el mapa para mayor precisión o completá la dirección manualmente.
       </Text>
       <LocationCaptureButton
         latitude={latitude}
         longitude={longitude}
         loading={locationBusy}
-        onCapture={applyGpsLocation}
+        onCapture={handleGpsCapture}
+        onEdit={latitude != null && longitude != null ? handleEditLocationOnMap : undefined}
         onClear={clearGpsLocation}
         emptyHint={null}
         capturedHint={
           latitude != null && longitude != null
-            ? 'Dirección completada desde GPS. Revisá y ajustá los campos si hace falta.'
+            ? locationAutoFilled
+              ? 'Dirección completada desde el mapa. Revisá y ajustá los campos si hace falta. Piso y depto se cargan a mano.'
+              : 'Ubicación GPS detectada. Confirmala en el mapa con «Editar» para autocompletar calle y número.'
             : null
         }
       />
@@ -602,6 +719,17 @@ export function RegisterScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {mapCoords ? (
+        <AddressMapConfirmModal
+          visible={mapModalVisible}
+          initialLatitude={mapCoords.latitude}
+          initialLongitude={mapCoords.longitude}
+          onConfirm={handleMapConfirm}
+          onCancel={handleMapCancel}
+          confirming={locationBusy}
+        />
+      ) : null}
 
       <Modal visible={pickerModal === 'date'} transparent animationType="slide">
         <Pressable style={styles.modalOverlay} onPress={() => setPickerModal(null)}>
@@ -701,7 +829,7 @@ export function RegisterScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 48, flexGrow: 1, alignItems: 'center' },
+  content: { ...stackScreenContent, flexGrow: 1, alignItems: 'center' },
   glassWrap: { width: '100%', maxWidth: 420 },
   glassPanel: {
     backgroundColor: 'rgba(30, 58, 138, 0.4)',
@@ -722,6 +850,19 @@ const styles = StyleSheet.create({
     color: '#f8fafc',
     marginBottom: 8,
   },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  inputFlex: { flex: 1, marginBottom: 0 },
+  eyeBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.3)',
+  },
+  eyeBtnText: { fontSize: 18 },
   pickerValue: { color: '#f8fafc' },
   inputDisabled: { opacity: 0.6 },
   pickerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },

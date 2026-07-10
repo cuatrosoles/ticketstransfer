@@ -9,9 +9,9 @@ import { api } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
-import { TicketStubBackground } from '../components/TicketStubBackground';
-import { colors, radius, spacing } from '../theme';
-import { formatDate } from '../lib/datetime';
+import { EventDetailsPanel } from '../components/EventDetailsPanel';
+import { SellerInfoBlock, type SellerInfo } from '../components/SellerInfoBlock';
+import { colors, radius, spacing, stackScreenContent } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'OrderPurchaseDetails'>;
 type Route = RouteProp<RootStackParamList, 'OrderPurchaseDetails'>;
@@ -65,6 +65,7 @@ type TicketPreview = {
   appBoletos?: string;
   orderRef?: string | null;
   showFull?: boolean;
+  seller?: SellerInfo;
 };
 
 type DeliveryForm = {
@@ -201,17 +202,26 @@ export function OrderPurchaseDetailsScreen() {
           </View>
         ) : preview ? (
           <>
-            <TicketStubBackground backgroundOrientation="portrait" style={styles.stub} contentStyle={styles.stubInner}>
-              <Text style={styles.line}>EVENTO: {preview.eventName}</Text>
-              <Text style={styles.line}>FECHA: {formatDate(preview.eventDate)}</Text>
-              <Text style={styles.line}>LUGAR: {preview.eventPlace || '—'}</Text>
-              {preview.sector ? <Text style={styles.line}>SECTOR: {preview.sector}</Text> : null}
-              {preview.row ? <Text style={styles.line}>FILA: {preview.row}</Text> : null}
-              {preview.seat ? <Text style={styles.line}>BUTACA: {preview.seat}</Text> : null}
-              <Text style={styles.line}>
-                PRECIO: {preview.currency} ${preview.price.toLocaleString('es-AR')}
-              </Text>
-            </TicketStubBackground>
+            <EventDetailsPanel
+              data={{
+                listingId: preview.id,
+                eventName: preview.eventName,
+                eventDate: preview.eventDate,
+                eventPlace: preview.eventPlace,
+                sector: preview.sector,
+                row: preview.row,
+                seat: preview.seat,
+                quantityEntries: preview.quantityEntries,
+                price: preview.price,
+                currency: preview.currency,
+                ticketera: preview.ticketera,
+                appBoletos: preview.appBoletos,
+                orderRef: preview.orderRef,
+              }}
+              showFull={preview.showFull}
+            />
+
+            {preview.seller ? <SellerInfoBlock seller={preview.seller} /> : null}
 
             <Text style={styles.help}>
               Corroborá tener instalada la app donde recibirás el ticket. Completá los datos que correspondan. Si necesitás indicar
@@ -273,11 +283,8 @@ export function OrderPurchaseDetailsScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: stackScreenContent,
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  stub: { marginBottom: spacing.md },
-  stubInner: { padding: spacing.lg, minHeight: 360 },
-  line: { color: colors.text, fontSize: 14, marginBottom: 8 },
   help: { color: colors.textMuted, fontSize: 13, marginBottom: spacing.md, lineHeight: 20 },
   inputsBlock: { gap: spacing.sm },
   fieldWrap: { marginBottom: spacing.xs },

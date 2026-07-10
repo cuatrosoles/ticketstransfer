@@ -19,6 +19,9 @@ import {
   retryTransfer,
 } from '../lib/payouts.js';
 import { sendPushNotification } from '../lib/firebase-messaging.js';
+import { sendAdminBroadcast } from '../lib/push-digests.js';
+import { notifyOrderRefunded } from '../lib/order-payments.js';
+import { allowsPushType, mergeNotificationPreferences } from '../lib/notification-preferences.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
@@ -682,6 +685,29 @@ router.patch('/disputes/:id/resolve', async (req: AuthRequest, res) => {
     updatedAt: new Date(),
   });
   await db().collection(COLLECTIONS.ORDERS).doc(dispute.orderId).update({ status: orderStatus, updatedAt: new Date() });
+
+  if (resolution === 'RESUELTA_FAVOR_COMPRADOR') {
+    const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(dispute.orderId).get();
+    if (orderDoc.exists) {
+      const order = orderDoc.data()!;
+      let eventName = 'Ticket';
+      if (order.ticketListingId) {
+        const listingDoc = await db()
+          .collection(COLLECTIONS.TICKET_LISTINGS)
+          .doc(String(order.ticketListingId))
+          .get();
+        if (listingDoc.exists) {
+          eventName = String(listingDoc.data()?.eventName || eventName);
+        }
+      }
+      void notifyOrderRefunded({
+        orderId: dispute.orderId,
+        eventName,
+        buyerId: String(order.buyerId),
+        sellerId: String(order.sellerId),
+      });
+    }
+  }
 
   const updatedDoc = await db().collection(COLLECTIONS.DISPUTES).doc(id).get();
   const orderDoc = await db().collection(COLLECTIONS.ORDERS).doc(dispute.orderId).get();
@@ -1571,6 +1597,12 @@ router.post('/users/:userId/push-test', async (req: AuthRequest, res) => {
   }
   const pushTitle = typeof title === 'string' && title.trim() ? title.trim().slice(0, 80) : 'Mensaje de administración';
   const pushBody = typeof body === 'string' && body.trim() ? body.trim().slice(0, 200) : 'Prueba de notificación';
+  const prefs = mergeNotificationPreferences(userDoc.data()?.notificationPreferences);
+  if (!allowsPushType(prefs, 'admin_test')) {
+    return res.status(400).json({
+      error: 'El usuario desactivó «Promociones y novedades» en la app. No se envió la prueba.',
+    });
+  }
   const result = await sendPushNotification(fcmToken, pushTitle, pushBody, {
     type: 'admin_test',
     ...(data && typeof data === 'object' ? data : {}),
@@ -1583,6 +1615,42 @@ router.post('/users/:userId/push-test', async (req: AuthRequest, res) => {
     return res.status(502).json({ error: 'No se pudo enviar la notificación' });
   }
   res.json({ ok: true, sent: true });
+});
+
+/** Envío masivo de notificaciones push (campañas / marketing manual). */
+router.post('/push/broadcast', async (req: AuthRequest, res) => {
+  const { title, body, audience, campaignId } = req.body as {
+    title?: string;
+    body?: string;
+    audience?: 'all' | 'buyers' | 'sellers' | 'with_location';
+    campaignId?: string;
+  };
+
+  const settings = await getPlatformSettings();
+  const defaults = settings.notifications ?? {};
+  const pushTitle =
+    typeof title === 'string' && title.trim()
+      ? title.trim().slice(0, 80)
+      : String(defaults.defaultTitle || 'Tickets Transfer');
+  const pushBody =
+    typeof body === 'string' && body.trim()
+      ? body.trim().slice(0, 200)
+      : String(
+          defaults.defaultBodyPrefix ||
+            '¿Qué esperás para encontrar tu entrada ideal?'
+        );
+
+  const allowed = new Set(['all', 'buyers', 'sellers', 'with_location']);
+  const aud = allowed.has(audience || '') ? audience! : 'all';
+
+  const result = await sendAdminBroadcast({
+    title: pushTitle,
+    body: pushBody,
+    audience: aud,
+    campaignId: typeof campaignId === 'string' ? campaignId.slice(0, 64) : undefined,
+  });
+
+  res.json({ ok: true, ...result, title: pushTitle, body: pushBody, audience: aud });
 });
 
 export const adminRouter = router;

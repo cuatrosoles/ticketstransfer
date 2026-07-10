@@ -16,17 +16,16 @@ import {
   InteractionManager,
   ScrollView,
 } from 'react-native';
-import Clipboard from '@react-native-clipboard/clipboard';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { getMySales, getMyListings, type OrderItem, type TicketListingItem } from '../lib/api';
-import { formatDate } from '../lib/datetime';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { TicketStubBackground } from '../components/TicketStubBackground';
+import { OrderListCard } from '../components/OrderListCard';
 import { UserMenuButton } from '../components/UserMenuButton';
-import { colors, spacing } from '../theme';
+import { colors, spacing, stackScreenContent } from '../theme';
+import { formatDateTime } from '../lib/datetime';
 
 type Section = {
   title: 'Mis ventas' | 'Mis Tickets a la Venta';
@@ -48,19 +47,6 @@ const SALES_TABS: { id: SalesTabId; label: string }[] = [
   { id: 'espera_transferencia', label: 'EN ESPERA DE TRANSFERENCIA' },
   { id: 'transferido', label: 'TRANSFERIDOS' },
 ];
-
-/** Punto de color junto al estado (amarillo = pendiente/espera; verde = pagado/transferido; rojo = cancel/disputa). */
-function dotTone(status: string) {
-  if (
-    ['CANCELADA', 'EN_DISPUTA', 'DISPUTA_RESUELTA_COMPRADOR', 'DISPUTA_RESUELTA_VENDEDOR'].includes(status)
-  ) {
-    return styles.dotDanger;
-  }
-  if (['PAGADO', 'TRANSFERIDO_VENDEDOR', 'EVIDENCIA_SUBIDA', 'COMPLETADA'].includes(status)) {
-    return styles.dotOk;
-  }
-  return styles.dotWarn;
-}
 
 function tabForOrderStatus(status: string): SalesTabId {
   switch (status) {
@@ -173,11 +159,6 @@ export function MySalesScreen() {
     return s;
   };
 
-  const handleCopyId = (id: string) => {
-    Clipboard.setString(id);
-    Alert.alert('Copiado', 'El código del ticket se copió al portapapeles. Podés compartirlo por redes, email, etc.');
-  };
-
   const sections: Section[] = [
     { title: 'Mis ventas', data: filteredSales },
     { title: 'Mis Tickets a la Venta', data: listings },
@@ -201,77 +182,45 @@ export function MySalesScreen() {
   };
 
   const renderOrderItem = (item: OrderItem) => (
-    <TicketStubBackground style={styles.ticketStubWrap} contentStyle={styles.ticketStubContent}>
-      <Text style={styles.eventName}>{item.ticketListing.eventName}</Text>
-      <View style={styles.metaRow}>
-        <View style={[styles.dot, dotTone(item.status)]} />
-        <Text style={styles.meta}>
-          {item.currency} {item.totalAmount.toLocaleString('es-AR')} · {orderStatusLabel(item.status)}
-        </Text>
-      </View>
-      {item.buyer?.email ? <Text style={styles.buyer}>Comprador: {item.buyer.email}</Text> : null}
-      <Text style={styles.date}>{formatDate(item.createdAt)}</Text>
-      <View style={styles.listingActions}>
-        <TouchableOpacity
-          style={styles.actionBtn}
-          onPress={() => navigation.navigate('OrderDetail', { orderId: item.id, source: 'seller' })}
-        >
-          <Text style={styles.actionBtnText}>Ver detalles de venta</Text>
-        </TouchableOpacity>
-        {showCancelMotivo(item) ? (
-          <TouchableOpacity style={[styles.actionBtn, styles.actionBtnMotivo]} onPress={() => openMotivoAlert(item)}>
-            <Text style={styles.actionBtnText}>Ver motivo</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-    </TicketStubBackground>
+    <OrderListCard
+      eventName={item.ticketListing.eventName}
+      eventDate={item.ticketListing.eventDate}
+      eventPlace={item.ticketListing.eventPlace}
+      eventImageUrl={item.ticketListing.eventImageUrl}
+      category={item.ticketListing.category}
+      subtitle={`${item.currency} ${item.totalAmount.toLocaleString('es-AR')} · ${orderStatusLabel(item.status)}`}
+      extraLine={item.buyer?.email ? `Comprador: ${item.buyer.email}` : undefined}
+      buttonTitle="Ver detalles de venta"
+      onPress={() => navigation.navigate('OrderDetail', { orderId: item.id, source: 'seller' })}
+      secondaryButton={
+        showCancelMotivo(item)
+          ? { title: 'Ver motivo', onPress: () => openMotivoAlert(item) }
+          : undefined
+      }
+      formatEventDateTime={formatDateTime}
+    />
   );
 
   const renderListingItem = (item: TicketListingItem) => {
     const isApproved = item.status === 'DISPONIBLE';
     return (
-      <TicketStubBackground style={styles.ticketStubWrap} contentStyle={styles.ticketStubContent}>
-        <Text style={styles.eventName}>{item.eventName}</Text>
-        <Text style={styles.meta}>
-          {item.price} {item.currency} · {formatDate(item.eventDate)}
-        </Text>
-        <View style={styles.statusRow}>
-          <Text style={[styles.statusBadge, isApproved ? styles.statusApproved : styles.statusPending]}>
-            {listingStatusLabel(item.status)}
-          </Text>
-        </View>
-        <View style={styles.listingActions}>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => navigation.navigate('MyListingDetail', { listingId: item.id })}
-          >
-            <Text style={styles.actionBtnText}>Ver ticket</Text>
-          </TouchableOpacity>
-          {isApproved ? (
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnSecondary]}
-              onPress={() => navigation.navigate('Publish', { editListingId: item.id })}
-            >
-              <Text style={styles.actionBtnText}>Editar</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-        {isApproved && (
-          <View style={styles.idRow}>
-            <Text style={styles.idLabel}>Código: </Text>
-            <Text style={styles.idValue} selectable>
-              {item.id}
-            </Text>
-            <TouchableOpacity
-              style={styles.copyBtn}
-              onPress={() => handleCopyId(item.id)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.copyBtnText}>Copiar</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </TicketStubBackground>
+      <OrderListCard
+        eventName={item.eventName}
+        eventDate={item.eventDate}
+        eventPlace={item.eventPlace}
+        eventImageUrl={item.eventImageUrl}
+        category={item.category}
+        subtitle={`${item.price} ${item.currency} · ${listingStatusLabel(item.status)}`}
+        extraLine={isApproved ? `Código: ${item.id}` : undefined}
+        buttonTitle="Ver ticket"
+        onPress={() => navigation.navigate('MyListingDetail', { listingId: item.id })}
+        secondaryButton={
+          isApproved
+            ? { title: 'Editar', onPress: () => navigation.navigate('Publish', { editListingId: item.id }) }
+            : undefined
+        }
+        formatEventDateTime={formatDateTime}
+      />
     );
   };
 
@@ -367,7 +316,7 @@ export function MySalesScreen() {
 }
 
 const styles = StyleSheet.create({
-  list: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  list: stackScreenContent,
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   tabsBar: { marginHorizontal: -spacing.lg, marginBottom: 4 },
   tabsScroll: {
@@ -408,66 +357,5 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   sectionTitleAfterTabs: { marginTop: spacing.sm },
-  ticketStubWrap: {
-    marginBottom: spacing.md,
-  },
-  ticketStubContent: {
-    padding: spacing.lg,
-  },
-  card: { padding: spacing.lg, marginBottom: 0 },
-  listingActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md, flexWrap: 'wrap' },
-  actionBtn: {
-    flex: 1,
-    minWidth: 120,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  actionBtnSecondary: { backgroundColor: 'rgba(59, 130, 246, 0.35)', borderWidth: 1, borderColor: 'rgba(147, 197, 253, 0.45)' },
-  actionBtnMotivo: {
-    backgroundColor: 'rgba(59, 130, 246, 0.22)',
-    borderWidth: 1,
-    borderColor: 'rgba(147, 197, 253, 0.45)',
-  },
-  actionBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
-  eventName: { fontSize: 16, fontWeight: '600', color: colors.text },
-  metaRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 6 },
-  dot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
-  dotWarn: { backgroundColor: '#ca8a04' },
-  dotOk: { backgroundColor: '#16a34a' },
-  dotDanger: { backgroundColor: '#ef4444' },
-  meta: { fontSize: 14, color: colors.textMuted, flex: 1 },
-  buyer: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
-  date: { fontSize: 12, color: colors.textMuted, marginTop: 4 },
-  statusRow: { marginTop: 8 },
-  statusBadge: {
-    fontSize: 13,
-    fontWeight: '600',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-    alignSelf: 'flex-start',
-  },
-  statusApproved: { backgroundColor: 'rgba(34, 197, 94, 0.2)', color: '#16a34a' },
-  statusPending: { backgroundColor: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' },
-  statusDanger: { backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' },
-  idRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    marginTop: 12,
-    gap: 8,
-  },
-  idLabel: { fontSize: 13, color: colors.textMuted },
-  idValue: { fontSize: 13, fontFamily: 'monospace', color: colors.text, flex: 1 },
-  copyBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  copyBtnText: { fontSize: 14, fontWeight: '600', color: '#fff' },
   emptyText: { color: colors.textMuted, textAlign: 'center', marginTop: 24 },
 });

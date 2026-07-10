@@ -27,7 +27,7 @@ import { api } from '../lib/api';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
-import { colors, spacing, radius, glassCard } from '../theme';
+import { colors, spacing, radius, glassCard, stackScreenContent } from '../theme';
 
 type Order = {
   id: string;
@@ -187,6 +187,9 @@ export function OrderPagoScreen() {
           <Text style={styles.hint}>
             Pagá con tarjeta, débito o cuenta de Mercado Pago desde el checkout oficial. Podés usar medios guardados en tu cuenta de Mercado Pago al momento del pago.
           </Text>
+          <Text style={styles.commissionHint}>
+            El monto final en Mercado Pago puede variar según las comisiones estipuladas por la plataforma.
+          </Text>
 
           {order.status === 'PENDIENTE_PAGO' && (
             <>
@@ -201,6 +204,15 @@ export function OrderPagoScreen() {
                   </Text>
                 </TouchableOpacity>
               )}
+              <TouchableOpacity
+                style={[styles.btn, styles.btnSecondary]}
+                onPress={() => navigation.navigate('OrderBankTransfer', { orderId: order.id })}
+              >
+                <Text style={styles.btnText}>Transferencia bancaria</Text>
+              </TouchableOpacity>
+              <Text style={styles.bankHint}>
+                Con transferencia bancaria abonás el valor indicado arriba sin comisión adicional.
+              </Text>
               {checkoutUrl && (
                 <Text style={styles.browserHint}>
                   Se abre el checkout de Mercado Pago en tu navegador (recomendado). Cuando termines, volvé a esta app:
@@ -255,7 +267,7 @@ export function OrderPagoScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  container: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  container: stackScreenContent,
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   text: { color: colors.textMuted },
   title: { fontSize: 20, fontWeight: '700', color: colors.white, marginBottom: spacing.lg },
@@ -307,6 +319,8 @@ const styles = StyleSheet.create({
   },
   refreshBtnText: { color: colors.textMuted, fontSize: 14, textDecorationLine: 'underline' },
   hint: { fontSize: 12, color: colors.textMuted, marginTop: spacing.sm, marginBottom: spacing.sm, lineHeight: 18 },
+  commissionHint: { fontSize: 12, color: '#fcd34d', marginBottom: spacing.sm, lineHeight: 18 },
+  bankHint: { fontSize: 12, color: '#86efac', marginTop: spacing.sm, marginBottom: spacing.sm, lineHeight: 18 },
   hintError: { fontSize: 12, color: '#fca5a5', marginTop: spacing.sm, lineHeight: 18 },
   muted: { fontSize: 14, color: colors.textMuted },
   success: { fontSize: 14, color: colors.primary, fontWeight: '600', marginTop: spacing.sm },

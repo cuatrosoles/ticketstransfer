@@ -37,8 +37,8 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const DRAWER_WIDTH = Math.min(SCREEN_WIDTH - DRAWER_MARGIN_LEFT * 2, 240);
 
 type MenuEntry =
-  | { id: string; label: string; icon: string; kind: 'tab'; tab: keyof MainTabParamList }
-  | { id: string; label: string; icon: string; kind: 'stack'; route: keyof RootStackParamList };
+  | { id: string; label: string; icon: string; iconVariant?: 'shield-check'; badge?: string; kind: 'tab'; tab: keyof MainTabParamList }
+  | { id: string; label: string; icon: string; iconVariant?: 'shield-check'; badge?: string; kind: 'stack'; route: keyof RootStackParamList };
 
 const MENU_ITEMS: MenuEntry[] = [
   { id: 'inicio', label: 'Inicio', icon: 'home', kind: 'tab', tab: 'Home' },
@@ -47,6 +47,15 @@ const MENU_ITEMS: MenuEntry[] = [
   { id: 'mensajes', label: 'Mensajes', icon: 'bell', kind: 'stack', route: 'Mensajes' },
   { id: 'politica', label: 'Política de privacidad y uso de datos', icon: 'shield', kind: 'stack', route: 'PoliticaPrivacidad' },
   { id: 'terminos', label: 'Términos y condiciones de uso', icon: 'file-text-o', kind: 'stack', route: 'TerminosYCondiciones' },
+  {
+    id: 'antifraude',
+    label: 'Política antifraude',
+    icon: 'shield',
+    iconVariant: 'shield-check',
+    badge: 'NUEVO',
+    kind: 'stack',
+    route: 'PoliticaAntifraude',
+  },
   { id: 'acerca', label: 'Acerca de', icon: 'info-circle', kind: 'stack', route: 'Acerca' },
   { id: 'recomendaciones', label: 'Recomendaciones y quejas', icon: 'star', kind: 'stack', route: 'RecomendacionesQuejas' },
   { id: 'faq', label: 'Preguntas frecuentes', icon: 'question-circle', kind: 'stack', route: 'PreguntasFrecuentes' },
@@ -76,11 +85,23 @@ function MenuRow({
         style={[styles.menuItem, active && styles.menuItemActive]}
       >
         <View style={[styles.iconBox, active && styles.iconBoxActive]}>
-          <FontAwesome name={item.icon} size={15} color="#f8fafc" />
+          {item.iconVariant === 'shield-check' ? (
+            <View style={styles.shieldCheckWrap}>
+              <FontAwesome name="shield" size={15} color="#f8fafc" />
+              <FontAwesome name="check" size={8} color="#60a5fa" style={styles.shieldCheckMark} />
+            </View>
+          ) : (
+            <FontAwesome name={item.icon} size={15} color="#f8fafc" />
+          )}
         </View>
         <Text style={[styles.menuItemText, active && styles.menuItemTextActive]} numberOfLines={2}>
           {item.label}
         </Text>
+        {item.badge ? (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{item.badge}</Text>
+          </View>
+        ) : null}
       </LinearGradient>
     </TouchableOpacity>
   );
@@ -275,6 +296,16 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(147, 197, 253, 0.65)',
     backgroundColor: 'rgba(12, 28, 68, 0.95)',
   },
+  shieldCheckWrap: {
+    width: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shieldCheckMark: {
+    position: 'absolute',
+    top: 5,
+  },
   menuItemText: {
     flex: 1,
     color: '#cbd5e1',
@@ -285,6 +316,20 @@ const styles = StyleSheet.create({
   menuItemTextActive: {
     color: '#ffffff',
     fontWeight: '800',
+  },
+  badge: {
+    backgroundColor: '#2563eb',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(147, 197, 253, 0.55)',
+  },
+  badgeText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   logoutBtn: {
     flexDirection: 'row',

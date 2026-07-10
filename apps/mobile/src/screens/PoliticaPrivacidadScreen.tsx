@@ -10,7 +10,7 @@ import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { useAuth } from '../context/AuthContext';
-import { colors, spacing, radius, glassCard } from '../theme';
+import { colors, spacing, radius, glassCard, stackScreenContent } from '../theme';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -155,7 +155,7 @@ export function PoliticaPrivacidadScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: stackScreenContent,
   title: { fontSize: 22, fontWeight: '800', color: colors.text, marginBottom: spacing.sm },
   updated: { fontSize: 14, color: colors.textMuted, marginBottom: spacing.lg },
   section: {

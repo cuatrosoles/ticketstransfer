@@ -11,7 +11,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { useBranding } from '../context/BrandingContext';
 import type { TabCompositeNavigationProp } from '../navigation/types';
-import { colors, spacing, radius, glassCard } from '../theme';
+import { colors, spacing, radius, glassCard, tabScreenContent } from '../theme';
 
 type Nav = TabCompositeNavigationProp<'MisTickets'>;
 
@@ -82,7 +82,7 @@ export function MisTicketsHubScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 14, paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  content: tabScreenContent,
   card: {
     padding: spacing.lg,
     marginBottom: spacing.md,

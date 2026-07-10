@@ -188,7 +188,7 @@ export const updateTicketListingSchema = createTicketListingSchema.partial().ext
 export const createOrderSchema = z
   .object({
     ticketListingId: z.string().min(1, 'ID de publicación requerido'),
-    paymentMethod: z.enum(['mercadopago', 'stripe']),
+    paymentMethod: z.enum(['mercadopago', 'stripe', 'bank_transfer']),
     /** Medio principal donde el comprador recibirá la transferencia del ticket */
     deliveryMethod: z.enum(['usuario', 'id', 'email', 'telefono', 'otro']).optional(),
     deliveryUsername: z
@@ -243,3 +243,15 @@ export const pixelateRegionSchema = z.object({
 });
 
 export const pixelateRegionsSchema = z.array(pixelateRegionSchema).optional();
+
+export { notificationPreferencesPatchSchema } from './notification-preferences.js';
+export {
+  NOTIFICATION_PREFERENCE_KEYS,
+  NOTIFICATION_PREFERENCE_LABELS,
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  mergeNotificationPreferences,
+  allowsPushType,
+  pushTypeToPreferenceKey,
+  type NotificationPreferenceKey,
+  type NotificationPreferences,
+} from './notification-preferences.js';

@@ -18,7 +18,8 @@ import {
   sendNewSaleAdminEmail,
   sendBuyerConfirmedDeliveryAdminEmail,
 } from './email.js';
-import { sendPushNotification } from './firebase-messaging.js';
+import { sendPushToUser } from './push-to-user.js';
+import { notificationPreferencesFromUserData } from './notification-preferences.js';
 
 export type MpPaymentApplyResult = {
   applied: boolean;
@@ -211,7 +212,7 @@ export async function releaseListingReservation(listingId: string, orderId: stri
   });
 }
 
-type AdminRecipient = { id: string; email: string; fcmToken?: string };
+type AdminRecipient = { id: string; email: string; fcmToken?: string; userData?: Record<string, unknown> };
 
 async function getAdminRecipients(): Promise<AdminRecipient[]> {
   const fromEnv = process.env.ADMIN_NOTIFICATION_EMAIL?.trim();
@@ -224,7 +225,7 @@ async function getAdminRecipients(): Promise<AdminRecipient[]> {
     const d = doc.data();
     const email = typeof d.email === 'string' ? d.email.trim() : '';
     if (!email) continue;
-    const row: AdminRecipient = { id: doc.id, email };
+    const row: AdminRecipient = { id: doc.id, email, userData: d };
     if (typeof d.fcmToken === 'string' && d.fcmToken.length > 0) {
       row.fcmToken = d.fcmToken;
     }
@@ -238,16 +239,54 @@ async function sendPushSafe(
   fcmToken: string | undefined,
   title: string,
   body: string,
-  data: Record<string, string>
+  data: Record<string, string>,
+  userData?: Record<string, unknown>
 ): Promise<void> {
-  if (!fcmToken) return;
-  const result = await sendPushNotification(fcmToken, title, body, data);
-  if (result.tokenInvalid) {
-    await db().collection(COLLECTIONS.USERS).doc(userId).update({
-      fcmToken: FieldValue.delete(),
-      updatedAt: new Date(),
-    });
-  }
+  await sendPushToUser(
+    userId,
+    fcmToken,
+    title,
+    body,
+    data,
+    notificationPreferencesFromUserData(userData)
+  );
+}
+
+/** Textos alineados con captura14 (venta / reembolso). */
+const PUSH_SOLD_SELLER_TITLE = 'Tu entrada fue comprada';
+const PUSH_SOLD_SELLER_BODY = 'Entra para ver más detalles.';
+const PUSH_REFUND_TITLE = 'Tu entrada fue reembolsada';
+const PUSH_REFUND_BODY = 'Entra para ver más detalles.';
+const PUSH_BUYER_PURCHASE_TITLE = 'Compra confirmada';
+const PUSH_BUYER_PURCHASE_BODY = 'Entra para ver más detalles.';
+
+export async function notifyOrderRefunded(params: {
+  orderId: string;
+  eventName: string;
+  buyerId: string;
+  sellerId: string;
+}): Promise<void> {
+  const [buyerDoc, sellerDoc] = await Promise.all([
+    db().collection(COLLECTIONS.USERS).doc(params.buyerId).get(),
+    db().collection(COLLECTIONS.USERS).doc(params.sellerId).get(),
+  ]);
+
+  void sendPushSafe(
+    params.buyerId,
+    buyerDoc.data()?.fcmToken,
+    PUSH_REFUND_TITLE,
+    PUSH_REFUND_BODY,
+    { type: 'order_refund', orderId: params.orderId, role: 'buyer', status: 'refunded' },
+    buyerDoc.data()
+  );
+  void sendPushSafe(
+    params.sellerId,
+    sellerDoc.data()?.fcmToken,
+    'Reembolso de tu venta',
+    PUSH_REFUND_BODY,
+    { type: 'order_refund', orderId: params.orderId, role: 'seller', status: 'refunded' },
+    sellerDoc.data()
+  );
 }
 
 export async function notifyPaymentApproved(params: {
@@ -287,16 +326,18 @@ export async function notifyPaymentApproved(params: {
   void sendPushSafe(
     params.buyerId,
     buyerToken,
-    'Pago confirmado',
-    `Tu compra de "${params.eventName}" fue acreditada. El vendedor debe transferirte el ticket.`,
-    { type: 'order_payment', orderId: params.orderId, status: 'approved' }
+    PUSH_BUYER_PURCHASE_TITLE,
+    PUSH_BUYER_PURCHASE_BODY,
+    { type: 'order_payment', orderId: params.orderId, status: 'approved', role: 'buyer' },
+    buyerDoc.data()
   );
   void sendPushSafe(
     params.sellerId,
     sellerToken,
-    '¡Nueva venta!',
-    `Pagaron tu ticket "${params.eventName}". Transferí el ticket al comprador.`,
-    { type: 'order_payment', orderId: params.orderId, status: 'approved' }
+    PUSH_SOLD_SELLER_TITLE,
+    PUSH_SOLD_SELLER_BODY,
+    { type: 'order_payment', orderId: params.orderId, status: 'approved', role: 'seller' },
+    sellerDoc.data()
   );
 
   const admins = await getAdminRecipients();
@@ -311,7 +352,8 @@ export async function notifyPaymentApproved(params: {
       admin.fcmToken,
       'Nueva venta pagada',
       `${params.eventName} — ${amountLabel}. Revisá la orden en el panel.`,
-      { type: 'order_payment', orderId: params.orderId, status: 'approved' }
+      { type: 'order_payment', orderId: params.orderId, status: 'approved', role: 'admin' },
+      admin.userData
     );
   }
 }
@@ -332,7 +374,8 @@ export async function notifyPaymentFailed(params: {
     buyerToken,
     'Pago no completado',
     `No se acreditó el pago de "${params.eventName}". Podés reintentar desde la app.`,
-    { type: 'order_payment', orderId: params.orderId, status: 'failure' }
+    { type: 'order_payment', orderId: params.orderId, status: 'failure', role: 'buyer' },
+    buyerDoc.data()
   );
 }
 
@@ -352,7 +395,8 @@ export async function notifyPaymentPending(params: {
     buyerToken,
     'Pago pendiente',
     `Tu pago de "${params.eventName}" está en proceso. Te avisaremos cuando se acredite.`,
-    { type: 'order_payment', orderId: params.orderId, status: 'pending' }
+    { type: 'order_payment', orderId: params.orderId, status: 'pending', role: 'buyer' },
+    buyerDoc.data()
   );
 }
 
@@ -431,6 +475,26 @@ export async function applyMercadoPagoPaymentToOrder(
   }
 
   const rejected = ['rejected', 'cancelled', 'refunded', 'charged_back'].includes(payment.status);
+  const isRefund = payment.status === 'refunded' || payment.status === 'charged_back';
+
+  if (isRefund && currentStatus !== 'PENDIENTE_PAGO' && currentStatus !== 'CANCELADA') {
+    if (!ord.refundNotifiedAt && notify) {
+      await orderRef.update({
+        mercadopagoPaymentId: payment.id,
+        mercadopagoPaymentStatus: payment.status,
+        refundNotifiedAt: new Date(),
+        updatedAt: new Date(),
+      });
+      await notifyOrderRefunded({
+        orderId,
+        eventName,
+        buyerId: String(ord.buyerId),
+        sellerId: String(ord.sellerId),
+      });
+    }
+    return { applied: true, orderStatus: currentStatus, paymentStatus: payment.status };
+  }
+
   if (rejected && currentStatus === 'PENDIENTE_PAGO') {
     await orderRef.update({
       mercadopagoPaymentId: payment.id,
@@ -468,7 +532,8 @@ export async function notifyBuyerConfirmedDelivery(params: {
       admin.fcmToken,
       'Ticket recibido — revisar orden',
       `El comprador confirmó la recepción de "${params.eventName}". Marcá la orden como COMPLETADA para pagar al vendedor.`,
-      { type: 'order_delivery', orderId: params.orderId, status: 'VERIFICANDO' }
+      { type: 'order_delivery', orderId: params.orderId, status: 'VERIFICANDO' },
+      admin.userData
     );
   }
 }

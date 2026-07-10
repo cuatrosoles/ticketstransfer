@@ -14,7 +14,6 @@ import {
   resolveAndStoreEventImage,
   shouldRefreshEventImage,
 } from '../lib/event-image-resolver.js';
-import { requireAuth, optionalAuth, type AuthRequest } from '../middleware/auth.js';
 import {
   createTicketListingSchema,
   nearbyEventsQuerySchema,
@@ -22,6 +21,7 @@ import {
   hasValidCoordinates,
   type LocationSource,
 } from '@tickets-transfer/shared';
+import { requireAuth, optionalAuth, type AuthRequest } from '../middleware/auth.js';
 import {
   getMarketplaceHomePublicListingsLimit,
   getMarketplaceNearbyRadiusKm,
@@ -29,6 +29,7 @@ import {
 import { getRecommendedMarketplace, loadPublicMarketplaceItems } from './user-preferences.js';
 import { resolveEventCoordinates } from '../lib/listing-geo.js';
 import { getListingPurchaseAvailability } from '../lib/order-payments.js';
+import { getSellerCompletedSalesCount } from '../lib/seller-stats.js';
 
 /** PATCH /mine/:id — mismo criterio que en shared/schemas (evita import roto si no se pushea packages/shared). */
 const updateTicketListingSchema = createTicketListingSchema.partial().extend({
@@ -286,6 +287,9 @@ router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
   const kycDoc = sellerDoc.exists
     ? await db().collection(COLLECTIONS.KYC_VERIFICATIONS).doc(d.sellerId).get()
     : null;
+  const completedSalesCount = sellerDoc.exists
+    ? await getSellerCompletedSalesCount(d.sellerId)
+    : 0;
 
   const out: Record<string, unknown> = {
     id: doc.id,
@@ -300,6 +304,7 @@ router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
           phoneVerified: sellerData.phoneVerified ?? false,
           emailVerified: sellerData.emailVerified ?? false,
           kyc: kycDoc?.exists ? { status: kycDoc.data()?.status } : { status: 'PENDIENTE' },
+          completedSalesCount,
         }
       : null,
     showFull,

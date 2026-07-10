@@ -24,7 +24,7 @@ import {
   removeUserCard,
   type CardItem,
 } from '../lib/api';
-import { colors, spacing, radius, glassCard } from '../theme';
+import { colors, spacing, radius, glassCard, stackScreenContent } from '../theme';
 
 const CARD_BRAND_NAMES: Record<string, string> = {
   visa: 'Visa',
@@ -160,7 +160,7 @@ export function TarjetasAdheridasScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: stackScreenContent,
   intro: {
     fontSize: 15,
     color: colors.textMuted,

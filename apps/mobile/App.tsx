@@ -12,7 +12,8 @@ import { BrandingProvider } from './src/context/BrandingContext';
 import { FavoritesProvider } from './src/context/FavoritesContext';
 import { ProfileImageProvider } from './src/context/ProfileImageContext';
 import { PostPublishLoadingProvider } from './src/context/PostPublishLoadingContext';
-import { FcmConversationOpener } from './src/components/FcmConversationOpener';
+import { FcmNotificationRouter } from './src/components/FcmNotificationRouter';
+import { FcmTokenRegistrar } from './src/components/FcmTokenRegistrar';
 import { FcmForegroundMessageSync } from './src/components/FcmForegroundMessageSync';
 import { VideoBackground } from './src/components/VideoBackground';
 import { SplashScreen } from './src/components/SplashScreen';
@@ -109,7 +110,8 @@ export default function App() {
                     onStateChange={syncRoute}
                   >
                     <PostPublishLoadingProvider>
-                      <FcmConversationOpener navigationRef={navigationRef} />
+                      <FcmTokenRegistrar />
+                      <FcmNotificationRouter navigationRef={navigationRef} />
                       <FcmForegroundMessageSync />
                       <RootNavigator />
                     </PostPublishLoadingProvider>

@@ -11,6 +11,7 @@ import { Router, type Request, type Response } from 'express';
 import { db, COLLECTIONS } from '../lib/firestore.js';
 import { retryTransfer } from '../lib/payouts.js';
 import { expireStalePaymentReservations } from '../lib/order-payments.js';
+import { sendNearbyEventsDigest, sendRecommendationsDigest } from '../lib/push-digests.js';
 
 const router = Router();
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -55,6 +56,24 @@ router.get('/expire-payment-reservations', async (req: Request, res: Response) =
   }
   const released = await expireStalePaymentReservations(100);
   res.json({ ok: true, released });
+});
+
+/** Digest de eventos cercanos (semanal recomendado). */
+router.get('/nearby-events-push', async (req: Request, res: Response) => {
+  if (!isAuthorized(req)) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  const result = await sendNearbyEventsDigest(400);
+  res.json({ ok: true, ...result });
+});
+
+/** Digest de recomendaciones personalizadas (cada 2-3 días). */
+router.get('/recommendations-push', async (req: Request, res: Response) => {
+  if (!isAuthorized(req)) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  const result = await sendRecommendationsDigest(400);
+  res.json({ ok: true, ...result });
 });
 
 export const cronRouter = router;

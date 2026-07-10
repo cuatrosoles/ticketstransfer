@@ -29,6 +29,79 @@ type PlatformSettings = {
 
 type TabId = 'general' | 'pasarelas' | 'usuarios' | 'visuales' | 'notificaciones';
 
+function BroadcastPushPanel({ defaultTitle, defaultBody }: { defaultTitle: string; defaultBody: string }) {
+  const [title, setTitle] = useState(defaultTitle);
+  const [body, setBody] = useState(defaultBody);
+  const [audience, setAudience] = useState<'all' | 'buyers' | 'sellers' | 'with_location'>('all');
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTitle(defaultTitle);
+    setBody(defaultBody);
+  }, [defaultTitle, defaultBody]);
+
+  const sendBroadcast = async () => {
+    if (!window.confirm('¿Enviar esta notificación push a los usuarios seleccionados?')) return;
+    setSending(true);
+    setResult(null);
+    try {
+      const res = await api<{
+        targeted: number;
+        sent: number;
+        failed: number;
+        title: string;
+        body: string;
+      }>('/api/admin/push/broadcast', {
+        method: 'POST',
+        body: JSON.stringify({ title, body, audience }),
+      });
+      setResult(`Enviadas: ${res.sent} / ${res.targeted}${res.failed ? ` (${res.failed} fallidas)` : ''}.`);
+    } catch (e) {
+      setResult(e instanceof Error ? e.message : 'Error al enviar');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: '2rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+      <h3>Enviar campaña push (manual)</h3>
+      <p className="text-muted">
+        Para avisos promocionales o regionales (ej. «Grandes eventos se acercan en Argentina este año»). No reemplaza
+        las notificaciones automáticas de venta o reembolso.
+      </p>
+      <div className="form-group">
+        <label>Título de la notificación</label>
+        <input type="text" className="input" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} />
+      </div>
+      <div className="form-group">
+        <label>Mensaje</label>
+        <textarea
+          className="input"
+          rows={3}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          maxLength={200}
+        />
+      </div>
+      <div className="form-group">
+        <label>Audiencia</label>
+        <select className="input" value={audience} onChange={(e) => setAudience(e.target.value as typeof audience)}>
+          <option value="all">Todos con token FCM</option>
+          <option value="buyers">Usuarios (no admin)</option>
+          <option value="sellers">Vendedores</option>
+          <option value="with_location">Con ubicación GPS</option>
+        </select>
+      </div>
+      <button type="button" className="btn btn-primary" onClick={sendBroadcast} disabled={sending || !title.trim() || !body.trim()}>
+        {sending ? 'Enviando…' : 'Enviar notificación push'}
+      </button>
+      {result ? <p className="text-muted" style={{ marginTop: '0.75rem' }}>{result}</p> : null}
+    </div>
+  );
+}
+
 export function Configuracion() {
   const [tab, setTab] = useState<TabId>('general');
   const [settings, setSettings] = useState<PlatformSettings | null>(null);
@@ -565,9 +638,8 @@ export function Configuracion() {
           <div className="config-section">
             <h2>Notificaciones y push</h2>
             <p className="text-muted">
-              Metadatos o textos por defecto para FCM (la app debe leerlos si los implementás). Firestore:{' '}
-              <code>platformSettings/main.notifications</code>. El envío real usa Firebase; probá desde el detalle de
-              usuario.
+              Textos por defecto para FCM. Los eventos de venta y reembolso se envían automáticamente. Los digest de
+              cercanos y recomendados corren por cron; las campañas se envían manualmente desde aquí.
             </p>
             <div className="form-group">
               <label>Título por defecto (admin / sistema)</label>
@@ -581,6 +653,7 @@ export function Configuracion() {
                     notifications: { ...(f.notifications || {}), defaultTitle: e.target.value || undefined },
                   }))
                 }
+                placeholder="Tickets Transfer"
               />
             </div>
             <div className="form-group">
@@ -595,8 +668,82 @@ export function Configuracion() {
                     notifications: { ...(f.notifications || {}), defaultBodyPrefix: e.target.value || undefined },
                   }))
                 }
+                placeholder="¿Qué esperás para encontrar tu entrada ideal?"
               />
             </div>
+            <h3 style={{ marginTop: '1.5rem' }}>Digest automático (cron)</h3>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Eventos cercanos — título</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={String(form.notifications?.nearbyTitle ?? '')}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      notifications: { ...(f.notifications || {}), nearbyTitle: e.target.value || undefined },
+                    }))
+                  }
+                  placeholder="Nuevos eventos cerca de ti"
+                />
+              </div>
+              <div className="form-group">
+                <label>Eventos cercanos — cuerpo</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={String(form.notifications?.nearbyBody ?? '')}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      notifications: { ...(f.notifications || {}), nearbyBody: e.target.value || undefined },
+                    }))
+                  }
+                  placeholder="Enterate de más en la app."
+                />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Recomendados — título</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={String(form.notifications?.recommendedTitle ?? '')}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      notifications: { ...(f.notifications || {}), recommendedTitle: e.target.value || undefined },
+                    }))
+                  }
+                  placeholder="Nuevos recomendados para vos"
+                />
+              </div>
+              <div className="form-group">
+                <label>Recomendados — cuerpo</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={String(form.notifications?.recommendedBody ?? '')}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      notifications: { ...(f.notifications || {}), recommendedBody: e.target.value || undefined },
+                    }))
+                  }
+                  placeholder="¿Qué esperas? Entrá y viví tu experiencia Tickets Transfer."
+                />
+              </div>
+            </div>
+
+            <BroadcastPushPanel
+              defaultTitle={String(form.notifications?.defaultTitle || 'Tickets Transfer')}
+              defaultBody={String(
+                form.notifications?.defaultBodyPrefix ||
+                  '¿Qué esperás para encontrar tu entrada ideal?'
+              )}
+            />
           </div>
         )}
 

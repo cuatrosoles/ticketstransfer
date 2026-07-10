@@ -34,6 +34,7 @@ export type RootStackParamList = {
   OrderDetail: { orderId: string; source: 'buyer' | 'seller' };
   OrderPurchaseDetails: { listingId: string; password: string };
   OrderPago: { orderId: string; checkoutUrl?: string };
+  OrderBankTransfer: { orderId: string };
   OrderPaymentResult: { orderId: string; status?: 'success' | 'failure' | 'pending' };
   MyPurchases: undefined;
   MySales: undefined;
@@ -56,6 +57,7 @@ export type RootStackParamList = {
   Acerca: undefined;
   PoliticaPrivacidad: undefined;
   TerminosYCondiciones: undefined;
+  PoliticaAntifraude: undefined;
   SolicitarBaja: undefined;
   RecomendacionesQuejas: undefined;
   PreguntasFrecuentes: undefined;

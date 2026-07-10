@@ -20,7 +20,7 @@ import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { TicketStubBackground } from '../components/TicketStubBackground';
-import { colors, spacing, radius } from '../theme';
+import { colors, spacing, radius, stackScreenContent } from '../theme';
 
 type Route = RouteProp<RootStackParamList, 'OrderPaymentResult'>;
 type Nav = NativeStackNavigationProp<RootStackParamList, 'OrderPaymentResult'>;
@@ -247,7 +247,7 @@ export function OrderPaymentResultScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: stackScreenContent,
   centered: { alignItems: 'center', paddingVertical: 48, gap: 16 },
   processingText: { color: colors.textMuted, fontSize: 15, textAlign: 'center', lineHeight: 22 },
   banner: {

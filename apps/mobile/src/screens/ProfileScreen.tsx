@@ -20,6 +20,7 @@ import {
   Platform,
   Alert,
   PermissionsAndroid,
+  Switch,
 } from 'react-native';
 import { launchCameraSafe, launchImageLibrarySafe } from '../lib/imagePickerSafe';
 import { biometricLockBypassPickerOpenRef } from '../lib/biometricLockBypass';
@@ -35,9 +36,12 @@ import {
   confirmPhoneVerification,
   ensureImageUrl,
   getUserPreferences,
+  getNotificationPreferences,
+  updateNotificationPreferences,
   type Profile,
   type ProfileUpdate,
   type UserPreferences,
+  type NotificationPreferences,
 } from '../lib/api';
 import { EventPreferencesEditor } from '../components/EventPreferencesEditor';
 import { LocationCaptureButton } from '../components/LocationCaptureButton';
@@ -46,12 +50,13 @@ import {
   provinceDisplayLabel,
   reverseGeocodeFromApi,
 } from '../lib/addressGeocode';
-import { formatCoordinates } from '@tickets-transfer/shared';
+import { formatCoordinates, NOTIFICATION_PREFERENCE_KEYS, NOTIFICATION_PREFERENCE_LABELS, type NotificationPreferenceKey } from '@tickets-transfer/shared';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { useBranding } from '../context/BrandingContext';
-import { colors, spacing, radius, glassCard } from '../theme';
+import { colors, spacing, radius, glassCard, tabScreenContent } from '../theme';
+import { BIOMETRIC_LOCK_DELAY_OPTIONS } from '../lib/biometricLockDelay';
 
 type ProfileFormState = ProfileUpdate & {
   username: string;
@@ -102,7 +107,15 @@ function KycBadge({ status }: { status: string }) {
 export function ProfileScreen() {
   const navigation = useNavigation<TabCompositeNavigationProp<'Profile'>>();
   const brand = useBranding();
-  const { fetchUser, enableBiometrics, disableBiometrics, biometricAvailability, biometricEnabled } = useAuth();
+  const {
+    fetchUser,
+    enableBiometrics,
+    disableBiometrics,
+    biometricAvailability,
+    biometricEnabled,
+    biometricLockDelaySec,
+    setBiometricLockDelaySec,
+  } = useAuth();
   const { refreshProfileImage } = useProfileImage();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
@@ -121,6 +134,8 @@ export function ProfileScreen() {
   const [phoneVerifyCode, setPhoneVerifyCode] = useState('');
   const [phoneVerifyLoading, setPhoneVerifyLoading] = useState(false);
   const [phoneVerifyError, setPhoneVerifyError] = useState('');
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences | null>(null);
+  const [notificationPrefsBusy, setNotificationPrefsBusy] = useState(false);
   const [form, setForm] = useState<ProfileFormState>({
     username: '',
     firstName: '',
@@ -143,12 +158,14 @@ export function ProfileScreen() {
     setLoading(true);
     setError('');
     try {
-      const [data, prefs] = await Promise.all([
+      const [data, prefs, notifPrefs] = await Promise.all([
         getProfile(),
         getUserPreferences().catch(() => null),
+        getNotificationPreferences().catch(() => null),
       ]);
       setProfile(data);
       setPreferences(prefs ?? data.preferences ?? null);
+      setNotificationPrefs(notifPrefs ?? data.notificationPreferences ?? null);
       setLatitude(data.latitude ?? null);
       setLongitude(data.longitude ?? null);
       setLocationAutoFilled(false);
@@ -377,6 +394,24 @@ export function ProfileScreen() {
       return;
     }
     await enableBiometrics();
+  };
+
+  const toggleNotificationPref = async (key: NotificationPreferenceKey, value: boolean) => {
+    if (!notificationPrefs || notificationPrefsBusy) return;
+    const prev = notificationPrefs;
+    const next = { ...prev, [key]: value };
+    setNotificationPrefs(next);
+    setNotificationPrefsBusy(true);
+    setError('');
+    try {
+      const saved = await updateNotificationPreferences({ [key]: value });
+      setNotificationPrefs(saved);
+    } catch (e) {
+      setNotificationPrefs(prev);
+      setError(e instanceof Error ? e.message : 'No se pudo guardar la preferencia de notificaciones');
+    } finally {
+      setNotificationPrefsBusy(false);
+    }
   };
 
   const labelBiometric = biometricAvailability?.type === 'FaceID' ? 'Face ID' : biometricAvailability?.type === 'TouchID' ? 'Touch ID' : 'Huella dactilar';
@@ -688,15 +723,67 @@ export function ProfileScreen() {
         )}
         </View>
 
+        {notificationPrefs ? (
+          <View style={[styles.card, glassCard]}>
+            <Text style={styles.sectionTitle}>Notificaciones push</Text>
+            <Text style={styles.subvalue}>
+              Elegí qué avisos querés recibir en el teléfono. Las ventas y reembolsos conviene dejarlos activos.
+            </Text>
+            {NOTIFICATION_PREFERENCE_KEYS.map((key) => {
+              const meta = NOTIFICATION_PREFERENCE_LABELS[key];
+              return (
+                <View key={key} style={styles.notifRow}>
+                  <View style={styles.notifTextWrap}>
+                    <Text style={styles.notifTitle}>{meta.title}</Text>
+                    <Text style={styles.notifDescription}>{meta.description}</Text>
+                  </View>
+                  <Switch
+                    value={notificationPrefs[key]}
+                    onValueChange={(value) => void toggleNotificationPref(key, value)}
+                    disabled={notificationPrefsBusy}
+                    trackColor={{ false: '#334155', true: '#3b82f6' }}
+                    thumbColor="#f8fafc"
+                  />
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
+
         {biometricAvailability?.available && (
           <View style={[styles.card, glassCard]}>
           <Text style={styles.label}>Inicio de sesión con {labelBiometric}</Text>
           <Text style={styles.subvalue}>
-            {biometricEnabled ? 'Activado. Se solicitará biometría al abrir o retomar la app.' : 'Desactivado. Activá para proteger el acceso a la app.'}
+            {biometricEnabled
+              ? 'Activado. Se solicitará biometría al abrir la app o al volver tras el tiempo configurado.'
+              : 'Desactivado. Activá para proteger el acceso a la app.'}
           </Text>
           <TouchableOpacity style={styles.biometricBtn} onPress={handleToggleBiometrics}>
             <Text style={styles.biometricBtnText}>{biometricEnabled ? 'Desactivar' : `Activar ${labelBiometric}`}</Text>
           </TouchableOpacity>
+
+          {biometricEnabled && (
+            <View style={styles.lockDelaySection}>
+              <Text style={styles.lockDelayLabel}>Bloquear después de</Text>
+              <Text style={styles.lockDelayHint}>
+                Si volvés antes de este tiempo, no se pedirá biometría. Al abrir la app desde cero siempre se bloquea.
+              </Text>
+              <View style={styles.lockDelayChips}>
+                {BIOMETRIC_LOCK_DELAY_OPTIONS.map((opt) => {
+                  const active = biometricLockDelaySec === opt.value;
+                  return (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={[styles.lockDelayChip, active && styles.lockDelayChipActive]}
+                      onPress={() => void setBiometricLockDelaySec(opt.value)}
+                    >
+                      <Text style={[styles.lockDelayChipText, active && styles.lockDelayChipTextActive]}>{opt.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
         </View>
         )}
 
@@ -781,7 +868,7 @@ function ProfileField({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 14, paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  content: tabScreenContent,
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   card: {
     padding: spacing.lg,
@@ -844,6 +931,18 @@ const styles = StyleSheet.create({
   secondaryButtonText: { color: colors.primaryLight, fontWeight: '600', fontSize: 16 },
   disabled: { opacity: 0.7 },
   subvalue: { fontSize: 14, color: colors.textMuted, marginBottom: spacing.sm },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
+  notifRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(96, 165, 250, 0.15)',
+  },
+  notifTextWrap: { flex: 1 },
+  notifTitle: { color: colors.text, fontSize: 14, fontWeight: '600', marginBottom: 2 },
+  notifDescription: { color: colors.textMuted, fontSize: 12, lineHeight: 17 },
   biometricBtn: {
     marginTop: spacing.sm,
     paddingVertical: 10,
@@ -853,6 +952,21 @@ const styles = StyleSheet.create({
     borderRadius: radius,
   },
   biometricBtnText: { color: colors.white, fontWeight: '600', fontSize: 14 },
+  lockDelaySection: { marginTop: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: 'rgba(96, 165, 250, 0.2)' },
+  lockDelayLabel: { fontSize: 13, color: colors.textMuted, marginBottom: 4 },
+  lockDelayHint: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.sm, lineHeight: 17 },
+  lockDelayChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  lockDelayChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radius,
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.35)',
+    backgroundColor: 'rgba(30, 58, 138, 0.35)',
+  },
+  lockDelayChipActive: { borderColor: colors.primary, backgroundColor: 'rgba(59, 130, 246, 0.25)' },
+  lockDelayChipText: { color: colors.textMuted, fontSize: 13, fontWeight: '500' },
+  lockDelayChipTextActive: { color: colors.text, fontWeight: '600' },
   subtitle: { fontSize: 14, color: colors.textMuted },
   error: { color: '#ef4444', marginBottom: spacing.sm },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

@@ -14,7 +14,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
           PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
           {
             title: 'Notificaciones',
-            message: 'Tickets Transfer necesita notificaciones para avisarte de nuevos mensajes.',
+            message: 'Tickets Transfer te avisa de ventas, reembolsos, mensajes y eventos cerca tuyo.',
             buttonPositive: 'Aceptar',
             buttonNegative: 'Cancelar',
           }
@@ -62,7 +62,11 @@ export function onNotificationOpenedApp(callback: (remoteMessage: { data?: Recor
   });
 }
 
-/** Notificación que abrió la app desde cerrada (para deep link al chat). */
 export function getInitialNotification() {
   return messaging().getInitialNotification();
+}
+
+/** Renueva el token en backend cuando FCM lo rota. */
+export function onTokenRefresh(callback: () => void) {
+  return messaging().onTokenRefresh(callback);
 }

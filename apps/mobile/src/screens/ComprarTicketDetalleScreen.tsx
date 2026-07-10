@@ -24,12 +24,11 @@ import { ensureImageUrl, api, recordListingInteraction } from '../lib/api';
 import { ticketPreviewToMarketplaceItem } from '../lib/ticketPreviewToMarketplaceItem';
 import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { TicketStubBackground } from '../components/TicketStubBackground';
+import { EventDetailsPanel } from '../components/EventDetailsPanel';
 import { EventCoverImage } from '../components/EventCoverImage';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { useFavorites } from '../context/FavoritesContext';
-import { colors, spacing, radius } from '../theme';
-import { formatDate } from '../lib/datetime';
+import { colors, spacing, radius, stackScreenContent } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ComprarTicketDetalle'>;
 type Route = RouteProp<RootStackParamList, 'ComprarTicketDetalle'>;
@@ -43,6 +42,7 @@ type Seller = {
   phoneVerified?: boolean;
   emailVerified?: boolean;
   kyc?: { status: string } | null;
+  completedSalesCount?: number | null;
 };
 
 type TicketPreview = {
@@ -171,33 +171,24 @@ export function ComprarTicketDetalleScreen() {
           style={styles.eventCover}
         />
 
-        <TicketStubBackground
-          backgroundOrientation="portrait"
-          style={styles.ticketWrap}
-          contentStyle={styles.ticketInner}
-        >
-          <Text style={styles.ticketId}>TICKET ID N°: {preview.id}</Text>
-          <View style={styles.perforation} />
-          <Text style={styles.previewRow}>EVENTO: {preview.eventName}</Text>
-          <Text style={styles.previewRow}>
-            FECHA: {formatDate(preview.eventDate)}
-          </Text>
-          <Text style={styles.previewRow}>LUGAR: {preview.eventPlace || '—'}</Text>
-          {preview.sector ? <Text style={styles.previewRow}>SECTOR: {preview.sector}</Text> : null}
-          <Text style={styles.previewRow}>CANTIDAD DE ENTRADAS: {preview.quantityEntries || '—'}</Text>
-          {preview.showFull ? (
-            <>
-              {preview.seat ? <Text style={styles.previewRow}>BUTACA-ASIENTO: {preview.seat}</Text> : null}
-              {preview.row ? <Text style={styles.previewRow}>FILA: {preview.row}</Text> : null}
-              <Text style={styles.previewRow}>
-                PRECIO: {preview.currency} ${preview.price?.toLocaleString('es-AR')}
-              </Text>
-              {preview.ticketera ? <Text style={styles.previewRow}>TICKETERA: {preview.ticketera}</Text> : null}
-              {preview.appBoletos ? <Text style={styles.previewRow}>APP DE BOLETOS: {preview.appBoletos}</Text> : null}
-              {preview.orderRef ? <Text style={styles.previewRow}>CODIGO DE ORDEN: {preview.orderRef}</Text> : null}
-            </>
-          ) : null}
-        </TicketStubBackground>
+        <EventDetailsPanel
+          data={{
+            listingId: preview.id,
+            eventName: preview.eventName,
+            eventDate: preview.eventDate,
+            eventPlace: preview.eventPlace,
+            sector: preview.sector,
+            row: preview.row,
+            seat: preview.seat,
+            quantityEntries: preview.quantityEntries,
+            price: preview.price,
+            currency: preview.currency,
+            ticketera: preview.ticketera,
+            appBoletos: preview.appBoletos,
+            orderRef: preview.orderRef,
+          }}
+          showFull={preview.showFull}
+        />
 
         {(preview.captureTicketUrl || preview.captureOwnershipUrl) && preview.showFull && (
       <View style={styles.previewButtons}>
@@ -259,31 +250,17 @@ export function ComprarTicketDetalleScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: 24, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: stackScreenContent,
   headerActions: { flexDirection: 'row', alignItems: 'center' },
   favHeaderHit: { marginRight: 12 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  eventCover: { 
-    borderTopLeftRadius: 14, 
-    borderTopRightRadius: 14, 
-    borderBottomLeftRadius: 0, 
-    borderBottomRightRadius: 0, 
-    marginBottom: 0 },
-  ticketWrap: { marginBottom: spacing.lg, marginTop: -30 },
-  ticketInner: {
-    paddingTop: spacing.xl,
-    paddingHorizontal: spacing.xl,
-    paddingBottom: 148,
-    minHeight: 440,
+  eventCover: {
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
+    marginBottom: spacing.md,
   },
-  perforation: {
-    borderStyle: 'dashed',
-    borderBottomWidth: 1,
-    borderColor: 'rgba(147, 197, 253, 0.4)',
-    marginVertical: spacing.sm,
-  },
-  ticketId: { fontSize: 12, color: colors.primaryLight, marginTop: spacing.lg, marginBottom: spacing.xs },
-  previewRow: { fontSize: 14, color: colors.text, marginBottom: spacing.sm },
   previewButtons: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md, flexWrap: 'wrap' },
   previewBtn: {
     flex: 1,

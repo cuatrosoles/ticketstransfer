@@ -40,6 +40,26 @@ export const headerTopPadding = 8;
  */
 export const headerBottomPadding = 14;
 
+/** Contenedor estándar de ScrollView en pantallas stack (push). */
+export const stackScreenContent = {
+  paddingTop: 24,
+  paddingHorizontal: spacing.lg,
+  paddingBottom: 48,
+} as const;
+
+/** Contenedor estándar en tabs del MainTabNavigator (espacio para tab bar). */
+export const tabScreenContent = {
+  paddingTop: 24,
+  paddingHorizontal: spacing.lg,
+  paddingBottom: 100,
+} as const;
+
+/** Contenedor de mensajes (chat) con padding inferior reducido por la barra de entrada. */
+export const chatMessagesContent = {
+  ...stackScreenContent,
+  paddingBottom: spacing.md,
+} as const;
+
 /** Margen negativo para compensar padding del scroll y dejar solo headerEdgePadding al borde */
 export function headerBleedMargin(parentHorizontalPadding: number = spacing.lg): number {
   return parentHorizontalPadding > headerEdgePadding ? -(parentHorizontalPadding - headerEdgePadding) : 0;

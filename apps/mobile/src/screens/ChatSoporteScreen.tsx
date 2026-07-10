@@ -23,7 +23,7 @@ import { AuthBackground } from '../components/AuthBackground';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { SupportChannelsBlock } from '../components/SupportChannelsBlock';
-import { colors, spacing, radius, glassCard } from '../theme';
+import { colors, spacing, radius, glassCard, chatMessagesContent } from '../theme';
 import { sendMessage, generateMessageId, type ChatMessage } from '../lib/chatService';
 import { useBranding } from '../context/BrandingContext';
 
@@ -174,11 +174,7 @@ export function ChatSoporteScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   messagesScroll: { flex: 1 },
-  messagesContent: {
-    paddingTop: spacing.lg,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-  },
+  messagesContent: chatMessagesContent,
   messageRow: {
     flexDirection: 'row',
     marginBottom: spacing.md,

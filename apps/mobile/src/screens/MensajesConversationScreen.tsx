@@ -33,7 +33,7 @@ import {
   ensureImageUrl,
   type MessageItem,
 } from '../lib/api';
-import { colors, spacing, radius, glassCard } from '../theme';
+import { colors, spacing, radius, glassCard, chatMessagesContent } from '../theme';
 import { subscribeNewMessageHint } from '../lib/messageSync';
 import { formatTime } from '../lib/datetime';
 
@@ -223,11 +223,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   messagesScroll: { flex: 1 },
-  messagesContent: {
-    paddingTop: spacing.lg,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-  },
+  messagesContent: chatMessagesContent,
   messageRow: {
     flexDirection: 'row',
     marginBottom: spacing.md,

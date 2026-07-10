@@ -7,7 +7,8 @@ import * as React from 'react';
 import { View, StyleSheet } from 'react-native';
 import Video from 'react-native-video';
 
-const BACKGROUND_VIDEO = require('../assets/video/cosmicBG-03.mp4');
+/// const BACKGROUND_VIDEO = require('../assets/video/cosmicBG-03.mp4');
+const BACKGROUND_VIDEO = require('../assets/video/output.mp4');
 
 export function VideoBackground() {
   return (

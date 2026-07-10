@@ -37,7 +37,7 @@ import {
   filterStoreListings,
   type StoreCategoryFilter,
 } from '../lib/storeFilters';
-import { colors, spacing } from '../theme';
+import { colors, spacing, tabScreenContent } from '../theme';
 import { formatDateTime } from '../lib/datetime';
 
 type Nav = TabCompositeNavigationProp<'Tienda'>;
@@ -252,7 +252,7 @@ export function TiendaScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   scroll: { flex: 1 },
-  content: { paddingTop: 14, paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  content: tabScreenContent,
   scrollContent: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,

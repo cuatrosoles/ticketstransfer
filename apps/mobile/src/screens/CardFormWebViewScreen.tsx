@@ -24,7 +24,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { UserMenuButton } from '../components/UserMenuButton';
 import { getApiBase, addUserCard, getPayerEmail } from '../lib/api';
 import { getCardFormHtml } from '../lib/cardFormHtml';
-import { colors, spacing } from '../theme';
+import { colors, spacing, stackScreenContent } from '../theme';
 
 const USER_AGENT =
   'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
@@ -122,7 +122,7 @@ export function CardFormWebViewScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 80 },
+  scrollContent: { ...stackScreenContent, paddingBottom: 80 },
   errorWrap: { paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
   errorText: { color: '#ef4444', fontSize: 14 },
   webviewWrap: { width: '100%' },

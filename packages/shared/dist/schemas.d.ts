@@ -632,7 +632,7 @@ export declare const updateTicketListingSchema: z.ZodObject<{
 }>;
 export declare const createOrderSchema: z.ZodObject<{
     ticketListingId: z.ZodString;
-    paymentMethod: z.ZodEnum<["mercadopago", "stripe"]>;
+    paymentMethod: z.ZodEnum<["mercadopago", "stripe", "bank_transfer"]>;
     /** Medio principal donde el comprador recibirá la transferencia del ticket */
     deliveryMethod: z.ZodOptional<z.ZodEnum<["usuario", "id", "email", "telefono", "otro"]>>;
     deliveryUsername: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
@@ -644,7 +644,7 @@ export declare const createOrderSchema: z.ZodObject<{
     deliveryDetail: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
 }, "strip", z.ZodTypeAny, {
     ticketListingId: string;
-    paymentMethod: "mercadopago" | "stripe";
+    paymentMethod: "mercadopago" | "stripe" | "bank_transfer";
     deliveryMethod?: "email" | "usuario" | "id" | "telefono" | "otro" | undefined;
     deliveryUsername?: string | undefined;
     deliveryIdNumber?: string | undefined;
@@ -654,7 +654,7 @@ export declare const createOrderSchema: z.ZodObject<{
     deliveryDetail?: string | undefined;
 }, {
     ticketListingId: string;
-    paymentMethod: "mercadopago" | "stripe";
+    paymentMethod: "mercadopago" | "stripe" | "bank_transfer";
     deliveryMethod?: "email" | "usuario" | "id" | "telefono" | "otro" | undefined;
     deliveryUsername?: string | undefined;
     deliveryIdNumber?: string | undefined;
@@ -716,3 +716,5 @@ export declare const pixelateRegionsSchema: z.ZodOptional<z.ZodArray<z.ZodObject
     width: number;
     height: number;
 }>, "many">>;
+export { notificationPreferencesPatchSchema } from './notification-preferences.js';
+export { NOTIFICATION_PREFERENCE_KEYS, NOTIFICATION_PREFERENCE_LABELS, DEFAULT_NOTIFICATION_PREFERENCES, mergeNotificationPreferences, allowsPushType, pushTypeToPreferenceKey, type NotificationPreferenceKey, type NotificationPreferences, } from './notification-preferences.js';

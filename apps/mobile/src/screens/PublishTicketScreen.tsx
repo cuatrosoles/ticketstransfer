@@ -46,7 +46,7 @@ import {
   listingValueToDatetimeLocal,
   runWithPublishProgress,
 } from '@tickets-transfer/shared';
-import { colors, spacing, radius } from '../theme';
+import { colors, spacing, radius, stackScreenContent } from '../theme';
 import { TICKETERA_LOGOS, APP_BOLETOS_LOGOS } from '../data/serviceLogos';
 
 const TIPOS_ENTRADA = ['GENERAL', 'CAMPO', 'PLATEA', 'VIP', 'OTRO'];
@@ -581,7 +581,7 @@ export function PublishTicketScreen() {
         onChangeText={setEventPlace}
       />
       <Text style={styles.previewHint}>
-        Debe coincidir con el venue en Ticketek para obtener la imagen oficial del evento.
+        Debe coincidir con el venue de la ticketera de origen para obtener la imagen oficial del evento.
       </Text>
 
       <View style={styles.locationRow}>
@@ -835,7 +835,7 @@ export function PublishTicketScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingTop: spacing.lg, paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  content: stackScreenContent,
   inlineHeader: { marginBottom: spacing.md },
   uploadHint: { fontSize: 13, color: colors.textMuted, lineHeight: 19, marginBottom: spacing.md },
   montoVendedor: { fontSize: 13, color: colors.primaryLight, marginTop: -spacing.sm, marginBottom: spacing.md },

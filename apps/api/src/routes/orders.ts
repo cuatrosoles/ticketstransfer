@@ -22,7 +22,9 @@ import { MINUTOS_RESERVA_PAGO } from '@tickets-transfer/shared';
 import {
   applyMercadoPagoPaymentToOrder,
   getListingPurchaseAvailability,
+  markListingSold,
   notifyBuyerConfirmedDelivery,
+  notifyPaymentApproved,
   releaseListingReservation,
   reserveListingForOrder,
   syncOrderPaymentFromMercadoPago,
@@ -543,7 +545,60 @@ router.post('/:id/confirm-payment', async (req: AuthRequest, res) => {
         'El pago se confirma al completar el checkout de Mercado Pago. Usá el botón «Pagar con Mercado Pago» o el pago con tarjeta.',
     });
   }
+  if (d.paymentMethod === 'bank_transfer' && !d.bankTransferProofUrl) {
+    return res.status(400).json({ error: 'Adjuntá el comprobante de transferencia antes de continuar.' });
+  }
   await db().collection(COLLECTIONS.ORDERS).doc(req.params.id).update({ status: 'ESPERANDO_TRANSFERENCIA', updatedAt: new Date() });
+  res.json({ ok: true, status: 'ESPERANDO_TRANSFERENCIA' });
+});
+
+/** Transferencia bancaria: adjunta comprobante y avanza la orden (sin comisión MP). */
+router.post('/:id/bank-transfer', upload.single('proof'), async (req: AuthRequest, res) => {
+  const orderId = req.params.id;
+  const doc = await db().collection(COLLECTIONS.ORDERS).doc(orderId).get();
+  if (!doc.exists) return res.status(404).json({ error: 'No encontrado' });
+  const d = doc.data()!;
+  if (d.buyerId !== req.user!.id) return res.status(404).json({ error: 'No encontrado' });
+  if (d.status !== 'PENDIENTE_PAGO') {
+    return res.status(400).json({ error: 'La orden ya no está pendiente de pago' });
+  }
+  const file = req.file;
+  if (!file) {
+    return res.status(400).json({ error: 'Adjuntá el comprobante de transferencia' });
+  }
+
+  const proofUrl = await uploadFile(
+    `payment-proof/${orderId}/${Date.now()}.jpg`,
+    file.buffer,
+    file.mimetype || 'image/jpeg'
+  );
+
+  const listingId = String(d.ticketListingId || '');
+  const listingDoc = listingId
+    ? await db().collection(COLLECTIONS.TICKET_LISTINGS).doc(listingId).get()
+    : null;
+  const eventName = listingDoc?.exists ? String(listingDoc.data()?.eventName || 'Ticket') : 'Ticket';
+  const expectedTotal = typeof d.totalAmount === 'number' ? d.totalAmount : 0;
+  const orderCurrency = String(d.currency || 'ARS').toUpperCase();
+
+  await db().collection(COLLECTIONS.ORDERS).doc(orderId).update({
+    paymentMethod: 'bank_transfer',
+    bankTransferProofUrl: proofUrl,
+    status: 'ESPERANDO_TRANSFERENCIA',
+    paidAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  if (listingId) await markListingSold(listingId);
+  void notifyPaymentApproved({
+    orderId,
+    eventName,
+    totalAmount: expectedTotal,
+    currency: orderCurrency,
+    buyerId: String(d.buyerId),
+    sellerId: String(d.sellerId),
+  });
+
   res.json({ ok: true, status: 'ESPERANDO_TRANSFERENCIA' });
 });
 

@@ -19,6 +19,13 @@ import {
   disableBiometrics as disableBiometricsStorage,
 } from '../lib/secureStorage';
 import { biometricLockBypassPickerOpenRef } from '../lib/biometricLockBypass';
+import {
+  BIOMETRIC_LOCK_DELAY_DEFAULT_SEC,
+  getBiometricLockDelaySec,
+  setBiometricLockDelaySec as persistBiometricLockDelaySec,
+  type BiometricLockDelaySec,
+  isValidBiometricLockDelaySec,
+} from '../lib/biometricLockDelay';
 
 type User = { id: string; email: string; firstName?: string | null; lastName?: string | null; role: string };
 
@@ -39,6 +46,8 @@ type AuthContextType = {
   isAppUnlocked: boolean;
   unlockWithBiometrics: () => Promise<boolean>;
   lockApp: () => void;
+  biometricLockDelaySec: number;
+  setBiometricLockDelaySec: (seconds: BiometricLockDelaySec) => Promise<void>;
   getPendingBiometricPrompt: () => boolean;
   clearPendingBiometricPrompt: () => void;
   fetchUser: () => Promise<void>;
@@ -55,10 +64,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   } | null>(null);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [isAppUnlocked, setIsAppUnlocked] = useState(true);
+  const [biometricLockDelaySec, setBiometricLockDelaySecState] = useState(BIOMETRIC_LOCK_DELAY_DEFAULT_SEC);
   const postRegisterRedirectToKycRef = useRef(false);
   const postRegisterRedirectToPreferencesRef = useRef(false);
   const pendingBiometricPromptRef = useRef(false);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const backgroundedAtRef = useRef<number | null>(null);
+  const lockDelaySecRef = useRef(BIOMETRIC_LOCK_DELAY_DEFAULT_SEC);
+
+  useEffect(() => {
+    lockDelaySecRef.current = biometricLockDelaySec;
+  }, [biometricLockDelaySec]);
+
+  const loadBiometricLockDelay = useCallback(async (userId: string) => {
+    const delay = await getBiometricLockDelaySec(userId);
+    setBiometricLockDelaySecState(delay);
+    lockDelaySecRef.current = delay;
+  }, []);
+
+  const setBiometricLockDelaySec = useCallback(
+    async (seconds: BiometricLockDelaySec) => {
+      if (!user || !isValidBiometricLockDelaySec(seconds)) return;
+      await persistBiometricLockDelaySec(user.id, seconds);
+      setBiometricLockDelaySecState(seconds);
+      lockDelaySecRef.current = seconds;
+    },
+    [user]
+  );
 
   const mapBiometricMethod = useCallback(
     (type: 'FaceID' | 'TouchID' | 'Biometrics' | null): 'face' | 'fingerprint' | 'device' | null => {
@@ -105,6 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setBiometricEnabled(false);
       setIsAppUnlocked(true);
+      backgroundedAtRef.current = null;
       setLoading(false);
       return;
     }
@@ -114,14 +147,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const token = await currentUser.getIdToken();
       await setSecureToken(token, false);
       const data = await api<Record<string, unknown>>('/api/auth/me');
+      const userId = data.id as string;
       setUser({
-        id: data.id as string,
+        id: userId,
         email: data.email as string,
         firstName: data.firstName as string | null,
         lastName: data.lastName as string | null,
         role: data.role as string,
       });
-      const enabled = await refreshBiometricEnabled(data.id as string);
+      await loadBiometricLockDelay(userId);
+      const enabled = await refreshBiometricEnabled(userId);
       setIsAppUnlocked(!enabled);
     } catch {
       await auth().signOut();
@@ -133,7 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [refreshBiometricEnabled, setFirebaseTokenGetter]);
+  }, [loadBiometricLockDelay, refreshBiometricEnabled, setFirebaseTokenGetter]);
 
   useEffect(() => {
     const unsub = auth().onAuthStateChanged((firebaseUser) => {
@@ -143,6 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setBiometricEnabled(false);
         setIsAppUnlocked(true);
+        backgroundedAtRef.current = null;
         setLoading(false);
       }
     });
@@ -172,6 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       lastName: data.lastName as string | null,
       role: data.role as string,
     });
+    await loadBiometricLockDelay(data.id as string);
     await refreshBiometricEnabled(data.id as string);
     setIsAppUnlocked(true);
   };
@@ -197,6 +234,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const token = await userData.getIdToken();
     await setSecureToken(token, false);
     setUser(res.user);
+    await loadBiometricLockDelay(res.user.id);
     await refreshBiometricEnabled(res.user.id);
     setIsAppUnlocked(true);
   };
@@ -283,6 +321,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setBiometricEnabled(false);
       setIsAppUnlocked(true);
+      backgroundedAtRef.current = null;
     }
   }, [refreshBiometricEnabled]);
 
@@ -293,6 +332,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setBiometricEnabled(false);
     setIsAppUnlocked(true);
+    backgroundedAtRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -300,14 +340,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const prev = appStateRef.current;
       appStateRef.current = nextState;
       if (!user || !biometricEnabled) return;
-      if (prev === 'active' && (nextState === 'background' || nextState === 'inactive')) {
+
+      if (nextState === 'background' && prev !== 'background') {
         // Cámara/galería ponen la app en segundo plano sin que el usuario “salga” de la app.
         if (biometricLockBypassPickerOpenRef.current) return;
-        setIsAppUnlocked(false);
+        backgroundedAtRef.current = Date.now();
+        if (lockDelaySecRef.current === 0) {
+          setIsAppUnlocked(false);
+        }
         return;
       }
-      if ((prev === 'background' || prev === 'inactive') && nextState === 'active') {
-        void unlockWithBiometrics();
+
+      if (nextState === 'active' && (prev === 'background' || prev === 'inactive')) {
+        const backgroundedAt = backgroundedAtRef.current;
+        if (backgroundedAt == null) return;
+
+        const delayMs = lockDelaySecRef.current * 1000;
+        const elapsed = Date.now() - backgroundedAt;
+        backgroundedAtRef.current = null;
+
+        if (elapsed >= delayMs) {
+          setIsAppUnlocked(false);
+          void unlockWithBiometrics();
+        }
       }
     });
     return () => sub.remove();
@@ -332,6 +387,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAppUnlocked,
         unlockWithBiometrics,
         lockApp,
+        biometricLockDelaySec,
+        setBiometricLockDelaySec,
         getPendingBiometricPrompt,
         clearPendingBiometricPrompt,
         fetchUser,

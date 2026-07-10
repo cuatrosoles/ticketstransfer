@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { AuthBackground } from './AuthBackground';
+import { VideoBackground } from './VideoBackground';
 import { colors, radius, spacing } from '../theme';
 
 type Props = {
@@ -9,9 +9,14 @@ type Props = {
   onLogout: () => void;
 };
 
+/**
+ * Pantalla de bloqueo con fondo propio: vive en un overlay absoluto (no en Modal)
+ * y no puede reutilizar el VideoBackground global de App.tsx.
+ */
 export function AppLockScreen({ unlocking, onUnlock, onLogout }: Props) {
   return (
-    <AuthBackground>
+    <View style={styles.root}>
+      <VideoBackground />
       <View style={styles.container}>
         <View style={styles.card}>
           <Text style={styles.title}>Aplicación bloqueada</Text>
@@ -28,16 +33,21 @@ export function AppLockScreen({ unlocking, onUnlock, onLogout }: Props) {
           </TouchableOpacity>
         </View>
       </View>
-    </AuthBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
+    backgroundColor: '#020617',
+  },
+  container: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
+    zIndex: 1,
   },
   card: {
     width: '100%',

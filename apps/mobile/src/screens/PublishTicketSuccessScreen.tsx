@@ -8,7 +8,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
   Animated,
   TouchableOpacity,
   useWindowDimensions,
@@ -42,7 +41,6 @@ export function PublishTicketSuccessScreen() {
   const mascotOpacity = useRef(new Animated.Value(0)).current;
   const cardTranslate = useRef(new Animated.Value(40)).current;
   const cardOpacity = useRef(new Animated.Value(0)).current;
-  const glowPulse = useRef(new Animated.Value(0.6)).current;
 
   useEffect(() => {
     progress.setValue(0);
@@ -61,20 +59,9 @@ export function PublishTicketSuccessScreen() {
     });
   }, [progress, mascotScale, mascotOpacity, cardTranslate, cardOpacity]);
 
-  useEffect(() => {
-    if (phase !== 'success') return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowPulse, { toValue: 1, duration: 1400, useNativeDriver: true }),
-        Animated.timing(glowPulse, { toValue: 0.6, duration: 1400, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [phase, glowPulse]);
-
   const barWidth = progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
-  const mascotSize = Math.min(width * 0.52, 240);
+  /** El PNG ya incluye el círculo neón; se muestra grande, sin anillo exterior adicional. */
+  const mascotSize = Math.min(width * 0.78, 300);
 
   const goHome = () => {
     navigation.reset({
@@ -106,17 +93,6 @@ export function PublishTicketSuccessScreen() {
     <AuthBackground>
       <SafeAreaView style={styles.safe}>
         <View style={styles.successWrap}>
-          <Animated.View
-            style={[
-              styles.glowRing,
-              {
-                width: mascotSize + 48,
-                height: mascotSize + 48,
-                borderRadius: (mascotSize + 48) / 2,
-                opacity: glowPulse,
-              },
-            ]}
-          />
           <Animated.Image
             source={MASCOT_IMAGE}
             style={[
@@ -155,14 +131,16 @@ export function PublishTicketSuccessScreen() {
               </>
             ) : null}
 
-            <View style={styles.actions}>
+            <View style={styles.actionsBar}>
               {listingId ? (
-                <TouchableOpacity style={[styles.copyBtn, neonGlow('#ffffff', 'soft')]} onPress={copyCode}>
-                  <FontAwesome name="copy" size={16} color="#ffffff" />
-                  <Text style={styles.copyBtnText}>COPIAR CÓDIGO</Text>
+                <TouchableOpacity style={styles.copyBtn} onPress={copyCode} activeOpacity={0.85}>
+                  <FontAwesome name="copy" size={14} color="#ffffff" style={styles.copyIcon} />
+                  <Text style={styles.copyBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                    COPIAR CÓDIGO
+                  </Text>
                 </TouchableOpacity>
               ) : null}
-              <GradientButton title="OK" onPress={goHome} style={styles.okBtn} />
+              <GradientButton title="OK" onPress={goHome} size="compact" style={styles.okBtn} />
             </View>
           </Animated.View>
         </View>
@@ -201,28 +179,20 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-start',
-    paddingTop: spacing.xl,
+    paddingTop: spacing.lg,
     paddingHorizontal: spacing.lg,
   },
-  glowRing: {
-    position: 'absolute',
-    top: spacing.xl + 20,
-    borderWidth: 2,
-    borderColor: 'rgba(96, 165, 250, 0.75)',
-    backgroundColor: 'rgba(37, 99, 235, 0.15)',
-  },
   mascot: {
-    marginTop: spacing.lg,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
     zIndex: 2,
   },
   card: {
     width: '100%',
     maxWidth: 400,
     paddingVertical: 28,
-    paddingHorizontal: 22,
+    paddingHorizontal: 20,
     alignItems: 'center',
-    marginTop: spacing.md,
+    overflow: 'hidden',
   },
   checkCircle: {
     width: 48,
@@ -263,32 +233,40 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
     textAlign: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
-  actions: {
+  actionsBar: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
+    alignItems: 'stretch',
+    gap: 10,
     width: '100%',
+    alignSelf: 'stretch',
   },
   copyBtn: {
     flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.65)',
+    backgroundColor: 'rgba(15, 23, 42, 0.25)',
   },
+  copyIcon: { flexShrink: 0 },
   copyBtnText: {
+    flexShrink: 1,
     color: colors.white,
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: 12,
+    letterSpacing: 0.2,
   },
   okBtn: {
-    flex: 1,
-    height: 48,
+    width: 96,
+    minHeight: 46,
+    flexShrink: 0,
   },
 });

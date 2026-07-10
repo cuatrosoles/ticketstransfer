@@ -34,7 +34,7 @@ import {
 } from '../lib/api';
 import { requestNotificationPermission, getFcmToken } from '../lib/pushNotifications';
 import { subscribeNewMessageHint } from '../lib/messageSync';
-import { colors, spacing, radius, glassCard } from '../theme';
+import { colors, spacing, radius, glassCard, stackScreenContent } from '../theme';
 import { parseDateInput } from '../lib/datetime';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Mensajes'>;
@@ -343,8 +343,8 @@ export function MensajesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: spacing.lg },
-  containerLoading: { flex: 1, paddingHorizontal: spacing.lg },
+  container: { flex: 1, paddingHorizontal: spacing.lg, paddingTop: stackScreenContent.paddingTop },
+  containerLoading: { flex: 1, paddingHorizontal: spacing.lg, paddingTop: stackScreenContent.paddingTop },
   newBtn: {
     flexDirection: 'row',
     alignItems: 'center',

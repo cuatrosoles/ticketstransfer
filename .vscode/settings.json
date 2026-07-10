@@ -1,0 +1,28 @@
+{
+  "gradle.autoDetect": "off",
+  "java.gradle.buildServer.enabled": "off",
+  "java.import.gradle.enabled": false,
+  "java.configuration.updateBuildConfiguration": "disabled",
+  "java.autobuild.enabled": false,
+  "java.project.importOnFirstTimeStartup": "disabled",
+  "gradle.nestedProjects": false,
+  "java.import.exclusions": [
+    "**/node_modules/**",
+    "**/.pnpm-store/**"
+  ],
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
+    "**/.pnpm-store/**": true,
+    "**/.gradle/**": true,
+    "**/android/build/**": true,
+    "**/android/.gradle/**": true
+  },
+  "search.exclude": {
+    "**/node_modules/**": true,
+    "**/.pnpm-store/**": true,
+    "**/.gradle/**": true,
+    "**/android/build/**": true
+  }
+}

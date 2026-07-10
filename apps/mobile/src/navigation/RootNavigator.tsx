@@ -4,7 +4,7 @@
  */
 
 import * as React from 'react';
-import { Modal, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { UserMenuModal } from '../components/UserMenuModal';
 import { useAuth } from '../context/AuthContext';
@@ -29,12 +29,14 @@ import { ChatSoporteScreen } from '../screens/ChatSoporteScreen';
 import { MensajesScreen } from '../screens/MensajesScreen';
 import { MensajesConversationScreen } from '../screens/MensajesConversationScreen';
 import { OrderPagoScreen } from '../screens/OrderPagoScreen';
+import { OrderBankTransferScreen } from '../screens/OrderBankTransferScreen';
 import { OrderPaymentResultScreen } from '../screens/OrderPaymentResultScreen';
 import { OrderDetailScreen } from '../screens/OrderDetailScreen';
 import { OrderPurchaseDetailsScreen } from '../screens/OrderPurchaseDetailsScreen';
 import { AcercaScreen } from '../screens/AcercaScreen';
 import { PoliticaPrivacidadScreen } from '../screens/PoliticaPrivacidadScreen';
 import { TerminosYCondicionesScreen } from '../screens/TerminosYCondicionesScreen';
+import { PoliticaAntifraudeScreen } from '../screens/PoliticaAntifraudeScreen';
 import { SolicitarBajaScreen } from '../screens/SolicitarBajaScreen';
 import { RecomendacionesQuejasScreen } from '../screens/RecomendacionesQuejasScreen';
 import { PreguntasFrecuentesScreen } from '../screens/PreguntasFrecuentesScreen';
@@ -58,6 +60,7 @@ export function RootNavigator() {
 
   return (
     <UserMenuProvider>
+      <View style={styles.navRoot}>
       <Stack.Navigator
         screenOptions={{
           headerTintColor: brand.primaryLight,
@@ -92,10 +95,12 @@ export function RootNavigator() {
           <Stack.Screen name="Mensajes" component={MensajesScreen} options={NO_HEADER} />
           <Stack.Screen name="MensajesConversation" component={MensajesConversationScreen} options={NO_HEADER} />
           <Stack.Screen name="OrderPago" component={OrderPagoScreen} options={NO_HEADER} />
+          <Stack.Screen name="OrderBankTransfer" component={OrderBankTransferScreen} options={NO_HEADER} />
           <Stack.Screen name="OrderPaymentResult" component={OrderPaymentResultScreen} options={NO_HEADER} />
           <Stack.Screen name="Acerca" component={AcercaScreen} options={NO_HEADER} />
           <Stack.Screen name="PoliticaPrivacidad" component={PoliticaPrivacidadScreen} options={NO_HEADER} />
           <Stack.Screen name="TerminosYCondiciones" component={TerminosYCondicionesScreen} options={NO_HEADER} />
+          <Stack.Screen name="PoliticaAntifraude" component={PoliticaAntifraudeScreen} options={NO_HEADER} />
           <Stack.Screen name="SolicitarBaja" component={SolicitarBajaScreen} options={NO_HEADER} />
           <Stack.Screen name="RecomendacionesQuejas" component={RecomendacionesQuejasScreen} options={NO_HEADER} />
           <Stack.Screen name="PreguntasFrecuentes" component={PreguntasFrecuentesScreen} options={NO_HEADER} />
@@ -103,8 +108,8 @@ export function RootNavigator() {
       )}
       </Stack.Navigator>
       {user && <UserMenuModal />}
-      <Modal visible={showLockOverlay} animationType="fade" transparent={false} statusBarTranslucent>
-        <View style={styles.lockOverlay}>
+      {showLockOverlay ? (
+        <View style={styles.lockOverlay} accessibilityViewIsModal>
           <AppLockScreen
             unlocking={unlocking}
             onUnlock={async () => {
@@ -121,11 +126,18 @@ export function RootNavigator() {
             }}
           />
         </View>
-      </Modal>
+      ) : null}
+      </View>
     </UserMenuProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  lockOverlay: { flex: 1 },
+  navRoot: { flex: 1 },
+  lockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    elevation: 1000,
+    backgroundColor: '#020617',
+  },
 });
